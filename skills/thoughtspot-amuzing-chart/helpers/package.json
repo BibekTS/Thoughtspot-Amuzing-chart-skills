@@ -1,0 +1,10 @@
+{
+  "name": "thoughtspot-amuzing-chart-helpers",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Headed-Playwright + Vite preview shims for the thoughtspot-amuzing-chart skill.",
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

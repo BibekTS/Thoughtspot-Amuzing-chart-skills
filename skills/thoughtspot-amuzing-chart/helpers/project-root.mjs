@@ -12,8 +12,8 @@ export function findProjectRoot(startDir) {
     // Installed layout (.claude/skills/…) or a direct checkout of the skill repo
     // (skills/…) — both count as a project root.
     if (
-      fs.existsSync(path.join(cur, ".claude", "skills", "ts-chart-builder")) ||
-      fs.existsSync(path.join(cur, "skills", "ts-chart-builder", "SKILL.md"))
+      fs.existsSync(path.join(cur, ".claude", "skills", "thoughtspot-amuzing-chart")) ||
+      fs.existsSync(path.join(cur, "skills", "thoughtspot-amuzing-chart", "SKILL.md"))
     ) return cur;
     cur = path.dirname(cur);
   }
