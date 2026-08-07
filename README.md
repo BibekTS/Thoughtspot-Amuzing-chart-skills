@@ -66,5 +66,8 @@ not correct-in-preview. Copy the technique, not the file.
 
 ## Status
 
-The skill is written and its dependencies check out; it has not yet been run end to end
-through the loop in this repo.
+Smoke-tested end to end (2026-08): helper install, headed preview daemon, a mode-C
+Muze bar chart snapped in all four data modes (`live`, `absent`, `wrapped`, `empty`),
+and clean shutdown all verified against a checkout of this repo. The helpers also
+work from a plain clone — `runs/` is created next to `skills/` when the skill has
+not been copied into a `.claude/skills/` install.

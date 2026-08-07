@@ -9,7 +9,12 @@ export function findProjectRoot(startDir) {
   if (process.env.TS_CHART_PROJECT_ROOT) return process.env.TS_CHART_PROJECT_ROOT;
   let cur = path.resolve(startDir);
   while (cur !== path.dirname(cur)) {
-    if (fs.existsSync(path.join(cur, ".claude", "skills", "ts-chart-builder"))) return cur;
+    // Installed layout (.claude/skills/…) or a direct checkout of the skill repo
+    // (skills/…) — both count as a project root.
+    if (
+      fs.existsSync(path.join(cur, ".claude", "skills", "ts-chart-builder")) ||
+      fs.existsSync(path.join(cur, "skills", "ts-chart-builder", "SKILL.md"))
+    ) return cur;
     cur = path.dirname(cur);
   }
   return process.cwd();
