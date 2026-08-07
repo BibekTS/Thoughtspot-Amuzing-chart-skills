@@ -22,9 +22,9 @@ did not exercise (absent, object-wrapped, empty) → emit the three files.
 Copy the skill folder into the project where you want to use it:
 
 ```bash
-git clone git@github.com:BibekTS/Thoughspot-Amuzing-chart-skills.git
+git clone git@github.com:BibekTS/Thoughtspot-Amuzing-chart-skills.git
 mkdir -p /path/to/your-project/.claude/skills
-cp -R Thoughspot-Amuzing-chart-skills/skills/ts-chart-builder \
+cp -R Thoughtspot-Amuzing-chart-skills/skills/ts-chart-builder \
       /path/to/your-project/.claude/skills/
 ```
 
