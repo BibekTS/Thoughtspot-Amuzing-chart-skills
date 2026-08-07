@@ -47,6 +47,12 @@ Requirements: Node 18+ and npm. The first run installs Playwright and Chromium i
    `Available Columns` block from your chart editor so the generated code uses your
    exact column names.
 
+   **Bring your own data if you have it.** Hand over a CSV (or describe your column
+   structure) and the preview iterates against your real data shape instead of
+   invented rows — the file is parsed, capped at 30 rows, and frozen for the run. In
+   the fallback mode those same rows ship as the chart's baked-in sample data, so
+   the tile shows something realistic even before the search is attached.
+
 3. **Watch it iterate.** A Chromium window opens showing a tile-shaped box. Claude
    edits the chart files, the window reloads, and each attempt is screenshotted and
    critiqued with vision until the render matches — usually a handful of attempts.
