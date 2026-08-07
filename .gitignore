@@ -1,0 +1,9 @@
+# Playwright + Vite are installed on first run, not versioned.
+node_modules/
+
+# Per-run working dirs the skill creates in the host project: a copied scaffold, its
+# own node_modules, attempt screenshots. The deliverable is final/, which the user
+# copies out.
+runs/
+
+.DS_Store
