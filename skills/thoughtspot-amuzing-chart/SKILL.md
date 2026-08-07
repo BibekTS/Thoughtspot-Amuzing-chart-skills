@@ -1,5 +1,5 @@
 ---
-name: ts-chart-builder
+name: thoughtspot-amuzing-chart
 description: Build a ThoughtSpot custom chart (BYOC) as three paste-ready files — chart.html, chart.css, chart.js — by iterating in a real browser until the render is right. Opens a headed preview the user watches, screenshots each attempt, critiques it with vision, and fixes the top defect. Use when the user wants a ThoughtSpot custom chart, a BYOC tile, a Muze chart, or wants an existing chart tile rebuilt, debugged, or converted between sample and live data. Covers Muze, Chart.js, gridjs, hand-built HTML tables, and raw SVG. Not for native ThoughtSpot chart configuration or non-ThoughtSpot charting work.
 ---
 
@@ -25,7 +25,7 @@ at the end: what you iterated is what ships. Everything below protects that prop
 ## Step 0 — setup check (every run, one Bash call)
 
 ```bash
-SKILL="$(pwd)/.claude/skills/ts-chart-builder"
+SKILL="$(pwd)/.claude/skills/thoughtspot-amuzing-chart"
 test -d "$SKILL/helpers/node_modules/playwright" && echo "deps:ok" || echo "deps:missing"
 ```
 
@@ -111,7 +111,7 @@ reporting both `measure` and `MEASURE`, so charts should accept either.
 ## Step 4 — start the headed preview
 
 ```bash
-node ".claude/skills/ts-chart-builder/helpers/start-preview.mjs" "$SLUG" &
+node ".claude/skills/thoughtspot-amuzing-chart/helpers/start-preview.mjs" "$SLUG" &
 ```
 
 Background it (`run_in_background: true`). It seeds `runs/$SLUG/chart/` with three
@@ -135,7 +135,7 @@ For `attempt = 01..8`:
    ```
 3. **Capture:**
    ```bash
-   node ".claude/skills/ts-chart-builder/helpers/snap.mjs" "$SLUG" "$attempt"
+   node ".claude/skills/thoughtspot-amuzing-chart/helpers/snap.mjs" "$SLUG" "$attempt"
    ```
    Writes `attempts/NN.png` and prints a diagnostic block — status line, console
    errors, whether `emitRenderCompletedEvent` fired.
@@ -164,7 +164,7 @@ The loop runs one data mode. These are the failures that only appear in the othe
 and skipping them is how a chart that "worked" breaks on someone else's tile.
 
 ```bash
-H=".claude/skills/ts-chart-builder/helpers/snap.mjs"
+H=".claude/skills/thoughtspot-amuzing-chart/helpers/snap.mjs"
 node "$H" "$SLUG" 99 --data absent    # mode C must fall back + badge; B must degrade readably
 node "$H" "$SLUG" 99 --data wrapped   # object-wrapped cells must survive
 node "$H" "$SLUG" 99 --data empty     # zero rows must not throw
@@ -191,7 +191,7 @@ opening anything.
 ## Step 8 — close
 
 ```bash
-node ".claude/skills/ts-chart-builder/helpers/close-preview.mjs" "$SLUG"
+node ".claude/skills/thoughtspot-amuzing-chart/helpers/close-preview.mjs" "$SLUG"
 ```
 
 Always, on success or when the user says stop.
