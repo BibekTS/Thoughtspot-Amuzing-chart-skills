@@ -175,18 +175,23 @@ and blanks on resize has the canvas-shadowing bug (`knowledge/hard-rules.md`).
 
 ## Step 7 — emit
 
-Work `knowledge/emit-checklist.md` top to bottom. Then:
+Work `knowledge/emit-checklist.md` top to bottom. Then copy the deliverables into
+`output/<slug>/` at the project root — files, not chat scroll:
 
 ```bash
-mkdir -p "runs/$SLUG/final" && cp runs/$SLUG/chart/* "runs/$SLUG/final/"
+mkdir -p "output/$SLUG" && cp runs/$SLUG/chart/* "output/$SLUG/"
+cp "runs/$SLUG/attempts/<NN>.png" "output/$SLUG/preview.png"   # the MATCH attempt
 ```
 
-The files are copied unchanged — that is the point of the preview running the real
-shape. Write `runs/$SLUG/final/README.md` per the checklist: the search to build, the
-data mode, what could not be reproduced, and which file goes in which tab.
+The chart files are copied unchanged — that is the point of the preview running the
+real shape. `preview.png` is the screenshot of the attempt that passed, so the folder
+shows what the chart looks like without running anything. Write
+`output/$SLUG/README.md` per the checklist: the search to build, the data mode, what
+could not be reproduced, and which file goes in which tab.
 
-Show the user the three files inline as fenced blocks, so they can copy without
-opening anything.
+Do **not** paste the three files into the chat. Tell the user the folder path, list
+its contents, and summarize the run README in a couple of sentences. Show code inline
+only if the user asks for it.
 
 ## Step 8 — close
 

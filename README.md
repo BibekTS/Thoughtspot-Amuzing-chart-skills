@@ -58,10 +58,12 @@ Requirements: Node 18+ and npm. The first run installs Playwright and Chromium i
    critiqued with vision until the render matches — usually a handful of attempts.
    Anything you say mid-loop ("make the bars horizontal") becomes the next fix.
 
-4. **Collect the three files.** They land in `runs/<slug>/final/` alongside a
-   `README.md` that states the exact search to build in ThoughtSpot (including any
-   prior-period columns needed for `vs. Last Month`-style measures), which data mode
-   the file is in, and anything that could not be reproduced.
+4. **Collect the deliverables.** Each chart gets its own folder,
+   `output/<chart-name>/`, containing the three files, a `preview.png` screenshot of
+   the final render, and a `README.md` that states the exact search to build in
+   ThoughtSpot (including any prior-period columns needed for `vs. Last Month`-style
+   measures), which data mode the file is in, and anything that could not be
+   reproduced.
 
 5. **Paste into ThoughtSpot.** In your custom chart's editor:
    `chart.html` → HTML tab, `chart.css` → CSS tab, `chart.js` → JS tab. Attach the
@@ -69,9 +71,9 @@ Requirements: Node 18+ and npm. The first run installs Playwright and Chromium i
    paste it before the search exists — it renders its sample rows with a
    "sample data" badge until real rows arrive.
 
-Everything the loop produced stays under `runs/<slug>/` (attempt screenshots,
-critiques, the preview app), so a run can be resumed or audited later. `runs/` is
-gitignored.
+Working artifacts stay under `runs/<slug>/` (attempt screenshots, critiques, the
+preview app), so a run can be resumed or audited later. `runs/` is gitignored;
+`output/` is the keepable result.
 
 ## Layout
 
