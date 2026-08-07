@@ -106,7 +106,18 @@ sample numbers for real ones.
 // 'sample' sample only — ignore any attached search
 const DATA_MODE = 'auto';
 
-const viz_ = globalThis.viz || {};
+// Reach the host through the BARE identifier, not `globalThis.viz`. A host that
+// scopes `viz` to the wrapper it runs the JS tab in leaves the global undefined,
+// and the chart then silently shows sample rows AND never fires
+// emitRenderCompletedEvent — the tile hangs on "Chart did not render". `typeof`
+// throws on a binding still in its temporal dead zone, hence the try.
+function getViz() {
+  try { if (typeof viz !== 'undefined' && viz) return viz; } catch (e) {}
+  try { if (globalThis.viz) return globalThis.viz; } catch (e) {}
+  return null;
+}
+
+const viz_ = getViz() || {};
 const muze = viz_.muze;                 // undefined in a plain browser — see below
 const DataModel = muze && muze.DataModel;
 
@@ -177,16 +188,39 @@ silent hangs the export for the whole board. So: surface the real error, and emi
 completion on **both** paths.
 
 ```js
+function signalRenderComplete() {
+  try {
+    getViz().events.emitRenderCompletedEvent();
+  } catch (err) {
+    // Never `catch {}` here. A swallowed failure is exactly how a tile hangs the
+    // PDF export with nothing anywhere to explain it.
+    console.warn('[chart] emitRenderCompletedEvent unavailable:', err);
+  }
+}
+
 try {
   render(rows, schema);
-  viz.events.emitRenderCompletedEvent();
 } catch (err) {
   console.error('[chart] render failed:', err);
   el.innerHTML = '<pre style="color:#d93025;white-space:pre-wrap;padding:12px;'
     + 'font:12px/1.5 monospace">' + (err?.stack || String(err)) + '</pre>';
-  try { viz.events.emitRenderCompletedEvent(); } catch {}
 }
+signalRenderComplete();
 ```
+
+## Sizing, whichever mode
+
+Worth stating here because it is the other way a chart that ran cleanly shows up as
+an empty tile. `#chart` is a child of a `<body>` with **no explicit height**, so a
+percentage height collapses to the content height and the chart stage inside it is
+0px. `chart.css` has to complete the chain itself:
+
+```css
+html, body { height: 100%; margin: 0; }   /* load-bearing, not boilerplate */
+#chart     { height: 100%; }
+```
+
+Full detail, and how the snap diagnostic detects it, in `hard-rules.md`.
 
 ---
 

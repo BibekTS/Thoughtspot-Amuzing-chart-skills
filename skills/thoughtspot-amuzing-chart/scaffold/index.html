@@ -4,16 +4,23 @@
     <meta charset="utf-8" />
     <title>ThoughtSpot chart preview</title>
     <style>
-      html, body { margin: 0; height: 100%; background: #fff;
+      /* Deliberately NO `height: 100%` here. A ThoughtSpot tile's <body> has no
+         explicit height, and `html, body { height: 100% }` in chart.css is what
+         a chart needs to keep a percentage-height layout from collapsing there.
+         Supplying it from the preview would make every chart look correct and
+         hide that requirement completely — which is exactly how a chart that
+         renders here ships as a blank tile. #tile is positioned `fixed` instead
+         of `absolute` so it sizes off the viewport and needs no body height. */
+      html, body { margin: 0; background: #fff;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
 
       /* Approximates a Liveboard tile: the chart sizes itself to this box, which is
          what makes the ResizeObserver contract testable. Drag the window to resize. */
-      #tile { position: absolute; inset: 16px 16px 34px 16px; border: 1px solid #e3e3e3;
+      #tile { position: fixed; inset: 16px 16px 34px 16px; border: 1px solid #e3e3e3;
         border-radius: 6px; overflow: hidden; background: #fff; }
       #chart-host { width: 100%; height: 100%; }
 
-      #status { position: absolute; left: 16px; right: 16px; bottom: 8px; height: 18px;
+      #status { position: fixed; left: 16px; right: 16px; bottom: 8px; height: 18px;
         font: 11px/18px ui-monospace, "SF Mono", Menlo, monospace; color: #999; }
       #status.ok    { color: #2e7d32; }
       #status.warn  { color: #b26a00; }

@@ -107,9 +107,31 @@ function cellVal(v) {
   }
 }
 
+// -- Reaching the host ------------------------------------------------------
+// `viz` is whatever the host puts in scope. Do NOT read it as `globalThis.viz`
+// alone: ThoughtSpot's documented entry point is the bare identifier
+// (`const { muze, getDataFromSearchQuery } = viz;`), and a host that hands the
+// JS tab its `viz` as a function parameter rather than a global leaves
+// `globalThis.viz` undefined. That failure is silent and doubly bad - the chart
+// quietly falls back to sample rows AND emitRenderCompletedEvent() throws into
+// an empty catch, so the tile never reports in and the host paints its own
+// "Chart did not render".
+//
+// `typeof` on a `let`/`const` still in its temporal dead zone throws, which is
+// why this is wrapped rather than just guarded.
+function getViz() {
+  try {
+    if (typeof viz !== 'undefined' && viz) return viz;
+  } catch (e) { /* TDZ or no such binding */ }
+  try {
+    if (globalThis.viz) return globalThis.viz;
+  } catch (e) {}
+  return null;
+}
+
 // -- Load rows (mode C) ----------------------------------------------------
 function loadRows() {
-  const viz_ = globalThis.viz || {};
+  const viz_ = getViz() || {};
   if (DATA_MODE !== 'sample') {
     try {
       const dm = viz_.getDataFromSearchQuery && viz_.getDataFromSearchQuery();
@@ -300,8 +322,28 @@ function injectScript(src, timeoutMs) {
   });
 }
 
+// chart.html carries the primary <script src> - that is the shape ThoughtSpot
+// documents for CDN libraries, and the one this chart's predecessor shipped with.
+// It may still be in flight when the JS tab evaluates, so wait on a tag that is
+// already in the DOM before injecting a second copy of the same library.
+function waitForExistingTag(timeoutMs) {
+  if (!document.querySelector('script[src*="plotly"], script[src*="plot.ly"]')) {
+    return Promise.resolve(false);
+  }
+  return new Promise(function (resolve) {
+    const step = 50;
+    let waited = 0;
+    const timer = setInterval(function () {
+      waited += step;
+      if (globalThis.Plotly) { clearInterval(timer); resolve(true); }
+      else if (waited >= timeoutMs) { clearInterval(timer); resolve(false); }
+    }, step);
+  });
+}
+
 async function ensurePlotly() {
   if (globalThis.Plotly) return globalThis.Plotly;
+  if (await waitForExistingTag(SCRIPT_TIMEOUT_MS)) return globalThis.Plotly;
   const failures = [];
   for (const src of PLOTLY_SOURCES) {
     try {
@@ -357,7 +399,19 @@ function ensureMount() {
     stage.id = 'sunburst';
     svgWrap.appendChild(stage);
   }
-  return { chart: chart, stage: stage, crumb: crumb };
+
+  // A percentage height only resolves against a parent with a definite one, and
+  // a ThoughtSpot tile's <body> has none. `#chart { height: 100% }` then computes
+  // to zero, Plotly draws into a 0px box, and the tile is blank with nothing in
+  // the console - the chart is "working", it just has no room. chart.css declares
+  // the html/body chain; this measures the result in case the host wraps #chart
+  // in something else, and falls back to the viewport (the tile's own iframe).
+  if (chart.clientHeight < 40) {
+    chart.style.height = '100vh';
+    chart.style.minHeight = '260px';
+  }
+
+  return { chart: chart, stage: stage, wrap: svgWrap, crumb: crumb };
 }
 
 // -- Render-complete signal ------------------------------------------------
@@ -370,7 +424,14 @@ function signalRenderComplete() {
   if (renderSignalled) return;
   renderSignalled = true;
   if (watchdog) { clearTimeout(watchdog); watchdog = 0; }
-  try { globalThis.viz.events.emitRenderCompletedEvent(); } catch (e) {}
+  const v = getViz();
+  try {
+    v.events.emitRenderCompletedEvent();
+  } catch (e) {
+    // Never silent. A swallowed failure here is exactly how a tile hangs the
+    // Liveboard PDF export with nothing in the console to explain it.
+    console.warn('[sunburst] emitRenderCompletedEvent unavailable:', e);
+  }
 }
 
 // -- Module state ----------------------------------------------------------
@@ -379,6 +440,7 @@ function signalRenderComplete() {
 // break on the next resize tick.
 let chartEl = null;
 let stageEl = null;
+let wrapEl = null;
 let crumbEl = null;
 let currentLevelId = ROOT_LABEL;
 let hier = null;
@@ -390,7 +452,11 @@ let resizeObs = null;
 // tile. Watch the container itself. Plain assignment to the module-scope
 // binding, never a local `const resizeObs` inside the function.
 function observeResize() {
-  if (resizeObs || !globalThis.ResizeObserver || !stageEl) return;
+  // Watch the wrapper, not the element Plotly draws into - resizing the plot
+  // changes the stage's own box, and observing that feeds the observer its own
+  // output.
+  const target = wrapEl || stageEl;
+  if (resizeObs || !globalThis.ResizeObserver || !target) return;
   let pending = 0;
   resizeObs = new ResizeObserver(function () {
     if (pending) cancelAnimationFrame(pending);
@@ -399,7 +465,7 @@ function observeResize() {
       try { globalThis.Plotly.Plots.resize(stageEl); } catch (e) { /* pre-plot */ }
     });
   });
-  resizeObs.observe(stageEl);
+  resizeObs.observe(target);
 }
 
 // -- Renderers -------------------------------------------------------------
@@ -510,6 +576,7 @@ try {
   const mount = ensureMount();
   chartEl = mount.chart;
   stageEl = mount.stage;
+  wrapEl = mount.wrap;
   crumbEl = mount.crumb;
 
   const payload = loadRows();

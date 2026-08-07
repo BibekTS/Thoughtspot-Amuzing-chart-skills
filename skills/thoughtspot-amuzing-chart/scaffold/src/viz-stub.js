@@ -15,10 +15,20 @@
 //      catch early. (Schema `type` passes through as the dataset declares it —
 //      see the note above `wrapped` mode below.)
 
-const DATA_MODES = new Set(["live", "empty", "absent", "wrapped"]);
+//   3. The returned object is handed to chart.js as an ARGUMENT and is never put
+//      on `globalThis`. The host's documented entry point is the bare identifier
+//      `viz`, and a chart reaching for `globalThis.viz` breaks on a host that
+//      scopes it to the wrapper — silently, by falling back to sample rows and
+//      never signalling render-complete. See the header of preview.js.
 
-export function installViz({ muze, dataset, mode }) {
+const DATA_MODES = new Set(["live", "empty", "absent", "wrapped", "noviz"]);
+
+export function buildViz({ muze, dataset, mode }) {
   if (!DATA_MODES.has(mode)) mode = "live";
+
+  // 'noviz' is the plain-browser case: no host at all. A mode-C chart must still
+  // render its baked-in rows; a mode-A chart must be untouched by this.
+  if (mode === "noviz") return undefined;
 
   // ── muze shim: viz.muze.canvas() over the CDN factory ────────────────────
   // Object.create keeps DataModel, Operators, Themes, and friends reachable
@@ -58,8 +68,8 @@ export function installViz({ muze, dataset, mode }) {
   //
   // Column `type` is left exactly as the dataset declares it. Real clusters have
   // been seen reporting both 'measure' and 'MEASURE' — charts should accept
-  // either (see examples/table-pivot/pivot-table/pivot-table.js), and the stub
-  // picking one would hide that.
+  // either (see examples/table-pivot/pivot-table/pivot-table.js), and
+  // the stub picking one would hide that.
   if (mode === "wrapped") {
     const inner = searchResult.getData.bind(searchResult);
     searchResult.getData = () => {
@@ -90,10 +100,9 @@ export function installViz({ muze, dataset, mode }) {
     },
   };
 
-  // 'absent' drops the function entirely — an unbound tile, or a plain browser.
+  // 'absent' drops the function entirely — a tile with no search bound to it.
   // A mode-C chart must still render from its baked-in sample rows.
   if (mode !== "absent") viz.getDataFromSearchQuery = () => searchResult;
 
-  globalThis.viz = viz;
   return viz;
 }

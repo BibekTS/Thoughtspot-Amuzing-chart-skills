@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// start-preview.mjs <slug> [--port 5173] [--cdp-port 9222] [--data live|empty|absent|wrapped]
+// start-preview.mjs <slug> [--port 5173] [--cdp-port 9222] [--data live|empty|absent|wrapped|noviz]
 //
 // Long-running daemon, spawned in the background. It:
 //   1. seeds runs/<slug>/chart/{chart.html,chart.css,chart.js} if absent,
@@ -33,7 +33,7 @@ function parseArgs(argv) {
     else if (!args.slug) args.slug = a;
   }
   if (!args.slug) {
-    console.error("usage: start-preview.mjs <slug> [--port N] [--cdp-port N] [--data live|empty|absent|wrapped]");
+    console.error("usage: start-preview.mjs <slug> [--port N] [--cdp-port N] [--data live|empty|absent|wrapped|noviz]");
     process.exit(2);
   }
   return args;

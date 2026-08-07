@@ -12,6 +12,18 @@ The preview runs **the same three files the user will paste**, through a `viz` s
 inside an `AsyncFunction` — the shape the real host uses. So there is no porting step
 at the end: what you iterated is what ships. Everything below protects that property.
 
+Two things the harness withholds on purpose, because supplying them is how a chart
+passes here and ships as a blank tile:
+
+- **`viz` arrives as an argument, never as `globalThis.viz`.** Read the bare
+  identifier.
+- **The preview page does not set `html, body { height: 100% }`.** `chart.css` has to
+  complete its own height chain, exactly as on a tile.
+
+`snap.mjs` reports both — a `height-chain:` line in the diagnostic block, and a
+status warning when render-complete never fires. Read them; neither shows up in the
+screenshot.
+
 ## Route first
 
 | Trigger | Do |
@@ -168,6 +180,7 @@ H=".claude/skills/thoughtspot-amuzing-chart/helpers/snap.mjs"
 node "$H" "$SLUG" 91 --data absent    # mode C must fall back + badge; B must degrade readably
 node "$H" "$SLUG" 92 --data wrapped   # object-wrapped cells must survive
 node "$H" "$SLUG" 93 --data empty     # zero rows must not throw
+node "$H" "$SLUG" 94 --data noviz     # no host at all - mode C must still render
 ```
 
 Read each PNG — `status: ok` is not the same as correct, and each of these fails
