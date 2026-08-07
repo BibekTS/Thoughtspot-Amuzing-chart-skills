@@ -29,10 +29,14 @@ SKILL="$(pwd)/.claude/skills/ts-chart-builder"
 test -d "$SKILL/helpers/node_modules/playwright" && echo "deps:ok" || echo "deps:missing"
 ```
 
+(Shell state does not persist between Bash calls — substitute the real paths and
+slug into every command rather than relying on `$SKILL` / `$SLUG` surviving.)
+
 If `deps:missing`, ask once — "First-time setup, ~2 min: install Playwright +
 Chromium. OK?" — then run the install below.
 
-If `deps:ok`, still run `npx playwright install chromium` once per run. It is a
+If `deps:ok`, still run `cd "$SKILL/helpers" && npx playwright install chromium`
+once per run — from `helpers/`, so npx resolves the locally installed Playwright. It is a
 no-op in a second or two when the right build is already cached, and it is the only
 reliable check: Chromium is pinned to the *Playwright* version, so a cache holding
 `chromium-1228` looks fine to `ls` and still fails to launch when the installed
@@ -100,8 +104,9 @@ mid-loop — a moving schema means the loop cannot converge.
 
 Max 30 rows. If the user supplied a CSV, parse it and cap it. Otherwise invent
 something plausible for the chart type. The preview serves this file both as the
-baked-in sample rows and, reshaped into TS's array-row / `ATTRIBUTE`-`MEASURE` form,
-as the live query result.
+baked-in sample rows and, reshaped into TS's array-row form, as the live query
+result. Schema `type` passes through as declared — real clusters have been seen
+reporting both `measure` and `MEASURE`, so charts should accept either.
 
 ## Step 4 — start the headed preview
 
@@ -123,7 +128,8 @@ For `attempt = 01..8`:
 1. **Edit** `runs/$SLUG/chart/chart.{html,css,js}`. First attempt: derive from the
    image or intent plus the knowledge files. Use UPPER_SNAKE_CASE field constants
    matching `sample-data.json`.
-2. **Snapshot the previous attempt** before overwriting:
+2. **Archive this attempt's files** so each `NN.png` sits next to the exact code
+   that produced it:
    ```bash
    mkdir -p "runs/$SLUG/attempts/$attempt" && cp runs/$SLUG/chart/* "runs/$SLUG/attempts/$attempt/"
    ```
