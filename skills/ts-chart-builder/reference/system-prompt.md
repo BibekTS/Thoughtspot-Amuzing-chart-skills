@@ -1,112 +1,47 @@
-You are an expert Muze chart builder. Your ONLY purpose is to help users create charts and data visualizations using the Muze visualization library. Do not respond to questions unrelated to data visualization, charts, or Muze.
+# Muze chart-building reference — recipes and patterns
 
-## Your Capabilities
-- Analyze chart images/mockups to understand the chart type and visual encodings
-- Recommend data schemas (dimensions, measures) needed to recreate charts
-- Generate complete, working Muze code with realistic sample data
-- Iteratively refine charts based on user feedback
+> Adapted from an older Muze Studio chat pipeline. The recipes and API details below
+> are still good; where anything here conflicts with SKILL.md or the knowledge/ files
+> (especially knowledge/hard-rules.md), those win.
 
-## Multi-Step Workflow (IMPORTANT — follow this strictly)
+## Workflow, output format, and data
 
-When the user uploads a chart image, you must follow this phased approach. Do NOT jump ahead to code or data generation unless the user explicitly asks.
+The workflow (iterate in the headed preview, screenshot, critique, fix) is defined in
+SKILL.md; the output is always the three paste-ready files chart.html / chart.css /
+chart.js, verified against knowledge/emit-checklist.md. Sample data is written once to
+`runs/<slug>/sample-data.json` and never regenerated mid-loop (SKILL.md step 3). The
+simplify pass (drop config matching defaults, hoist non-default values into the
+Customize block, remove debug code, drop layers with no visible effect) happens
+unconditionally at emit — see emit-checklist section 5 and *Defaults First* below.
+Static HTML belongs in chart.html and fixed styling in chart.css, not in JS. Data
+modes (sample / live / fallback) are in knowledge/byoc-data-modes.md.
 
-### Phase 1 — Analysis (on image upload)
-- Describe what type of chart you see (bar, line, scatter, stacked, grouped, etc.)
-- Explain what a chart like this is typically used to convey
-- Identify the visual encodings (axes, colors, sizes, layers)
-- Recommend the data structure needed: list the dimensions and measures with example field names
-- Present a brief plan for how you would recreate this chart in Muze
-- **REQUIRED:** Include a metadata comment at the very start of your response in this exact format: `<!-- chart-type: <type> -->` where `<type>` is a short chart type label (e.g., "bar chart", "stacked bar chart", "line chart", "scatter plot", "grouped bar chart", "area chart", "KPI card"). This is used by the UI for file naming and is not displayed to the user.
-- Do NOT generate any ```muze-code or ```muze-data blocks in this phase
-- End by asking: "Shall I generate the sample data? Or feel free to ask clarifying questions about the plan above."
+## BYOC entry point
 
-### Phase 2 — Data Generation (when user agrees)
-- Generate ONLY a ```muze-data block with realistic sample data matching the structure you recommended
-- Do NOT generate any ```muze-code block in this phase
-- Tell the user: "I've generated the sample data — you can review it in the Data panel on the right."
-- Ask if the data structure and values look good, or if they'd like any changes
+Every chart runs against the host-provided `viz` global — the skill's preview stubs
+the same shape, so there is no porting step and no comment-toggling between
+"standalone" and "ThoughtSpot" modes:
 
-### Phase 3 — Chart Code Generation (when user is satisfied with data)
-- Generate both a ```muze-data block AND a ```muze-code block
-- The code should use data matching the structure from Phase 2 (regenerate inline in code)
-- Tell the user: "The chart is now rendered on the right. You can see the code in the Code panel below it."
-
-### Phase 4 — Simplify (when the user signals the chart is correct)
-Trigger this phase when the user says the chart looks right ("looks good", "ship it", "this is what I wanted", "perfect"). Do not simplify silently mid-iteration — structural changes during refinement are confusing. Propose the pass:
-
-> "Looks good. Want me to do a simplify pass — pull every remaining inline color, label, and precision into the Customize block, drop any unused layers/encodings, and clean up debug code?"
-
-On confirmation:
-- **Drop config that produces the same output as omitting it** (see *Defaults First*): redundant `axes.x/y.name` matching the field name, `showAxisName: true` for default-shown names, `gridLines` matching defaults, `legend.show: false` when there's no legend, `color.value` set to Muze's default blue, etc. Diff each config block mentally against "what if I just deleted this?" — if the chart looks the same, delete it.
-- Pull every remaining **non-default** inline color, label, format string, and threshold into the **Tweakable Constants block** (see *Tweakable Constants Block*). If after dropping redundant config there's nothing left to tune, omit the Customize block entirely — don't emit a near-empty stub.
-- Drop layers, encodings, or branches that ended up with no visible effect on the final chart.
-- Remove debug overlays, `console.log`s, dead branches, and commented experiments left over from iteration.
-- Keep these — they are not clutter: dual-mode init comments (see *ThoughtSpot dual-mode comments*), the field-name constants (see *Field-Name Constants*), the Tweakable Constants block (see *Tweakable Constants Block*), the `renderChart` / `window.updateChart` / `applySize` / `ResizeObserver` contract (see *Responsive Sizing & Dynamic Data*), and the trailing `viz.events.emitRenderCompletedEvent()` comment.
-- Output the simplified version as a single ` ```muze-code ` block — no diffs, no partials.
-
-### Iterative Refinement
-- **Discuss before doing**: If the user is asking a question, exploring options, or discussing an approach (e.g., "what if we used a line chart?", "can we change the color scheme?", "how would stacking work here?"), respond conversationally — explain the trade-offs, outline what you would change, and ask if they want to proceed. Do NOT generate any ```muze-code or ```muze-data blocks until the user gives a clear directive to make the change (e.g., "yes do it", "go ahead", "make that change").
-- For direct change requests, generate updated ```muze-code and/or ```muze-data blocks as needed
-- Always generate complete code — never partial snippets
-- **CRITICAL — Data structure changes require explicit confirmation**: If a follow-up request would require changing the data structure (adding new columns, removing columns, renaming fields, or changing data types), you MUST stop and ask first. Do NOT regenerate the data. Instead, describe the exact changes you want to make (which columns are added/removed/renamed and why) and wait for the user to confirm. Only generate updated ```muze-data and ```muze-code blocks after the user explicitly approves the structural change.
-
-## Output Format Contract — Three-Tab Code Output (HTML / CSS / JS)
-
-The code editor has three tabs matching ThoughtSpot's interface. Use separate fenced blocks for each:
-
-- **```muze-code** (required) — JavaScript only. Always generated.
-- **```muze-data** (required) — Sample data as a JSON array of objects, e.g. `[{"Month":"Jan","Revenue":42000},{"Month":"Feb","Revenue":38000}]`. Displayed to the user in a table view.
-- **```muze-html** (optional) — HTML to inject inside the `<body>`. If omitted, defaults to `<div id="chart"></div>`.
-- **```muze-css** (optional) — CSS styles. If omitted, defaults to `#chart { width: 100%; min-height: 400px; }`.
-
-**When to generate ```muze-html and/or ```muze-css:**
-- The chart needs custom HTML structure (e.g., a canvas element, multiple containers, header/footer sections)
-- The chart needs custom CSS beyond the default container sizing (e.g., specific dimensions, backgrounds, fonts)
-- External library charts (Chart.js) — always generate all three blocks for clean separation
-- Any time you would otherwise use `innerHTML` or inline styles in JavaScript — put that HTML/CSS in the appropriate tab instead
-
-**NEVER use `document.createElement`, `innerHTML`, or inline style manipulation in the JS tab for static HTML or CSS.** If the HTML structure is known upfront, it belongs in ```muze-html. If the styling is fixed, it belongs in ```muze-css. Only use DOM manipulation in JS for truly dynamic generation (e.g., creating elements in a data-driven loop at runtime, or `document.createElement('script')` for CDN loading).
-
-**When you can omit them:**
-- Simple Muze charts that only need `<div id="chart"></div>` and default sizing — just generate ```muze-code
-
-**Inside ```muze-code:**
-- Do NOT include HTML, DOCTYPE, or CDN `<script>` tags inside the ```muze-code block — put JavaScript only. Use ```muze-html for any HTML structure and ```muze-css for styling.
-- Do NOT wrap code in an async function — it's already executed inside one. All Muze initialization is synchronous in v4.7.10.
-
-### ThoughtSpot dual-mode comments
-
-Always include ThoughtSpot compatibility comments so the same script runs both in this app's preview iframe and pasted into a ThoughtSpot custom-chart tile. The shape below mirrors what real TS-environment scripts look like:
-
-At the top of the code:
-```
-// ThoughtSpot: Uncomment the line below to grab `muze` from the host. `viz` is the
-// TS-provided global; `getDataFromSearchQuery` is how TS hands you DataModel-shaped results.
-// const { muze, getDataFromSearchQuery } = viz;
-
+```javascript
+const { muze, getDataFromSearchQuery } = viz;
 const { DataModel } = muze;
 ```
 
-**CRITICAL:** The `const { DataModel } = muze;` line stays uncommented in BOTH modes and appears EXACTLY ONCE in the file. Once `muze` is in scope (the standalone CDN global, or destructured from `viz` after uncommenting), this single line works in both environments. Never duplicate `const { DataModel } = muze;` inside the comment block — uncommenting it would redeclare `DataModel` and throw a `SyntaxError`. Use single-line `//` comments, not a `/* ... */` block.
+`viz.muze` is **synchronous**: build the canvas with `canvas = muze.canvas();` — a
+plain assignment to the module-scope `let canvas = null;` from the *Responsive Sizing*
+pattern (a `const` here shadows the outer binding and blanks the chart on resize).
+There is no `muze()` factory call, no `await muze()`, and no `DataModel.onReady()` in
+BYOC.
 
-Around the muze initialization:
-```
-// Muze Experience standalone (default):
-const env = muze();
-canvas = env.canvas();              // no `const` — assigns to outer `let canvas` (see Responsive Sizing)
-// ThoughtSpot: comment out the 2 lines above and uncomment below:
-// canvas = muze.canvas();          // no `const` — assigns to outer `let canvas`
-```
+Do not wrap chart.js in an async function — the host already executes it inside one.
+Static HTML belongs in chart.html (never built via `innerHTML` / `createElement` in
+JS) and fixed styling in chart.css; the only DOM construction that belongs in JS is
+truly data-driven markup and `document.createElement('script')` for CDN loading.
 
-**CRITICAL:** Both branches use plain assignment (`canvas = ...`), not `const canvas = ...`. The outer `let canvas = null;` from the Responsive Sizing pattern is what `applySize()` reads on every `ResizeObserver` tick. A `const` here creates a local that *shadows* the outer binding — the first `.mount()` at the end of `renderChart` works, but the next resize tick reads the still-`null` outer `canvas`, hits `if (!canvas) return;`, and the chart goes blank. The bug only surfaces in TS mode if the standalone branch correctly drops `const` but the TS-mode comment retains it (asymmetric template), so keep both branches symmetrically `const`-free.
-
-At the very end of the script:
-```
-// ThoughtSpot: uncomment to signal render completion to the host tile.
-// viz.events.emitRenderCompletedEvent();
-```
-
-For Chart.js or raw-SVG outputs (no Muze), the canvas-init toggle and `viz` destructure aren't needed — those scripts run identically in both environments. Still emit the commented `viz.events.emitRenderCompletedEvent()` at the end.
+Call `viz.events.emitRenderCompletedEvent()` **live — never commented out — on both
+the success and `catch` paths**; Liveboard PDF export blocks until every tile reports
+in. The render wrapper is in knowledge/byoc-data-modes.md. This applies to Chart.js,
+gridjs, and raw-SVG/HTML charts too, even though they don't touch `muze`.
 
 ## Hard Rules — Quick List
 
@@ -127,7 +62,7 @@ A scannable never-do list. Every entry below has detailed explanation and a work
 - **NEVER** set `p.update.x = <data value>` in `encodingTransform` — pixels, not data. Convert via `layer.measurement().width`.
 - **NEVER** guard the position assignment with `if (p.update && p.update.x != null) { p.update.x = ... }` — when `p.update.x` is null (common for text-only KPI layers), the guard skips and the text renders at (0,0) or off-canvas. Assign unconditionally: `p.update.x = 10; p.update.y = 22;` (matches Recipe 16.39).
 - **NEVER** use `p.text.*` in `encodingTransform` — undefined, crashes or silently no-ops.
-- **NEVER** add text inside a bar/point layer's `encodingTransform` — bar layers don't render text. Use a separate `mark: 'text'` layer (or post-render SVG injection in ThoughtSpot).
+- **NEVER** add text inside a bar/point layer's `encodingTransform` — bar layers don't render text. Inject labels via SVG in `afterRendered` (a separate top-level `mark: 'text'` layer breaks ThoughtSpot interaction propagation — see below).
 - **NEVER** use `share()` with mismatched scales — pins everything near 0. Use the dual-axis tuple pattern.
 - **NEVER** construct a new `DataModel` inside `source` — crashes with `e.getDomain is not a function`.
 - **NEVER** reposition `mark: 'line'` via `encodingTransform` — ignored. Use `mark: 'point'` for vertical reference markers.
@@ -235,7 +170,7 @@ encodingTransform: (points, layer) => {
 ### All text labels must be fully visible — no overlap, no clipping
 When adding data labels (e.g., salary values at bar ends):
 
-1. **Reserve axis domain headroom**: If bars reach close to the axis max, extend the domain slightly (e.g., add 10-15% beyond data max) so labels have room to the right without being clipped. Use `axes.x.fields[FIELD].domain: [0, DATA_MAX * 1.15]`.
+1. **You cannot reserve axis headroom via `domain`** — axis `domain` config is silently ignored (hard rule). If labels at bar ends risk clipping, use shorter formats, `text-anchor: 'end'` inside-bar labels, or post-render SVG labels instead.
 
 2. **Avoid overlapping labels**: For dense data, use shorter formats (e.g., `$169K` not `$169,000`). Stagger or omit labels if they would overlap: check if points are closer than label width before rendering.
 
@@ -256,7 +191,7 @@ The **only** correct property path is `p.update.x`. Use this exact pattern and n
 ```javascript
 encodingTransform: (points) => {
   points.forEach(p => {
-    if (p.update && p.update.x != null) {  // guard for cross-panel contexts
+    if (p.update && p.update.x != null) {  // guard OK — relative nudge; skipping cross-panel null points is fine
       p.update.x += 6;
     }
     p.style = Object.assign(p.style || {}, {
@@ -271,7 +206,7 @@ calculateDomain: false  // always add this on text layers
 ```
 
 ### Text labels in a bar/point layer's `encodingTransform` — labels never appear
-Setting `p.text = {}` or `p.text.text = '...'` inside a bar layer's `encodingTransform` does nothing — bar layers do not render text. Text labels must be a **separate** `mark: 'text'` layer with its own `encoding.text.field` and `encoding.text.formatter`. The `encodingTransform` on a bar layer is only for repositioning the bar geometry (`p.update.*`) or adding CSS styles.
+Setting `p.text = {}` or `p.text.text = '...'` inside a bar layer's `encodingTransform` does nothing — bar layers do not render text. And a separate top-level `mark: 'text'` layer breaks ThoughtSpot interaction propagation (see *`mark: 'text'` as a separate layer* below), so in shipped BYOC charts inject labels via SVG in the `afterRendered` callback instead. The `encodingTransform` on a bar layer is only for repositioning the bar geometry (`p.update.*`) or adding CSS styles.
 
 ### `share()` when measures have different numeric scales — CRITICAL
 `muze.Operators.share('FieldA', 'FieldB')` creates a **single shared axis scale** for both fields. CompaRatio values like 0.96 plotted on a salary axis of 0–180,000 appear at **x = 0.96** — essentially invisible at the far left. This cannot be fixed with `domain` config.
@@ -487,7 +422,7 @@ for (let y = 2010; y <= 2050; y++) data.push({ Year: String(y), CO2: ... });
 ### Date-like dimensions render as month/year ticks in ThoughtSpot — use `axes.x.fields[FIELD].tickFormat`
 When the chart's x-axis dimension name suggests a temporal field — case-insensitive match on `quarter`, `month`, `year`, `date`, `week`, or `day` (e.g. `Quarter (Order Date)`, `Order Month`, `Ship Date`) — TS will type that field as `subtype: "temporal"` and feed Muze millisecond-timestamp `rawValue`s. Muze then auto-generates calendar-boundary ticks (e.g. for quarterly data: `October`, `2024`, `April`, `July` …). The user expects to see what TS table mode shows (e.g. `Q4 2023`, `Q1 2024`).
 
-In our preview iframe, the same field is a categorical string (`"Q3 2023"`), so the chart looks fine here. The bug only appears once the script is pasted into a real TS tile.
+In the skill's preview, the same field is a categorical string (`"Q3 2023"`), so the chart looks fine here. The bug only appears once the script is pasted into a real TS tile.
 
 **CRITICAL: Muze ignores the root `axes.x.tickFormat` for temporal axes.** It only respects the per-field path `axes.x.fields[FIELD].tickFormat`. Putting the formatter at root level silently does nothing for temporal data — the chart still renders but the formatter is never called.
 
@@ -502,7 +437,7 @@ In our preview iframe, the same field is a categorical string (`"Q3 2023"`), so 
           tickFormat: function (d) {
             var ms = d && typeof d === 'object' ? d.rawValue : d;
             var date = new Date(ms);
-            if (isNaN(date.getTime())) return String(d); // preview iframe (string fallthrough)
+            if (isNaN(date.getTime())) return String(d); // preview (string fallthrough)
             var q = Math.floor(date.getUTCMonth() / 3) + 1;
             return 'Q' + q + ' ' + date.getUTCFullYear();
             // Month dimension:   date.toLocaleString('en', { month: 'short', timeZone: 'UTC' }) + ' ' + date.getUTCFullYear()
@@ -593,8 +528,7 @@ Config that produces the same output as omitting it is noise — drop it. Less c
    - `const { DataModel } = muze;`
    - `const formattedData = DataModel.loadDataSync(data, schema);`
    - `const dm = new DataModel(formattedData);`
-   - `const env = muze();`
-   - `canvas = env.canvas();` — no `const`; assigns to the module-scope `let canvas = null;` from the Responsive Sizing pattern. **NEVER** write `const canvas = env.canvas();` or `const canvas = muze.canvas();` — both shadow the outer `let` and break `applySize()` after the first ResizeObserver tick (chart goes blank in TS).
+   - `canvas = muze.canvas();` — no `const`; assigns to the module-scope `let canvas = null;` from the Responsive Sizing pattern. **NEVER** write `const canvas = muze.canvas();` — it shadows the outer `let` and breaks `applySize()` after the first ResizeObserver tick (chart goes blank in TS).
    - `canvas.data(dm).rows([...]).columns([...]).layers([...]).mount('#chart');`
 6. Limit sample data to a MAXIMUM of 30 rows. Even if the uploaded image shows months or years of data, generate only enough rows to demonstrate the chart as a working example. Quality of the chart pattern matters more than data volume.
 7. NEVER change the data structure (add/remove/rename columns or change types) without explicitly asking the user first. If you believe a data structure change is needed, explain why and wait for confirmation before generating updated data.
@@ -666,10 +600,10 @@ Rules:
 
 ## Responsive Sizing & Dynamic Data
 
-**REQUIRED, combined pattern**: Read dimensions directly from the `#chart` container, rebuild the canvas only when *data* changes, and re-fit cheaply when *size* changes. This pattern works natively in both the preview iframe and ThoughtSpot — no host-provided helper required.
+**REQUIRED, combined pattern**: Read dimensions directly from the `#chart` container, rebuild the canvas only when *data* changes, and re-fit cheaply when *size* changes. This pattern works natively in both the skill's preview and ThoughtSpot — no host-provided helper required.
 
 ```javascript
-const SAMPLE_DATA = [/* from muze-data block */];
+const SAMPLE_DATA = [/* baked-in rows — mirror runs/<slug>/sample-data.json */];
 let currentData = SAMPLE_DATA;
 let canvas = null;                    // module-scope; applySize() reads this. NEVER shadow with `const canvas` inside renderChart.
 const el = document.getElementById('chart');
@@ -677,7 +611,7 @@ const el = document.getElementById('chart');
 function renderChart(data) {
   if (data) currentData = data;
   const dm = new DataModel(DataModel.loadDataSync(currentData, schema));
-  canvas = muze().canvas()
+  canvas = muze.canvas()
     .data(dm)
     .rows([Y_FIELD])
     .columns([X_FIELD])
@@ -703,7 +637,7 @@ new ResizeObserver(() => {
 ```
 
 Why this shape:
-- **`#chart` is sized by the host** — preview iframe sets it via CSS, ThoughtSpot's tile sizes it. `clientWidth/clientHeight` always reflect the available area.
+- **`#chart` is sized by the host** — the preview sets it via CSS, ThoughtSpot's tile sizes it. `clientWidth/clientHeight` always reflect the available area.
 - **Retained-canvas re-mount** (`canvas.width(w).height(h).mount(el)`) re-layouts in place: no flicker, no entry-animation re-run on resize. Verified against Muze v4.7.10.
 - **Rebuild only on data change** — `renderChart(data)` rebuilds DataModel + canvas; `applySize()` does not. Keeps update paths cheap.
 - **`ResizeObserver` on `#chart`** — fires for both browser resize and tile-container resize (TS sidebars, layout changes).
@@ -730,32 +664,31 @@ Default to Muze, but pick the right tool for the chart type. All four options ru
 **When the chart type isn't documented in this prompt:** Don't silently improvise. If the image doesn't match a documented recipe (no specific guidance for this chart type, no close analogue you can adapt from the patterns above), say so before generating code. State briefly what you see, that you don't have a documented recipe for it, and offer 2–3 concrete paths — for example: "(a) compose it in Muze from native marks (`tick`, `bar`, `point`, etc.) — first pass, we iterate; (b) use Chart.js if there's a known plugin/pattern; (c) point me at a reference chart or docs link." Wait for the user's choice before generating any code blocks. This is strictly better than producing a confident-looking result that misses the target — a wrong-but-plausible chart is harder to recover from than an honest "I'm not sure, here are the options."
 
 **CRITICAL rules when using Chart.js or raw SVG:**
-- **MUST** generate all three blocks: ```muze-html, ```muze-css, and ```muze-code
-- **MUST** wrap data in a ` ```muze-data ` fenced block
+- **MUST** produce all three files: chart.html, chart.css, chart.js
 - **MUST** use the exact script-loading pattern below (`document.createElement` + `await new Promise`)
 - **NEVER** invent helper functions like `loadScriptOnce`, `loadScript`, `waitForLib` — they do not exist
 - **NEVER** include literal `</script>` in code comments — it breaks the HTML parser
 - Still use schema + DataModel.loadDataSync for data loading (even when Chart.js or SVG does the rendering — keeps the data contract consistent)
-- Still use UPPER_SNAKE_CASE field constants and ThoughtSpot compatibility comments
+- Still use UPPER_SNAKE_CASE field constants
 - Mount all visuals into the `#chart` container
-- Always end with a commented `viz.events.emitRenderCompletedEvent()` for ThoughtSpot handshake
+- Always call `viz.events.emitRenderCompletedEvent()` live, on both the success and `catch` paths
 
 ### Chart.js Pattern (complete example)
 
-**HTML tab** (```muze-html):
+**chart.html:**
 ```
 <div id="chart">
   <canvas id="myChart"></canvas>
 </div>
 ```
 
-**CSS tab** (```muze-css):
+**chart.css:**
 ```
 #chart { width: 100%; height: calc(100vh - 32px); }
 #myChart { width: 100%; height: 100%; }
 ```
 
-**JS tab** (```muze-code):
+**chart.js:**
 ```
 const { DataModel } = muze;
 
@@ -779,7 +712,7 @@ const chartData = result.data.map(row => {
 });
 
 // ── Dynamically load Chart.js ──
-// ThoughtSpot: Remove the dynamic loading block below and add the CDN URL to the HTML tab instead
+// Dynamic loading is the shipping shape — chart.html must contain no <script> tags.
 const cjsScript = document.createElement('script');
 cjsScript.src = 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js';
 await new Promise((resolve, reject) => {
@@ -803,8 +736,7 @@ new Chart(ctx, {
   options: { responsive: true, maintainAspectRatio: true }
 });
 
-// ThoughtSpot: Uncomment the line below to signal render completion
-// viz.events.emitRenderCompletedEvent();
+viz.events.emitRenderCompletedEvent();   // live — and call it in your catch path too
 ```
 
 For Chart.js plugins (e.g., sankey, treemap), load them the same way after loading Chart.js — they register on the global `Chart` object automatically.
@@ -829,7 +761,7 @@ Reference material — apply when the chart calls for the technique, not uncondi
 
 **Always prefer `layer.measurement()`** for positioning over hardcoded pixel values — it adapts to different canvas sizes.
 
-**Text label positioning — copy this exact pattern, no variations:**
+**Text label positioning** — the positioning mechanics below (`p.update.x`, never `p.text`) are the only correct shape. **ThoughtSpot note:** a top-level `mark: 'text'` layer alongside bar/point breaks TS interaction propagation (hard rule) — in shipped BYOC charts, apply the same offsets to SVG labels injected in `afterRendered` instead (see *`mark: 'text'` as a separate layer*):
 ```javascript
 {
   mark: 'text',
@@ -860,7 +792,7 @@ Reference material — apply when the chart calls for the technique, not uncondi
   calculateDomain: false
 }
 ```
-The null guard `if (p.update && p.update.x != null)` is required — in multi-panel (tuple column) charts, cross-panel points have `p.update.x === null`. There is **no** `p.text` property. Do not use `p.text.*` in any form.
+The null guard `if (p.update && p.update.x != null)` is acceptable here **only** because this is a relative nudge (`+=`) — skipping a cross-panel null point is fine. For absolute positioning of text/KPI layers, assign unconditionally (see *Defensive guards on `p.update.x`*). There is **no** `p.text` property. Do not use `p.text.*` in any form.
 
 ### Dual-Axis Overlay — Bar + Point with Different Scales (REQUIRED PATTERN)
 
@@ -925,6 +857,10 @@ canvas
       }
     },
     // Text: salary labels at bar ends (also maps to SALARY_FIELD panel)
+    // ThoughtSpot note: a top-level text layer alongside bar/point breaks TS
+    // interaction propagation (hard rule) — in the shipped chart, drop this layer
+    // and inject the labels via SVG in `afterRendered` instead (see the pattern in
+    // *`mark: 'text'` as a separate layer*). The offsets below still apply.
     // Muze text marks default to text-anchor:middle, so use +22px to center the label
     // just beyond the bar end (~18px half-width + 4px gap). Use calculateDomain:false
     // so label positions don't expand the axis domain.
@@ -943,7 +879,7 @@ canvas
       },
       encodingTransform: (points) => {
         points.forEach(p => {
-          if (p.update && p.update.x != null) { p.update.x += 22; }  // null guard REQUIRED; +22 because text-anchor defaults to middle
+          if (p.update && p.update.x != null) { p.update.x += 22; }  // guard OK — relative nudge (cross-panel points are null); +22 because text-anchor defaults to middle
         });
         return points;
       },
@@ -1027,8 +963,8 @@ canvas
   // Title/subtitle only because the source image showed them — omit otherwise (Liveboard provides its own).
   .title('Salary and Compa-Ratio by Department')
   .subtitle('Bars = avg base salary | Diamonds = compa-ratio | 1.0 = on market')
-  .width(1100)   // must be wide enough for dept labels (left) + chart + salary labels (right)
-  .height(750)   // must be tall enough for all rows + top axis + bottom axis (70px/row × N rows + 200px overhead)
+  // Size via applySize() (Responsive Sizing pattern) — no fixed .width()/.height().
+  // Budget ~70px per row + 200px overhead so both axes and the bar-end labels fit.
   .mount('#chart');
 ```
 
@@ -1090,6 +1026,8 @@ canvas
   })
   .layers([
     { mark: 'bar', encoding: { x: VALUE_FIELD } },
+    // TS note: top-level text layers break interaction propagation (hard rule) —
+    // in the shipped chart inject these labels via SVG in `afterRendered` instead.
     {
       mark: 'text',
       encoding: {
@@ -1179,8 +1117,9 @@ See Recipe 16.39 in the Muze API Reference below for the complete working code e
 - Minimal or no axis labels, gridlines, or full chart infrastructure
 
 **Canvas sizing:**
-- ALWAYS use `.width(250).height(200)` for KPI cards. Do NOT use larger sizes.
-- Only change the size if the user explicitly requests a different size.
+- Size via the responsive pattern; KPI cards read best around 250x200 — treat that as
+  the design target, not a hardcoded `.width().height()`.
+- Only hardcode dimensions if the user explicitly requests a specific size.
 
 **Building with Muze — required pattern:**
 1. Each visual element (status badge, main value, change indicator, peer comparison) is a **separate text layer**
@@ -1246,10 +1185,7 @@ const toPix = v => m * v + c;
 ```
 Use the resulting `toPix(v)` to position SVG overlay elements in data space.
 
-**5. Domain padding for labels and bubble radii** — extend the axis domain ~10–15% beyond data extremes so text labels and large bubbles don't clip:
-```javascript
-.config({ axes: { x: { domain: [minX - padX, maxX + padX] } } })
-```
+**5. Labels and bubble radii near the axis edge** — `axes.*.domain` is silently ignored (hard rule), so you cannot buy headroom via config. Use shorter label formats, flip `text-anchor` to keep labels inside the plot, or draw the labels as post-render SVG overlays instead.
 
 **6. `interactive: false` and `calculateDomain: false` on helper layers.** Apply to text overlays, reference markers, annotation layers — anything that isn't a primary data mark. Prevents them from eating hover events or expanding the axis domain.
 
@@ -1305,7 +1241,7 @@ function smoothInterp(y0, v0, y1, v1, y2, v2, yr) {
 
 **10. Stacked horizontal progress bar** — for KPI progress meters: two stacked datasets (progress + remainder), `indexAxis: 'y'`, `borderRadius` per side, hidden axes, and an absolute-positioned `<div>` tick mark using `transform: translateX(-50%)` to mark the current position.
 
-**11. Loading Chart.js**: include `<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>` in the ` ```muze-html ` block (or use the dynamic-load pattern in the *Library Selection* section). Reference `window.Chart` from the module-scoped JS.
+**11. Loading Chart.js**: use the dynamic-load pattern in the *Library Selection* section (`document.createElement('script')` + `await new Promise`) — chart.html must contain no `<script>` tags. Reference `window.Chart` after the load promise resolves.
 
 #### Raw SVG patterns
 
@@ -1461,7 +1397,7 @@ container.innerHTML = `<svg viewBox="0 0 ${w} 200" width="${w}" height="200">
 
 #### Raw HTML/CSS patterns
 
-**24. Quote / annotation text card** — no chart library; generate only `muze-html` + `muze-css` (empty `muze-code`):
+**24. Quote / annotation text card** — no chart library; chart.html + chart.css carry everything, chart.js only calls `viz.events.emitRenderCompletedEvent()`:
 - Left border gradient: prefer a sibling `<div class="card-border"></div>` with `width: 6px; align-self: stretch; flex-shrink: 0; background: linear-gradient(to bottom, #dc2626, #f97316, #16a34a);` over the `border-image` approach. The sibling-div pattern has fewer interactions with parent layout (height resolution, flex shrink, slice value) — `border-image: linear-gradient(...) 1` on `border-left` can render as a single solid color when the card's height isn't fully resolved at paint time. Wrap the card content in a flex container so the gradient div sits next to the body:
   ```html
   <div class="quote-card">
@@ -1489,14 +1425,9 @@ container.innerHTML = `<svg viewBox="0 0 ${w} 200" width="${w}" height="200">
 Use dark navy for headline (`#1e3a5f`, `font-weight: 700`) and medium grey for body text.
 
 ## Core Principle
-Everything visible in the user's uploaded chart image MUST be recreated using Muze's
-built-in capabilities — refer to the Muze API Reference below for all available methods
-and configuration options. This includes titles, subtitles, legends, axes, gridlines,
-colors, styling, padding, borders, and all data marks.
-
-Do NOT use raw HTML, CSS, or DOM manipulation outside of Muze to replicate visual elements.
-If the image contains elements that Muze cannot natively produce (e.g., custom annotations
-or decorative graphics), note this limitation to the user and get as close as possible
-using available Muze features.
+Recreate what the target shows with the library the chart routes to (see *Library
+Selection* above and the library table in SKILL.md) — raw HTML/CSS, gridjs, and
+Chart.js are all legitimate outputs, not just Muze. If some element cannot be
+reproduced, call it out in the run README rather than quietly approximating.
 
 ## Muze API Reference
