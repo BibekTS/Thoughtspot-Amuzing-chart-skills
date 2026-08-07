@@ -25,7 +25,7 @@ let dataOverride = null;
 for (let i = 2; i < argv.length; i++) if (argv[i] === "--data") dataOverride = argv[++i];
 
 if (!slug || !attemptArg) {
-  console.error("usage: snap.mjs <slug> <attempt> [--data live|empty|absent|wrapped]");
+  console.error("usage: snap.mjs <slug> <attempt> [--data live|empty|absent|wrapped|noviz]");
   process.exit(2);
 }
 
@@ -78,12 +78,30 @@ try {
     return { text: s?.textContent ?? "", kind: s?.className ?? "" };
   });
 
+  const diag = await page.evaluate(() => globalThis.__previewDiagnostics ?? {});
+
   const tile = await page.$("#tile");
   await (tile ?? page).screenshot({ path: outPath });
 
   console.log(`png: ${outPath}`);
   console.log(`data-mode: ${dataOverride ?? cfg.data}`);
   console.log(`status: [${status.kind || "pending"}] ${status.text}`);
+
+  // The tile's <body> has no explicit height; the preview's #chart-host does. A
+  // chart sized with `height: 100%` therefore renders here and collapses to a
+  // blank tile there, with nothing in the console either side. preview.js
+  // measures both, so report it rather than leaving it to the screenshot.
+  const hc = diag.heightChain;
+  if (hc) {
+    console.log(
+      hc.broken
+        ? `height-chain: BROKEN - #chart is ${hc.sized}px here but collapses to ` +
+          `${hc.collapsed}px against a parent with no explicit height, which is what a ` +
+          `ThoughtSpot tile's <body> is. Add \`html, body { height: 100% }\` to chart.css.`
+        : `height-chain: ok (${hc.sized}px sized / ${hc.collapsed}px unparented)`
+    );
+  }
+
   if (consoleErrors.length) {
     console.log(`console-errors (${consoleErrors.length}):`);
     for (const e of consoleErrors.slice(0, 10)) console.log(`  - ${e}`);
