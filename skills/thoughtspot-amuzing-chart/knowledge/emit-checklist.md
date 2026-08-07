@@ -22,7 +22,14 @@ Three differences the loop cannot catch. Check them by reading.
 
 ## 2. Structural
 
-- [ ] `chart.html` has no `<!DOCTYPE>`, `<html>`, `<head>`, or `<body>`, and no `<script>`.
+- [ ] `chart.html` has no `<!DOCTYPE>`, `<html>`, `<head>`, or `<body>`. A CDN
+      library's `<script src>` **does** belong here — that is the host's documented
+      shape — with the bounded dynamic loader in `chart.js` as the fallback.
+- [ ] `chart.css` completes the height chain: `html, body { height: 100% }` for any
+      percentage-height layout, or `100vh` on `#chart`. The tile's `<body>` has no
+      height of its own, so `#chart { height: 100% }` alone collapses to a blank
+      tile. Confirmed by the `height-chain:` line in the snap output, not by eye —
+      the preview's wrappers make a broken chart look correct.
 - [ ] `chart.js` has no `<script>` tag and no literal `</script>` in any comment.
 - [ ] `chart.js` is not wrapped in an async IIFE.
 - [ ] Everything mounts into `#chart`.
@@ -39,8 +46,12 @@ Three differences the loop cannot catch. Check them by reading.
 
 ## 3. The BYOC contract
 
-- [ ] `const { muze, getDataFromSearchQuery } = viz;` (or the guarded mode-C form).
-- [ ] `viz.events.emitRenderCompletedEvent()` on the success path **and** in `catch`.
+- [ ] `const { muze, getDataFromSearchQuery } = viz;` (or the guarded mode-C form) —
+      reading the **bare identifier**. Grep for `globalThis.viz` as the sole route
+      in: on a host that scopes `viz` to its wrapper it resolves to `undefined`, and
+      the chart silently serves sample rows *and* never signals render-complete.
+- [ ] `viz.events.emitRenderCompletedEvent()` on the success path **and** in `catch`,
+      and the failure `console.warn`s rather than being swallowed by `catch {}`.
 - [ ] Render wrapped in `try/catch` that paints `err.stack` into `#chart`.
 - [ ] `DATA_MODE` present and set to the mode the user asked for.
 - [ ] Live rows unwrapped through `cellVal()` before use.
@@ -57,10 +68,15 @@ Three differences the loop cannot catch. Check them by reading.
 - [ ] Snapped in `--data absent` — mode C falls back and shows the sample badge;
       mode B degrades to a readable message, not a blank tile or a stack trace.
 - [ ] Snapped in `--data wrapped` — object cells handled.
-- [ ] Resized the window (or re-snapped after resize) — no blank tile, which is how
-      canvas shadowing shows up.
+- [ ] Snapped in `--data noviz` — no host at all. Mode C renders its baked-in rows;
+      nothing throws. (The render-complete warning is expected here — there is no
+      host to signal.)
+- [ ] Resized the **container**, not the window — no blank tile (canvas shadowing)
+      and no overflow (missing `ResizeObserver`).
+- [ ] `height-chain: ok` in the final snap output.
 - [ ] `console-errors: none` in the final snap output.
-- [ ] Status line reads `ok`, not the `emitRenderCompletedEvent() was never called` warning.
+- [ ] Status line reads `ok`, not the `emitRenderCompletedEvent() was never called`
+      warning and not the `height chain incomplete` error.
 
 ## 5. Readability
 
