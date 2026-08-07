@@ -28,6 +28,14 @@ Three differences the loop cannot catch. Check them by reading.
 - [ ] Everything mounts into `#chart`.
 - [ ] No static markup built via `innerHTML` / `createElement` that belongs in `chart.html`;
       no fixed styling set from JS that belongs in `chart.css`.
+- [ ] All three files are pure ASCII — one sweep catches smart quotes, em dashes and
+      the literal non-breaking space that browser textareas eat in transit:
+      ```bash
+      LC_ALL=C grep -n '[^ -~]' output/<slug>/chart.js output/<slug>/chart.css output/<slug>/chart.html
+      ```
+- [ ] `chart.js` resolves its mount points inside boot and creates any that are
+      missing, so pasting the JS tab alone still renders. Verified by emptying
+      `chart.html` and re-snapping, not by reading.
 
 ## 3. The BYOC contract
 
@@ -37,6 +45,11 @@ Three differences the loop cannot catch. Check them by reading.
 - [ ] `DATA_MODE` present and set to the mode the user asked for.
 - [ ] Live rows unwrapped through `cellVal()` before use.
 - [ ] Epoch-millisecond dimensions formatted, not printed raw.
+- [ ] Any CDN load is bounded by a timeout and lists a second host. An unbounded
+      injection that hangs never settles, so render-complete never fires and the
+      host shows a bare "Chart did not render".
+- [ ] The `catch` paints through a fallback chain (`stage -> #chart -> body`), not
+      through the one element whose absence caused the throw.
 
 ## 4. Verified in the loop, not assumed
 

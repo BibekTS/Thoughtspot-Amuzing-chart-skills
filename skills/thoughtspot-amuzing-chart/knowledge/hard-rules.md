@@ -29,6 +29,10 @@ by reading the code, not the screenshot. Check these before emitting final files
 | `vs. Last Month` / `vs. Last Year` columns arrive empty unless the search selects the prior period | Nothing the chart can do about it; say so in the run README. |
 | Table-mode column format (currency, percent) does **not** reach the chart | Emit an explicit `tickFormat`. |
 | Non-ASCII `·` or `—` in titles render as `Â·` | ASCII only. |
+| No literal U+00A0 anywhere in the three files — write ` ` | The files are pasted through a browser textarea, which is exactly where a literal non-breaking space gets normalised to a plain space. Ironic failure mode: the character silently disappears from the guard written to handle it. Sweep with `LC_ALL=C grep -n '[^ -~]' chart.*`. |
+| A CDN load must be **bounded** and must list a fallback host | `onerror` covers a blocked host. A request that *hangs* fires neither `onload` nor `onerror`, so the promise never settles, top-level `await` never returns, `emitRenderCompletedEvent()` never fires, and the host shows a bare "Chart did not render" over an empty tile. Wrap the injection in a `setTimeout` reject and try a second CDN. |
+| `chart.js` must build its own mount points if they are missing | The host assembles the three tabs and the order is not contractual. `document.getElementById('chart')` at module scope returns `null` when the JS evaluates before the HTML tab's markup lands, or when someone pastes only the JS. The library then throws on a null container, the `catch` guard `if (el)` skips painting, and the tile is blank with no error anywhere. Resolve elements inside boot and `createElement` whatever is absent. |
+| Error painting must not depend on the element that failed | `catch { if (stageEl) stageEl.innerHTML = err.stack }` paints nothing when `stageEl` is the null that caused the throw. Fall back `stage -> #chart -> document.body`. |
 
 ## Visible in the preview if you look for it
 
@@ -67,8 +71,40 @@ perfect. Then `applySize()` reads the still-`null` outer binding on the next
 ResizeObserver tick, hits `if (!canvas) return`, and the tile goes blank — later,
 and only once someone resizes. Use plain assignment: `canvas = muze.canvas();`.
 
-**Detect it:** resize the preview window during the loop, or re-snap after a resize.
-A chart that renders once and blanks on resize has this bug.
+**Detect it:** resize the chart's **container** and re-snap. A chart that renders
+once and blanks on resize has this bug.
+
+## The CDN-library sibling: `responsive: true` is not enough
+
+Same family as canvas shadowing, different library, and easier to miss because it
+does not blank the tile — it clips it.
+
+Plotly's `responsive: true` and the Chart.js equivalent listen to **`window.resize`
+only**. A Liveboard tile changes size while the window does not: drag-resize,
+layout edits, a PDF export at a different geometry. The library keeps its old
+dimensions and overflows a container that shrank around it.
+
+Measured, resizing the container rather than the window:
+
+```
+with a ResizeObserver:  stage=596x648  svg=596x648   fits
+without:                stage=596x648  svg=1222x616  overflows
+```
+
+Any CDN chart library mounted in a tile needs a `ResizeObserver` on its own
+container, debounced through `requestAnimationFrame`:
+
+```js
+resizeObs = new ResizeObserver(() => {        // module-scope binding, not `const`
+  if (pending) cancelAnimationFrame(pending);
+  pending = requestAnimationFrame(() => { Plotly.Plots.resize(stageEl); });
+});
+resizeObs.observe(stageEl);
+```
+
+**Detect it:** set `el.style.width = '620px'` and compare the library's rendered
+`svg` width against the container's. Do not resize the OS window for this — see
+step 6 in `SKILL.md` for why that test lies.
 
 ## Defaults first
 

@@ -34,9 +34,34 @@ built and mounted inside the BYOC file.
 | Path | What it is | Worth reading for |
 |---|---|---|
 | `examples/model-connections-bump/result/` | Bump chart, ~420 lines | The CDN load done right: `createElement('script')` + `await new Promise`, jsdelivr pinned to `chart.js@4` |
-| `examples/Sunburst-chart/result/` and `examples/NWP-sunburst/result/` | Sunburst, ~330 lines each | Hierarchy built from flat TS rows before it reaches the chart |
 | `examples/Examples/Example 3 linechart with kpi/` | Line + KPI header | Chart.js beside hand-built DOM in one tile |
 | `examples/Examples/Example 5 KPI/` | KPI tile, ~130 lines | The smallest complete example in the repo. Good first read |
+
+## Plotly (CDN)
+
+Sunburst, treemap and icicle. Plotly is the only library here with a real
+`type: 'sunburst'` — hierarchy, `branchvalues: 'total'`, click-to-zoom and
+`plotly_sunburstclick` all come for free.
+
+| Path | What it is | Worth reading for |
+|---|---|---|
+| `examples/retail-apparel-sunburst/` | Sunburst, ~470 lines | **Read this one first.** The only example here taken through the preview loop *and* the emit checklist. Hierarchy build, `flatten()` into Plotly's parallel `ids/labels/parents/values` arrays, breadcrumb wired to `plotly_sunburstclick`, plus the four fixes below |
+| `examples/Sunburst-chart/result/` and `examples/NWP-sunburst/result/` | Sunburst, ~330 lines each | The same hierarchy technique, older. Carry the defects below — read them for shape, not for correctness |
+
+These two were filed under Chart.js until this commit and are **not** Chart.js. If
+a library table sent you to Chart.js for a sunburst, it was wrong; use Plotly.
+
+Four defects in `examples/Sunburst-chart/result/` that a copier inherits silently,
+all fixed in `examples/retail-apparel-sunburst/`:
+
+- `index.html` is a standalone page (`<!DOCTYPE html><html><head>`), which is a
+  hard-rule violation in the BYOC HTML tab. The CDN load belongs in the JS.
+- `String(r[i1])` with no cell unwrapping — an object-wrapped cell becomes
+  `[object Object]` and every wedge collapses into one. Run `--data wrapped`.
+- `emitRenderCompletedEvent()` only on the success path, with no `try/catch`
+  painting `err.stack`.
+- Unbounded CDN injection and no `ResizeObserver`. Both produce a tile that fails
+  in ThoughtSpot while looking perfect in preview — see `hard-rules.md`.
 
 ## Hand-built HTML / DOM
 
