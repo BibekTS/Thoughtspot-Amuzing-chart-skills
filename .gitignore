@@ -2,8 +2,8 @@
 node_modules/
 
 # Per-run working dirs the skill creates in the host project: a copied scaffold, its
-# own node_modules, attempt screenshots. The deliverable is final/, which the user
-# copies out.
+# own node_modules, attempt screenshots. The deliverables are emitted to output/,
+# which is kept.
 runs/
 
 .DS_Store

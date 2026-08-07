@@ -3,7 +3,8 @@
 The preview runs the same three files, through a `viz` stub, inside an
 `AsyncFunction` — the same shape the host uses. So unlike the older
 image-to-Studio pipeline there is **no porting step**: what iterated is what ships.
-`runs/<slug>/chart/*` are the deliverables, copied to `runs/<slug>/final/` unchanged.
+`runs/<slug>/chart/*` are the deliverables, copied to `output/<slug>/` unchanged,
+alongside `preview.png` (the passing attempt's screenshot) and the run README.
 
 That makes this a verification pass, not a transformation. Work down it once.
 
@@ -58,7 +59,7 @@ Three differences the loop cannot catch. Check them by reading.
 
 ## 6. The run README
 
-`runs/<slug>/final/README.md` must state:
+`output/<slug>/README.md` must state:
 
 - the search the user has to build — every column the field constants name, in TS's
   own naming;
