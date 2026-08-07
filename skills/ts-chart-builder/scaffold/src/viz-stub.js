@@ -9,11 +9,11 @@
 //      The shim below hides that difference so chart code never carries a
 //      standalone-only line that has to be stripped on the way out.
 //
-//   2. `getDataFromSearchQuery().getData()` returns ARRAY rows plus a schema
-//      typed 'ATTRIBUTE' / 'MEASURE' — not the object rows and
-//      'dimension' / 'measure' that `DataModel.loadDataSync` takes. Charts that
-//      assume otherwise break only once pasted, which is the failure this
-//      whole preview exists to catch early.
+//   2. `getDataFromSearchQuery().getData()` returns ARRAY rows — not the object
+//      rows that `DataModel.loadDataSync` takes. Charts that assume object rows
+//      break only once pasted, which is the failure this whole preview exists to
+//      catch early. (Schema `type` passes through as the dataset declares it —
+//      see the note above `wrapped` mode below.)
 
 const DATA_MODES = new Set(["live", "empty", "absent", "wrapped"]);
 
@@ -58,8 +58,8 @@ export function installViz({ muze, dataset, mode }) {
   //
   // Column `type` is left exactly as the dataset declares it. Real clusters have
   // been seen reporting both 'measure' and 'MEASURE' — charts should accept
-  // either (see eval/table-pivot charts/charts/pivot-table/pivot-table.js), and
-  // the stub picking one would hide that.
+  // either (see examples/table-pivot/pivot-table/pivot-table.js), and the stub
+  // picking one would hide that.
   if (mode === "wrapped") {
     const inner = searchResult.getData.bind(searchResult);
     searchResult.getData = () => {

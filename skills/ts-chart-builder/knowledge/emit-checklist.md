@@ -11,9 +11,9 @@ That makes this a verification pass, not a transformation. Work down it once.
 
 Three differences the loop cannot catch. Check them by reading.
 
-- **Muze version.** The preview loads `@chartshq/muze` from unpkg; the host ships its
-  own. If the chart leans on a rarely-used option, say so in the run README rather
-  than implying it is verified.
+- **Muze version.** The preview runs the vendored bundle in `scaffold/vendor/muze/`;
+  the host ships its own build, which may be older or newer. If the chart leans on a
+  rarely-used option, say so in the run README rather than implying it is verified.
 - **Theme.** `preview/index.html` supplies `.muze-*` CSS the host provides itself.
   Those rules are preview-only — if any of them leaked into `chart.css`, remove them.
 - **Real data.** The stub serves `sample-data.json`. Column names, null density, row
