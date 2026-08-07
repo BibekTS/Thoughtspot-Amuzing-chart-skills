@@ -40,7 +40,7 @@ for once). That directory is gitignored.
 skills/ts-chart-builder/
   SKILL.md            the procedure — the file Claude reads
   knowledge/          byoc-data-modes · hard-rules · examples · emit-checklist
-  examples/           17 working charts, indexed by knowledge/examples.md
+  examples/           working charts, indexed by knowledge/examples.md
   reference/          Muze API reference and the long-form chart system prompt
   helpers/            start-preview · snap · close-preview (Playwright + Vite)
   scaffold/           the preview app, including a vendored Muze bundle

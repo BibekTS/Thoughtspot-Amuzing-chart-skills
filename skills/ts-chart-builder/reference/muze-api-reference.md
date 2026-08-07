@@ -3,12 +3,18 @@
 > This reference was compiled by cross-referencing the actual muze.js v4.7.10 bundle
 > (static analysis of 66,427 lines) with the official Muze Studio 26.2.0 documentation.
 > Every method listed here has been verified to exist in the bundle.
+>
+> Adapted from an older Muze Studio chat pipeline. API details are still good; where
+> anything here conflicts with SKILL.md or the knowledge/ files (especially
+> knowledge/hard-rules.md), those win. In BYOC, `muze` comes from the host's `viz`
+> global and is synchronous — `canvas = muze.canvas();`, no `muze()` factory call.
 
 ---
 
 ## 1. Initialization Pattern
 
 ```js
+const { muze, getDataFromSearchQuery } = viz;   // BYOC: `muze` is the host's sync build
 const { DataModel } = muze;
 
 const data = [
@@ -24,7 +30,8 @@ const schema = [
 const parsedData = DataModel.loadDataSync(data, schema);
 const dm = new DataModel(parsedData);
 
-const canvas = muze().canvas();
+let canvas = null;        // module scope — resize handling reads this
+canvas = muze.canvas();   // plain assignment; `const canvas = ...` would shadow the outer `let`
 canvas
   .data(dm)
   .rows(["Sales"])
@@ -52,6 +59,9 @@ The bundle has a single default export — a factory function.
 ```js
 import muze from './muze.js';
 ```
+
+> **BYOC note:** `viz.muze` is already the env — call `muze.canvas()` directly. The
+> `muze()` factory call documented below applies to the standalone bundle only.
 
 | Property | Type | Description |
 |----------|------|-------------|
@@ -342,7 +352,7 @@ Hiding the x-axis (`axes: { x: { show: false } }`) also helps since axis tick la
 |--------|-----------|-------------|
 | `.rows([fields])` | Array of strings or shared variables | Y-axis fields; multiple dimensions → row facets |
 | `.columns([fields])` | Array of strings or shared variables | X-axis fields; multiple dimensions → column facets |
-| `.color(field)` | String or `{ field, as?, range?, step?, stops?, domain?, invalidValueColor? }` | Color encoding |
+| `.color(field)` | String or `{ field, as?, range?, step?, stops?, invalidValueColor? }` | Color encoding |
 | `.opacity(field)` | String or `{ value: number or function }` | Opacity encoding |
 | `.backgroundColor(field)` | String or Object | Background color encoding (text/pivot cells) |
 | `.shape(field)` | String or Object | Shape encoding (point marks) |
@@ -358,7 +368,7 @@ Hiding the x-axis (`axes: { x: { show: false } }`) also helps since axis tick la
 | `range` | string[] or string | Color array or d3 color scheme name |
 | `step` | boolean | Step legend (default: false) |
 | `stops` | number | Number of legend stops when `step: true` (default: 5) |
-| `domain` | number[] | Override default color domain from data |
+| `domain` | — | **Do not use.** Unsupported in `.color()` — its mere presence silently disables `range` too (see knowledge/hard-rules.md) |
 | `invalidValueColor` | string | Color for invalid values (default: `"#ccc"`) |
 
 **Size config object properties:**
@@ -396,12 +406,8 @@ Hiding the x-axis (`axes: { x: { show: false } }`) also helps since axis tick la
 | `maxLines` | 2 (subtitle only) | number |
 | `className` | `"muze-title-container"` / `"muze-subtitle-container"` | string |
 
-Title text can use `muze.Operators.html` tagged template for styled HTML:
-
-```js
-const { html } = muze.Operators;
-canvas.title(html`<span style="color:red">Revenue</span> Overview`);
-```
+**Do NOT pass `muze.Operators.html` to `.title()` / `.subtitle()`** — the markup
+renders verbatim as literal text (see knowledge/hard-rules.md). Plain strings only.
 
 ### Mounting & Lifecycle
 
@@ -550,24 +556,15 @@ An array of point objects. Each point represents one rendered data mark. Mutate 
     'opacity': 0.8
   },
 
-  // ── Text label (present on text layers and data-label layers) ──
-  text: {
-    text: string,             // Display text content
-    formattedText: string,    // After formatter
-    rawText: string,          // Before formatter
-    update: {
-      x: number,              // Text x position (px)
-      y: number               // Text y position (px)
-    },
-    textAnchor: string,       // 'start', 'middle', 'end'
-    rotation: number,         // Degrees (e.g. -90, 0)
-    className: string,        // CSS class
-    style: { ... }            // Text-specific styles
-  },
+  // ── Text label ──
+  // NOTE: there is NO usable `p.text` inside encodingTransform — every form of
+  // `p.text.*` is undefined and crashes or silently no-ops (see
+  // knowledge/hard-rules.md). Position text layers via `p.update.x/y` like any
+  // other mark.
 
   // ── Data references ──
   rowId: number,              // Unique row identifier
-  data: object,               // Original data row
+  data: object,               // WARNING: undefined inside encodingTransform — use layer.data().getData() + schema index (system-prompt.md, Production Pattern 1)
   source: any,                // Source information
   meta: object,               // Metadata (lastInteraction, etc.)
 
@@ -587,11 +584,7 @@ encodingTransform: (points) => {
     p.update.x = 10;
     p.update.y += 20;
 
-    // Reposition text labels
-    if (p.text) {
-      p.text.update.x = 10;
-      p.text.update.y -= 5;
-    }
+    // (No p.text — text layers are positioned via p.update.x/y as well.)
 
     // Apply SVG styles
     p.style['font-size'] = '32px';
@@ -1140,7 +1133,7 @@ Full configuration via `canvas.config({...})`:
       interpolator: "linear",           // "linear", "log", "pow"
       padding: 0.2,                     // 0-1, categorical spacing
       nice: true,                       // optimize domain boundaries
-      domain: [0, 100],                 // [min, max]; use null for auto: [null, 100]
+      domain: [0, 100],                 // NOTE: silently ignored — do not rely on axis domain (see knowledge/hard-rules.md)
       alignZero: true,                  // align zero line on dual-axis
       enableDirectSort: true,
       ordering: {                       // sort axis values
@@ -1263,7 +1256,8 @@ Full configuration via `canvas.config({...})`:
   // Interaction
   interaction: {
     tooltip: {
-      mode: "consolidated",              // "consolidated" or "fragmented"
+      // Do NOT set `mode` — 'consolidated' breaks ThoughtSpot interaction
+      // propagation (see knowledge/hard-rules.md); leave the default.
       fields: ["Field1", "Field2"],      // fields shown in tooltip
       formatter: (dataStore, config, context) => {
         // dataStore: wrapper over DataModel
@@ -1342,12 +1336,9 @@ Layers can also use inline source functions:
 
 ### `muze.Operators.html`
 
-Tagged template for sanitized HTML in title/subtitle:
-
-```js
-const { html } = muze.Operators;
-canvas.title(html`<span style="font-weight:bold">Revenue</span> by Region`);
-```
+Tagged template for HTML strings. **Never pass it to `.title()` / `.subtitle()`** —
+the markup renders verbatim there (see knowledge/hard-rules.md). Its only safe use is
+setting SVG text content in KPI text layers via `encodingTransform`.
 
 ### `muze.Operators.share`
 
@@ -1596,7 +1587,7 @@ canvas.rows([{ field: "Year", as: "discrete" }])
 ## 15. Formatters
 
 ```js
-const { NumberFormatter, DateFormatter, SplitByFormatter } = formatters;
+const { NumberFormatter, DateFormatter, SplitByFormatter } = viz.formatters;   // BYOC: exposed on the viz global
 ```
 
 ### NumberFormatter
@@ -1634,6 +1625,9 @@ const fmt = new SplitByFormatter({
 ---
 
 ## 16. Global Options
+
+> **Muze Studio only** — `setGlobalOptions` is not available in BYOC; do not use it
+> in chart.js.
 
 ```js
 setGlobalOptions({
@@ -1677,12 +1671,15 @@ setGlobalOptions({
 
 ## 18. Events API
 
+In BYOC these live on the `viz` global. Call `viz.events.emitRenderCompletedEvent()`
+**live on both the success and `catch` paths** (see knowledge/hard-rules.md).
+
 ```js
 // Emit render completed event
-events.emitRenderCompletedEvent();
+viz.events.emitRenderCompletedEvent();
 
 // Handle XLSX download
-events.handleXLSXDownloadEvent((payload) => {
+viz.events.handleXLSXDownloadEvent((payload) => {
   console.log('Download requested:', payload.answerTitle);
   return { isDownloadHandled: true };
 });
