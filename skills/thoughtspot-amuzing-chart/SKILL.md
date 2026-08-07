@@ -165,13 +165,35 @@ and skipping them is how a chart that "worked" breaks on someone else's tile.
 
 ```bash
 H=".claude/skills/thoughtspot-amuzing-chart/helpers/snap.mjs"
-node "$H" "$SLUG" 99 --data absent    # mode C must fall back + badge; B must degrade readably
-node "$H" "$SLUG" 99 --data wrapped   # object-wrapped cells must survive
-node "$H" "$SLUG" 99 --data empty     # zero rows must not throw
+node "$H" "$SLUG" 91 --data absent    # mode C must fall back + badge; B must degrade readably
+node "$H" "$SLUG" 92 --data wrapped   # object-wrapped cells must survive
+node "$H" "$SLUG" 93 --data empty     # zero rows must not throw
 ```
 
-Read each PNG. Then resize the preview window and re-snap — a chart that renders once
-and blanks on resize has the canvas-shadowing bug (`knowledge/hard-rules.md`).
+Read each PNG — `status: ok` is not the same as correct, and each of these fails
+differently. Use distinct attempt numbers so the three frames survive as evidence.
+
+Then two more, neither of which the loop exercises.
+
+**Resize the container, not the window.** `Browser.setWindowBounds` over CDP is
+unreliable: it silently no-ops on some builds, and a screenshot taken mid-transition
+shows a clipped chart that looks like a bug that is not there. Both failure modes
+cost a loop. Set the container's width directly and compare the library's rendered
+geometry against it:
+
+```js
+host.style.width = '620px';                  // then, after a beat:
+svg.getAttribute('width') === stage width ?  // fits
+```
+
+Blank means canvas shadowing. Overflow means a missing `ResizeObserver` — Plotly's
+and Chart.js's `responsive` options listen to `window.resize` only, and a Liveboard
+tile resizes while the window does not. Both are in `knowledge/hard-rules.md`.
+
+**Empty the HTML tab and re-snap.** `chart.js` must build its own mount points. A
+chart that only renders when `chart.html` is present fails on a host that evaluates
+the JS first — which surfaces as the host's own "Chart did not render" over an empty
+tile, with nothing useful in the console.
 
 ## Step 7 — emit
 
@@ -209,8 +231,11 @@ file under `examples/` for each of these rows:
 - **Muze** — bar, line, area, scatter, bubble, box, waterfall, pie, heatmap,
   dual-axis, data-bound KPIs. Anything wanting axes, legends, color encodings, or
   tooltips wired to a DataModel.
-- **Chart.js** (CDN) — radar, polar, doughnut, sankey, treemap, gauges, bespoke
-  smoothing, conditional bar coloring, background bands.
+- **Chart.js** (CDN) — radar, polar, doughnut, sankey, gauges, bespoke smoothing,
+  conditional bar coloring, background bands.
+- **Plotly** (CDN) — **sunburst**, treemap, icicle. Anything hierarchical where a
+  parent's arc must equal the sum of its children (`branchvalues: 'total'`) and
+  clicking a wedge should zoom. Do not hand-roll this on Chart.js doughnuts.
 - **gridjs** (CDN) — sortable tables. Unwrap object cells first or its Preact renderer
   dies with an opaque error.
 - **Hand-built HTML table** — pivots and crosstabs, print-oriented output.
