@@ -1,9 +1,9 @@
 /**
  * Custom flat table for ThoughtSpot BYOC, built on Grid.js.
  *
- * The table-mode counterpart to pivot-table.js: one CONFIG block per chart, generated
- * from the liveboard TML into eval/table-pivot charts/chart-configs.js. Paste your
- * tile's block below and nothing else here needs touching.
+ * The table-mode counterpart to pivot-table.js: one CONFIG block per chart,
+ * derived from the tile's liveboard TML. Paste your tile's block below and
+ * nothing else here needs touching.
  */
 
 // ── CONFIG ────────────────────────────────────────────────────────────────
