@@ -19,7 +19,7 @@ by reading the code, not the screenshot. Check these before emitting final files
 |---|---|
 | `const { muze, getDataFromSearchQuery } = viz;` at the top — **bare `viz`, never `globalThis.viz`** | See the entry below; this one has shipped a broken tile. |
 | `viz.muze` is **synchronous** — `muze.canvas()`, `DataModel.loadDataSync(...)` | No `await muze()`, no `DataModel.onReady()`. Those are the standalone-CDN shapes. |
-| `viz.events.emitRenderCompletedEvent()` on **both** the success and `catch` paths | Liveboard PDF export blocks until every tile reports in. One silent tile means no PDF for the whole board. The preview's status line warns when it never fires. |
+| `viz.events.emitRenderCompletedEvent()` on **both** the success and `catch` paths | Liveboard PDF export blocks until every tile reports in. One silent tile means no PDF for the whole Liveboard. The preview's status line warns when it never fires. |
 | Wrap the render in `try/catch` and paint `err.stack` into `#chart` | The BYOC sandbox replaces real errors with "Something went wrong". |
 | Never a literal `</script>` — not even inside a comment | Breaks the host's HTML parser. |
 | No `<!DOCTYPE>` / `<html>` / `<head>` / `<body>` in chart.html | The host wraps it. |
@@ -34,6 +34,29 @@ by reading the code, not the screenshot. Check these before emitting final files
 | `chart.js` must build its own mount points if they are missing | The host assembles the three tabs and the order is not contractual. `document.getElementById('chart')` at module scope returns `null` when the JS evaluates before the HTML tab's markup lands, or when someone pastes only the JS. The library then throws on a null container, the `catch` guard `if (el)` skips painting, and the tile is blank with no error anywhere. Resolve elements inside boot and `createElement` whatever is absent. |
 | Error painting must not depend on the element that failed | `catch { if (stageEl) stageEl.innerHTML = err.stack }` paints nothing when `stageEl` is the null that caused the throw. Fall back `stage -> #chart -> document.body`. |
 | A CDN library's `<script src>` belongs in **chart.html**, with the dynamic loader as the fallback | `references/system-prompt.md` is explicit about this ("add the CDN URL to the HTML tab instead"), and every chart that has actually run on a tile does it that way. The HTML tab executes script tags. Keep the bounded dynamic loader too — some clusters serve the tabs in an order that leaves the tag unfinished, and a chart with only one of the two paths has a single point of failure. If both are present, poll for `window.<Lib>` before injecting, or the tile downloads the library twice. |
+
+## Verified in a real cluster (ps-internal, release 26.8) - the preview cannot tell you these
+
+Found by screenshotting a Liveboard in a logged-in browser with `cluster-shot.mjs` (skill `thoughtspot-amuzing-liveboard`).
+
+| Rule | Why |
+|---|---|
+| **`fetch()` to any external URL is blocked** ("Network requests are blocked for security. Charts cannot make ...") | Tiles run in a sandboxed iframe. Inline every data file, GeoJSON and topology in `chart.js` (see `library/_shared/us-states.js`). The preview happily fetches, so a chart that fetches passes locally and paints an error on the tile. |
+| `<script src>` from cdn.jsdelivr.net and unpkg **does** load (d3@7, echarts@5, topojson-client@3 verified) | Use it for libraries; keep the bounded `AZ.loadScript` fallback. |
+| Muze's axis-title text (for example "Month") survives class-based CSS in ThoughtSpot's Muze build | Remove the `svg text` nodes whose text equals the field name after `afterRendered`, as `library/pulse-monthly-line` does. |
+| Muze ignores `.color({ range })` on **line** marks and leaves stroke-width at 0 | Set `stroke`, `stroke-width` and `fill: none` yourself once every path has a `d` attribute. Layer order is alphabetical by series value. |
+| Muze's native tooltip totals series ("Total (2)") and its crosshair snaps half a step off the pointer | Hide `[class*="muze-tooltip"]` and `.muze-crossline-group`; draw your own from `path.getScreenCTM()` **read on every mouse move** (the layer animates in, so a value captured at first paint goes stale). |
+| Tile size is decided by the Liveboard, not the window | Observe `#chart` with a `ResizeObserver` (the shared core does), never `document.body`. |
+| A validate-only TML import is still a "write" to the MCP tool | Pass `confirm_write_operations: true`; `VALIDATE_ONLY` changes nothing. |
+| The MCP sandbox has no network except the cluster and no memory between calls | Do not send a whole Liveboard's base64 in one call. Patch the Liveboard in sha256-checked blocks that export, replace and re-import it server side: `thoughtspot-amuzing-liveboard` (`liveboard-pack.mjs`, `patch.js`). Create no helper objects. |
+| CSS `@media` width queries never fire in the preview | `snap --tile` and `probe --tile` resize the tile container, not the window, exactly as a Liveboard does. Toggle a class from the measured width in JS (`w` from the boot context) instead of relying on `@media`. |
+| `String.raw` transport: no backtick and no `${` anywhere in a chart | The chart source is pasted verbatim into a template literal; `liveboard-pack.mjs` lints for it. Build strings with `+`. |
+| `String.prototype.replace(str, replacement)` treats `$'` and `$&` in the replacement as patterns | Generating chart code that contains `'$' + x` corrupted a file silently. Use a function replacement: `.replace(a, () => b)`. |
+| **Import size ceiling.** A commit of about 2.8 MB of TML reset the connection (`ECONNRESET`); 1.8 MB imported | Strip full-line comments and indentation from shipped code (`liveboard-pack.mjs` does), share code between tiles with `.use`, and keep a Liveboard under about 2 MB of TML. Chart files stay ASCII with no template strings so the trim is safe. |
+| A validate-only or dry run does not prove a commit fits | Size is the first suspect for a network reset on import; run `MODE = 'dry'` and read `tmlKB` before committing. |
+| Text you fill in decides the size of what you measure | Populate header, legend and axis text first, then `await AZ.settle()`, then read `clientWidth` and `clientHeight`. Measuring before that lays the plot out against the wrong box. |
+| Entrance animation may only change opacity, and never on `.az-tip` | A fill-mode animation on the tooltip pins it visible. The core's `#chart.az-in > *:not(.az-tip)` rule is the fix; do not undo it. |
+| ECharts with `animation: false` and a redraw per drill has no zoom | For an animated drill, use Plotly's sunburst or treemap (`Plotly.restyle(gd, { level: [id] })` plus `layout.transition`), or tween your own marks with `AZ.tween`. |
 
 ## The two that shipped a blank tile — read these twice
 
