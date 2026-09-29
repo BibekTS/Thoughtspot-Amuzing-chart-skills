@@ -5,10 +5,10 @@ Claude app.
 
 Two skills:
 
-- **thoughtspot-amuzing-chart** writes the three files a BYOC tile takes (`chart.html`,
+- **ts-custom-charts-builder** writes the three files a BYOC tile takes (`chart.html`,
   `chart.css`, `chart.js`) and iterates them in a real browser until the render is right,
   instead of handing you code it has never run. It carries a library of 53 proven charts.
-- **thoughtspot-amuzing-liveboard** builds a whole storytelling Liveboard of those charts on a
+- **ts-custom-charts-liveboard-builder** builds a whole storytelling Liveboard of those charts on a
   real model through the ThoughtSpot MCP: plans the tabs, has each tile built by the chart
   skill, writes the banners, adds filters, imports, proves the import, and screenshots every
   tab in a logged-in browser. It needs the chart skill installed beside it.
@@ -51,15 +51,15 @@ Copy the skill folder into the project where you want to use it:
 ```bash
 git clone git@github.com:BibekTS/Thoughtspot-Amuzing-chart-skills.git
 mkdir -p /path/to/your-project/.claude/skills
-cp -R Thoughtspot-Amuzing-chart-skills/skills/thoughtspot-amuzing-chart \
-      Thoughtspot-Amuzing-chart-skills/skills/thoughtspot-amuzing-liveboard \
+cp -R Thoughtspot-Amuzing-chart-skills/skills/ts-custom-charts-builder \
+      Thoughtspot-Amuzing-chart-skills/skills/ts-custom-charts-liveboard-builder \
       /path/to/your-project/.claude/skills/
 ```
 
 Or symlink it once for every project, and update it with `git pull`:
 
 ```bash
-for s in thoughtspot-amuzing-chart thoughtspot-amuzing-liveboard; do
+for s in ts-custom-charts-builder ts-custom-charts-liveboard-builder; do
   ln -s "$PWD/Thoughtspot-Amuzing-chart-skills/skills/$s" ~/.claude/skills/$s
 done
 ```
@@ -77,17 +77,17 @@ Requirements: Node 20+ and npm. The first run installs Playwright and Chromium i
 2. Build the upload bundle from a checkout of this repo:
 
    ```bash
-   cd skills && zip -r ../thoughtspot-amuzing-chart.zip thoughtspot-amuzing-chart \
+   cd skills && zip -r ../ts-custom-charts-builder.zip ts-custom-charts-builder \
      -x '*/node_modules/*' '*.DS_Store' '*/library/*/preview.png'
    ```
 
    The library's `preview.png` screenshots (about 6 MB) stay out of the zip; the skill does not need them to run.
 
-   For the Liveboard skill as well: `cd skills && zip -r ../thoughtspot-amuzing-liveboard.zip thoughtspot-amuzing-liveboard -x '*.DS_Store'`.
+   For the Liveboard skill as well: `cd skills && zip -r ../ts-custom-charts-liveboard-builder.zip ts-custom-charts-liveboard-builder -x '*.DS_Store'`.
    In the Claude app it can plan, build and import, but not take the in-cluster screenshots:
    those need a browser window you sign in to, so check the tabs yourself there.
 
-3. Upload `thoughtspot-amuzing-chart.zip` (and `thoughtspot-amuzing-liveboard.zip`) under **Settings → Capabilities → Skills**.
+3. Upload `ts-custom-charts-builder.zip` (and `ts-custom-charts-liveboard-builder.zip`) under **Settings → Capabilities → Skills**.
 4. Ask for a chart in a new chat.
 
 The first run installs `playwright-core` and uses the sandbox's own Chromium; it never
@@ -102,7 +102,7 @@ After a `git pull`, rebuild the zip and upload it again.
 
 1. **Ask for one.** In Claude Code, open the project you installed the skill into; in
    the Claude app, start a new chat. Describe the chart, or invoke the skill directly
-   with `/thoughtspot-amuzing-chart`. All of these work:
+   with `/ts-custom-charts-builder`. All of these work:
    - *"Build me a diverging bar chart of revenue vs. target by region"* (from prose)
    - Attach a screenshot of a chart you want recreated (from an image)
    - Point it at an existing tile's three files that misbehave (debug)
@@ -154,8 +154,8 @@ tile a look.
 The skill runs a doctor at the start of every run. You can run it yourself:
 
 ```bash
-node .claude/skills/thoughtspot-amuzing-chart/helpers/env.mjs          # Claude Code
-node /mnt/skills/user/thoughtspot-amuzing-chart/helpers/env.mjs        # Claude app (ask Claude to run it)
+node .claude/skills/ts-custom-charts-builder/helpers/env.mjs          # Claude Code
+node /mnt/skills/user/ts-custom-charts-builder/helpers/env.mjs        # Claude app (ask Claude to run it)
 ```
 
 It prints where runs and deliverables go, whether the preview will be headed or
@@ -167,7 +167,7 @@ output is the thing to send to the skill author.
 The helpers also work by hand, which is useful when debugging a chart outside a run:
 
 ```bash
-H=.claude/skills/thoughtspot-amuzing-chart/helpers
+H=.claude/skills/ts-custom-charts-builder/helpers
 node $H/start-preview.mjs my-chart                     # open the preview window
 node $H/snap.mjs my-chart 01                           # screenshot + diagnostic block
 node $H/snap.mjs my-chart 91 --data absent             # also: wrapped, empty, noviz
@@ -178,7 +178,7 @@ node $H/close-preview.mjs my-chart                     # close the window
 ## Layout
 
 ```
-skills/thoughtspot-amuzing-chart/
+skills/ts-custom-charts-builder/
   SKILL.md            the procedure: the file Claude reads
   references/         byoc-data-modes · hard-rules · examples · emit-checklist ·
                       muze-api-reference · system-prompt · taste-rules · library ·
@@ -190,7 +190,7 @@ skills/thoughtspot-amuzing-chart/
                       close-preview · sync-core · library-emit · make-index,
                       plus a smoke-test fixture
   scaffold/           the preview page, including a vendored Muze bundle
-skills/thoughtspot-amuzing-liveboard/
+skills/ts-custom-charts-liveboard-builder/
   SKILL.md            profile the model, plan the tabs, build, patch the Liveboard, screenshot
   references/         story-and-layout · pipeline · tile-brief
   scripts/            liveboard-pack · patch.js (runs in the MCP sandbox) ·
@@ -202,11 +202,11 @@ scripts/
 ```
 
 Everything each skill reads travels inside its folder. The Liveboard skill finds the chart
-skill as a sibling folder (or through `TS_AMUZING_CHART_SKILL`), so install both side by side.
+skill as a sibling folder (or through `TS_CUSTOM_CHARTS_SKILL`), so install both side by side.
 
 ## The chart library and the Amuzing chart samples Liveboard
 
-`skills/thoughtspot-amuzing-chart/library/` holds 53 charts built on the ThoughtSpot model
+`skills/ts-custom-charts-builder/library/` holds 53 charts built on the ThoughtSpot model
 **(Sample) Retail - Apparel**, and 50 of them are arranged as the Liveboard **Amuzing chart samples**:
 seven numbered tabs (About, Pulse, Where, What, When, Who, Next), each answering one question, custom
 charts only, three Liveboard filters (date, region, item type). Every chart reads only what its search
@@ -223,7 +223,7 @@ Two things about how they are made are worth knowing:
   sha256-checked blocks; each one exports the Liveboard, replaces its charts' tiles, keeps the rest,
   imports, and proves by export that every tile carries the code that was composed. Nothing else is
   created in ThoughtSpot. `cluster-shot.mjs` then screenshots each tab in a logged-in browser. The
-  procedure is `skills/thoughtspot-amuzing-liveboard/SKILL.md`.
+  procedure is `skills/ts-custom-charts-liveboard-builder/SKILL.md`.
 
 Facts about ThoughtSpot tiles that the preview cannot show, found this way, are in the "Verified in a
 real cluster" table of the chart skill's `references/hard-rules.md` (for example: `fetch()` is blocked
@@ -232,7 +232,7 @@ inside a tile, `<script src>` from a CDN is not), and the import-side ones in th
 
 ## Examples
 
-`skills/thoughtspot-amuzing-chart/examples/` carries charts that already render
+`skills/ts-custom-charts-builder/examples/` carries charts that already render
 correctly in ThoughtSpot, grouped by library: Muze (bubble, diverging axis, funnel,
 invoice), Chart.js over CDN (bump, sunburst, KPI), hand-built DOM (pivot table, flat
 table, waffle, funnel), raw SVG (hex cartogram, KPI), and self-contained HTML.
@@ -249,16 +249,14 @@ not correct-in-preview. Copy the technique, not the file.
 
 The skills are being prepared for
 [thoughtspot/thoughtspot-agent-skills](https://github.com/thoughtspot/thoughtspot-agent-skills),
-where they are named `ts-amuzing-chart-builder` and `ts-amuzing-liveboard-builder` (that
-library requires lowercase `ts-` names). This repo stays the source; copy them across with:
+under the same names, in `agents/cli/`. This repo stays the source; copy them across with:
 
 ```bash
 scripts/export-to-library.sh /path/to/thoughtspot-agent-skills
 ```
 
-That copies both to `agents/claude/` and renames them, and every reference between them,
-in the copies. Registering them in the library (README, setup docs, runtime coverage,
-changelog, smoke test) is part of the library PR.
+That copies both folders as they are. Registering them in the library (README, setup docs,
+runtime coverage, naming family, changelog, smoke tests) is part of the library PR.
 
 Open before that PR: the vendored Muze bundle's license is unconfirmed — see
 `scaffold/vendor/muze/NOTICE.md`.
