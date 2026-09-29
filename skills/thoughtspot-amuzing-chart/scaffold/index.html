@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <title>ThoughtSpot chart preview</title>
+    <link rel="stylesheet" href="/vendor/muze/muze.css" />
     <style>
       /* Deliberately NO `height: 100%` here. A ThoughtSpot tile's <body> has no
          explicit height, and `html, body { height: 100% }` in chart.css is what
@@ -15,7 +16,8 @@
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
 
       /* Approximates a Liveboard tile: the chart sizes itself to this box, which is
-         what makes the ResizeObserver contract testable. Drag the window to resize. */
+         what makes the ResizeObserver contract testable. `snap.mjs --tile WxH` resizes
+         this box without touching the window, as a Liveboard does. */
       #tile { position: fixed; inset: 16px 16px 34px 16px; border: 1px solid #e3e3e3;
         border-radius: 6px; overflow: hidden; background: #fff; }
       #chart-host { width: 100%; height: 100%; }
@@ -44,7 +46,7 @@
     <div id="tile"><div id="chart-host"></div></div>
     <div id="status">initializing…</div>
 
-    <!-- Muze is imported by preview.js from vendor/, not loaded from a CDN.
+    <!-- Muze is imported by preview.js from vendor/ (its CSS is linked above), not loaded from a CDN.
          The CDN build (@chartshq/muze 2.x) is the ASYNC API — no loadDataSync,
          DataModel.onReady() instead — which is not what BYOC exposes. Previewing
          against it would validate charts that cannot run on a tile. -->

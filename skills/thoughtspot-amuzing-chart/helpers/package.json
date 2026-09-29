@@ -3,8 +3,11 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Headed-Playwright + Vite preview shims for the thoughtspot-amuzing-chart skill.",
+  "description": "Preview helpers for the chart skill: a static preview server, and Playwright capture (headed window preferred, headless fallback).",
   "dependencies": {
     "playwright": "^1.49.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

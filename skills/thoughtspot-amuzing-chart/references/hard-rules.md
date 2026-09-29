@@ -5,7 +5,7 @@ file is that most are invisible in a screenshot, so the iterate loop will happil
 converge on a chart that is broken. Each rule below says how to *detect* it, not just
 what to avoid.
 
-`reference/system-prompt.md` has the long-form explanation and a worked alternative
+`references/system-prompt.md` has the long-form explanation and a worked alternative
 for most of these. Read it when a rule bites and the fix is not obvious.
 
 ---
@@ -33,7 +33,7 @@ by reading the code, not the screenshot. Check these before emitting final files
 | A CDN load must be **bounded** and must list a fallback host | `onerror` covers a blocked host. A request that *hangs* fires neither `onload` nor `onerror`, so the promise never settles, top-level `await` never returns, `emitRenderCompletedEvent()` never fires, and the host shows a bare "Chart did not render" over an empty tile. Wrap the injection in a `setTimeout` reject and try a second CDN. |
 | `chart.js` must build its own mount points if they are missing | The host assembles the three tabs and the order is not contractual. `document.getElementById('chart')` at module scope returns `null` when the JS evaluates before the HTML tab's markup lands, or when someone pastes only the JS. The library then throws on a null container, the `catch` guard `if (el)` skips painting, and the tile is blank with no error anywhere. Resolve elements inside boot and `createElement` whatever is absent. |
 | Error painting must not depend on the element that failed | `catch { if (stageEl) stageEl.innerHTML = err.stack }` paints nothing when `stageEl` is the null that caused the throw. Fall back `stage -> #chart -> document.body`. |
-| A CDN library's `<script src>` belongs in **chart.html**, with the dynamic loader as the fallback | `reference/system-prompt.md` is explicit about this ("add the CDN URL to the HTML tab instead"), and every chart that has actually run on a tile does it that way. The HTML tab executes script tags. Keep the bounded dynamic loader too — some clusters serve the tabs in an order that leaves the tag unfinished, and a chart with only one of the two paths has a single point of failure. If both are present, poll for `window.<Lib>` before injecting, or the tile downloads the library twice. |
+| A CDN library's `<script src>` belongs in **chart.html**, with the dynamic loader as the fallback | `references/system-prompt.md` is explicit about this ("add the CDN URL to the HTML tab instead"), and every chart that has actually run on a tile does it that way. The HTML tab executes script tags. Keep the bounded dynamic loader too — some clusters serve the tabs in an order that leaves the tag unfinished, and a chart with only one of the two paths has a single point of failure. If both are present, poll for `window.<Lib>` before injecting, or the tile downloads the library twice. |
 
 ## The two that shipped a blank tile — read these twice
 

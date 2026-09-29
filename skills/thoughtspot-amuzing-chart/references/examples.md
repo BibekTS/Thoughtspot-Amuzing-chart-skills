@@ -5,7 +5,7 @@ the same shape — a working file settles the API questions faster than reasonin
 the reference does, and these carry the workarounds for bugs you would otherwise
 rediscover.
 
-Paths are relative to the skill folder — `examples/` is a sibling of the `knowledge/`
+Paths are relative to the skill folder — `examples/` is a sibling of the `references/`
 directory this file lives in, so they travel with the skill wherever it is installed.
 
 Two rules for using them:

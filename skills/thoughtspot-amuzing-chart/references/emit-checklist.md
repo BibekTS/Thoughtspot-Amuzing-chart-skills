@@ -3,7 +3,7 @@
 The preview runs the same three files, through a `viz` stub, inside an
 `AsyncFunction` — the same shape the host uses. So unlike the older
 image-to-Studio pipeline there is **no porting step**: what iterated is what ships.
-`runs/<slug>/chart/*` are the deliverables, copied to `output/<slug>/` unchanged,
+`<RUNS>/<SLUG>/chart/*` are the deliverables, copied to `<OUT>/<SLUG>/` unchanged,
 alongside `preview.png` (the passing attempt's screenshot) and the run README.
 
 That makes this a verification pass, not a transformation. Work down it once.
@@ -38,7 +38,7 @@ Three differences the loop cannot catch. Check them by reading.
 - [ ] All three files are pure ASCII — one sweep catches smart quotes, em dashes and
       the literal non-breaking space that browser textareas eat in transit:
       ```bash
-      LC_ALL=C grep -n '[^ -~]' output/<slug>/chart.js output/<slug>/chart.css output/<slug>/chart.html
+      LC_ALL=C grep -n '[^ -~]' <OUT>/<SLUG>/chart.js <OUT>/<SLUG>/chart.css <OUT>/<SLUG>/chart.html
       ```
 - [ ] `chart.js` resolves its mount points inside boot and creates any that are
       missing, so pasting the JS tab alone still renders. Verified by emptying
@@ -88,7 +88,7 @@ Three differences the loop cannot catch. Check them by reading.
 
 ## 6. The run README
 
-`output/<slug>/README.md` must state:
+`<OUT>/<SLUG>/README.md` must state:
 
 - the search the user has to build — every column the field constants name, in TS's
   own naming;
