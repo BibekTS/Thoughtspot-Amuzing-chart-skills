@@ -2,9 +2,12 @@
 node_modules/
 
 # Per-run working dirs the skill creates in the host project: chart files, attempt
-# screenshots, critiques. The deliverables are emitted to output/,
-# which is kept.
+# screenshots, critiques.
 runs/
+
+# Deliverables from charts built in this checkout. They belong to whoever built
+# them, not to the skill.
+output/
 
 .DS_Store
 

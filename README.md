@@ -127,8 +127,9 @@ After a `git pull`, rebuild the zip and upload it again.
    "sample data" badge until real rows arrive.
 
 Working artifacts stay under `runs/<chart-name>/` (chart files, attempt screenshots,
-critiques), so a run can be resumed or audited later. `runs/` is gitignored;
-`output/` is the keepable result.
+critiques), so a run can be resumed or audited later. `output/` is the result you
+keep. Both are gitignored in this repo; in your own project, commit `output/` if you
+want to keep the charts with it.
 
 "Verified in preview" means verified against a faithful stub of the ThoughtSpot host,
 not against your cluster — theme and version differences are real, so give the pasted
