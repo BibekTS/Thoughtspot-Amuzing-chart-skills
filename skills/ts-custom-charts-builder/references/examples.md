@@ -18,7 +18,7 @@ Two rules for using them:
 
 ## Start here: the library
 
-`library/` holds 57 charts built on real data. Each was iterated in the preview and is interactive; all but the four
+`library/` holds 58 charts built on real data. Each was iterated in the preview and is interactive; all but the four
 marked *preview only* in `references/library.md` were also checked in a real cluster. They share one core (`library/_shared/core.js`: theme, column lookup, tooltip, CDN loader, motion,
 crumbs, boot). **Look for your shape in this table first**, then in `references/library.md` (every chart by tab,
 library and search). Use the `examples/` files further down only for shapes the library lacks, or for the

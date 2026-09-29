@@ -27,6 +27,7 @@ Charts marked *(preview only)* were built on real search output and passed the l
 | `pulse-kpi-units` Units sold, year to date | Pulse | 3x4 grid units | HTML and inline SVG (no chart library) | `[sales] [quantity purchased] [date].monthly` |
 | `pulse-monthly-line` Monthly sales against last year | Pulse | 8x6 grid units | Muze (line), with an HTML header and legend | `[sales] [date].monthly` |
 | `banner-where` Where banner | 03 Where | 12x4 grid units | HTML (no chart library) | `[sales] [region] [state]` |
+| `state-sales-units` Sales against units by state | 03 Where | 6x6 grid units | Muze point layer, with an SVG overlay | `[sales] [quantity purchased] [state]` |
 | `where-hex-cartogram` US state hex map of sales | 03 Where | 5x7 grid units | none (inline SVG) | `[sales] [state]` |
 | `where-region-item-heatmap` Region by item type heatmap | 03 Where | 6x6 grid units | none (HTML grid) | `[sales] [region] [item type]` |
 | `where-region-pivot` Region by family pivot *(preview only)* | 03 Where | 12x7 grid units | Plain HTML table (no CDN) | `[sales] [quantity purchased] [region] [state] [item type]` |
@@ -87,6 +88,7 @@ Charts marked *(preview only)* were built on real search output and passed the l
 - **pulse-kpi-units**: YTD and All toggle. Hover the sparkline for the month, its value and the change on the same month a year earlier.
 - **pulse-monthly-line**: Hover for month, sales, same month last year and the change. Click the key to hide or show the last-year line. The two largest month-on-month steps are marked from the data.
 - **banner-where**: Hover a number for how it is calculated. Click a prompt to copy it, then paste it into Spotter.
+- **state-sales-units**: Hover a dot for sales, units, sales per unit and its gap to average; click a dot to pin it (others dim); click again or the background to clear
 - **where-hex-cartogram**: Sales / Share of total toggle (header line, tooltip, readout, hex figures when wide); hover a hex; click a hex to pin it with a readout; Unpin clears
 - **where-region-item-heatmap**: Sales / Share of region toggle; hover a cell for sales, shares and rank; click a row or column header to isolate it
 - **where-region-pivot**: Sales / Units / Price per unit toggle (share bars tween); click a region row to show its states and a family header to show its item types (height and column-width tweens); Expand all / Collapse all (one Expand/Collapse button below 360px); hover a cell to highlight its row and column with a tooltip giving sales, units, share of row, share of column and price per unit against the region
