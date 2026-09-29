@@ -1,6 +1,6 @@
 // Finds the ts-custom-charts-builder skill, which owns the chart library, the shared core and the
 // browser helpers this skill builds on. Order: $TS_CUSTOM_CHARTS_SKILL, then a sibling folder
-// (both skills installed side by side under .claude/skills/), under its name or its old one.
+// (both skills installed side by side under .claude/skills/), under either of its published names.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
