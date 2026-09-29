@@ -1,22 +1,21 @@
 #!/usr/bin/env node
 // close-preview.mjs <slug>
 //
-// SIGTERMs the start-preview daemon; it closes the headed browser and Vite on
-// the way out.
+// SIGTERMs the start-preview daemon; it closes the headed browser and the
+// preview server on the way out. A headless run has no daemon, so there is
+// nothing to do.
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { findProjectRoot, runDirFor } from "./project-root.mjs";
+import { resolveEnv } from "./env.mjs";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
 const slug = process.argv[2];
 if (!slug) {
   console.error("usage: close-preview.mjs <slug>");
   process.exit(2);
 }
 
-const previewDir = path.join(runDirFor(findProjectRoot(here), slug), ".preview");
+const previewDir = resolveEnv({ slug }).previewDir;
 const pidPath = path.join(previewDir, "daemon.pid");
 
 if (!fs.existsSync(pidPath)) {
@@ -38,7 +37,7 @@ try {
   else { console.error("[close-preview] kill failed:", e.message); process.exit(1); }
 }
 
-for (const f of ["daemon.pid", "vite.pid", "cdp.json"]) {
+for (const f of ["daemon.pid", "cdp.json"]) {
   const p = path.join(previewDir, f);
   if (fs.existsSync(p)) try { fs.unlinkSync(p); } catch {}
 }

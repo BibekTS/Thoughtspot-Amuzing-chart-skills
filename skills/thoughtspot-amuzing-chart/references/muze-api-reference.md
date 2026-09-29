@@ -5,8 +5,8 @@
 > Every method listed here has been verified to exist in the bundle.
 >
 > Adapted from an older Muze Studio chat pipeline. API details are still good; where
-> anything here conflicts with SKILL.md or the knowledge/ files (especially
-> knowledge/hard-rules.md), those win. In BYOC, `muze` comes from the host's `viz`
+> anything here conflicts with SKILL.md or the references/ files (especially
+> references/hard-rules.md), those win. In BYOC, `muze` comes from the host's `viz`
 > global and is synchronous — `canvas = muze.canvas();`, no `muze()` factory call.
 
 ---
@@ -368,7 +368,7 @@ Hiding the x-axis (`axes: { x: { show: false } }`) also helps since axis tick la
 | `range` | string[] or string | Color array or d3 color scheme name |
 | `step` | boolean | Step legend (default: false) |
 | `stops` | number | Number of legend stops when `step: true` (default: 5) |
-| `domain` | — | **Do not use.** Unsupported in `.color()` — its mere presence silently disables `range` too (see knowledge/hard-rules.md) |
+| `domain` | — | **Do not use.** Unsupported in `.color()` — its mere presence silently disables `range` too (see references/hard-rules.md) |
 | `invalidValueColor` | string | Color for invalid values (default: `"#ccc"`) |
 
 **Size config object properties:**
@@ -407,7 +407,7 @@ Hiding the x-axis (`axes: { x: { show: false } }`) also helps since axis tick la
 | `className` | `"muze-title-container"` / `"muze-subtitle-container"` | string |
 
 **Do NOT pass `muze.Operators.html` to `.title()` / `.subtitle()`** — the markup
-renders verbatim as literal text (see knowledge/hard-rules.md). Plain strings only.
+renders verbatim as literal text (see references/hard-rules.md). Plain strings only.
 
 ### Mounting & Lifecycle
 
@@ -559,7 +559,7 @@ An array of point objects. Each point represents one rendered data mark. Mutate 
   // ── Text label ──
   // NOTE: there is NO usable `p.text` inside encodingTransform — every form of
   // `p.text.*` is undefined and crashes or silently no-ops (see
-  // knowledge/hard-rules.md). Position text layers via `p.update.x/y` like any
+  // references/hard-rules.md). Position text layers via `p.update.x/y` like any
   // other mark.
 
   // ── Data references ──
@@ -1133,7 +1133,7 @@ Full configuration via `canvas.config({...})`:
       interpolator: "linear",           // "linear", "log", "pow"
       padding: 0.2,                     // 0-1, categorical spacing
       nice: true,                       // optimize domain boundaries
-      domain: [0, 100],                 // NOTE: silently ignored — do not rely on axis domain (see knowledge/hard-rules.md)
+      domain: [0, 100],                 // NOTE: silently ignored — do not rely on axis domain (see references/hard-rules.md)
       alignZero: true,                  // align zero line on dual-axis
       enableDirectSort: true,
       ordering: {                       // sort axis values
@@ -1257,7 +1257,7 @@ Full configuration via `canvas.config({...})`:
   interaction: {
     tooltip: {
       // Do NOT set `mode` — 'consolidated' breaks ThoughtSpot interaction
-      // propagation (see knowledge/hard-rules.md); leave the default.
+      // propagation (see references/hard-rules.md); leave the default.
       fields: ["Field1", "Field2"],      // fields shown in tooltip
       formatter: (dataStore, config, context) => {
         // dataStore: wrapper over DataModel
@@ -1337,7 +1337,7 @@ Layers can also use inline source functions:
 ### `muze.Operators.html`
 
 Tagged template for HTML strings. **Never pass it to `.title()` / `.subtitle()`** —
-the markup renders verbatim there (see knowledge/hard-rules.md). Its only safe use is
+the markup renders verbatim there (see references/hard-rules.md). Its only safe use is
 setting SVG text content in KPI text layers via `encodingTransform`.
 
 ### `muze.Operators.share`
@@ -1672,7 +1672,7 @@ setGlobalOptions({
 ## 18. Events API
 
 In BYOC these live on the `viz` global. Call `viz.events.emitRenderCompletedEvent()`
-**live on both the success and `catch` paths** (see knowledge/hard-rules.md).
+**live on both the success and `catch` paths** (see references/hard-rules.md).
 
 ```js
 // Emit render completed event

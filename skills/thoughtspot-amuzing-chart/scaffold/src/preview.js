@@ -21,7 +21,6 @@
 //    global is what makes that failure visible here instead of on a tile.
 
 import muze from "../vendor/muze/muze.js";
-import "../vendor/muze/muze.css";
 import { buildViz } from "./viz-stub.js";
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
@@ -187,4 +186,20 @@ async function main() {
   }, 1200);
 }
 
+// The headed window reloads itself when a chart file changes, so the user sees
+// each attempt land. The chart files are fetched as text, not imported, so there
+// is no module graph to watch — poll the server's newest mtime instead. Only the
+// daemon's window asks for this; a one-shot capture never polls.
+function watchForEdits() {
+  let last = null;
+  setInterval(async () => {
+    try {
+      const { mtime } = await (await fetch("/__mtime", { cache: "no-store" })).json();
+      if (last !== null && mtime !== last) location.reload();
+      last = mtime;
+    } catch {}
+  }, 1000);
+}
+
+if (params.get("watch") === "1") watchForEdits();
 main().catch((err) => showError("preview failed", err));

@@ -1,6 +1,6 @@
 ---
 name: thoughtspot-amuzing-chart
-description: Build a ThoughtSpot custom chart (BYOC) as three paste-ready files — chart.html, chart.css, chart.js — by iterating in a real browser until the render is right. Opens a headed preview the user watches, screenshots each attempt, critiques it with vision, and fixes the top defect. Use when the user wants a ThoughtSpot custom chart, a BYOC tile, a Muze chart, or wants an existing chart tile rebuilt, debugged, or converted between sample and live data. Covers Muze, Chart.js, gridjs, hand-built HTML tables, and raw SVG. Not for native ThoughtSpot chart configuration or non-ThoughtSpot charting work.
+description: Build a ThoughtSpot custom chart (BYOC) as three paste-ready files — chart.html, chart.css, chart.js — by iterating in a real browser until the render is right. Opens a preview the user watches (a headed window in Claude Code; headless screenshots in the Claude app or wherever no window can open), screenshots each attempt, critiques it with vision, and fixes the top defect. Use when the user wants a ThoughtSpot custom chart, a BYOC tile, a Muze chart, or wants an existing chart tile rebuilt, debugged, or converted between sample and live data. Covers Muze, Chart.js, gridjs, hand-built HTML tables, and raw SVG. Not for native ThoughtSpot chart configuration or non-ThoughtSpot charting work.
 ---
 
 # ThoughtSpot custom chart builder
@@ -31,45 +31,55 @@ screenshot.
 | User attaches or points at a chart image | **Rebuild** — match the image |
 | User describes a chart in prose | **Build** — match the description |
 | User has an existing tile that misbehaves | **Debug** — start from their files, skip to the loop |
-| User wants sample→live or live→sample | **Convert** — read `knowledge/byoc-data-modes.md`, change the mode, verify both |
+| User wants sample→live or live→sample | **Convert** — read `references/byoc-data-modes.md`, change the mode, verify both |
 | Ambiguous | Ask once, briefly, then go |
 
-## Step 0 — setup check (every run, one Bash call)
+## Step 0 — doctor (every run, one Bash call)
+
+`<SKILL>` is the folder this SKILL.md lives in. Typical values: Claude Code,
+`~/.claude/skills/<name>` or `<project>/.claude/skills/<name>`; the Claude app,
+`/mnt/skills/user/<name>`.
 
 ```bash
-SKILL="$(pwd)/.claude/skills/thoughtspot-amuzing-chart"
-test -d "$SKILL/helpers/node_modules/playwright" && echo "deps:ok" || echo "deps:missing"
+node "<SKILL>/helpers/env.mjs" "<SLUG>"
 ```
 
-(Shell state does not persist between Bash calls — substitute the real paths and
-slug into every command rather than relying on `$SKILL` / `$SLUG` surviving.)
+It prints one `key: value` per line. Take these from it and substitute the literal
+paths into **every** later command — shell state does not persist between Bash calls,
+so `$VARS` set in one call are gone in the next:
 
-If `deps:missing`, ask once — "First-time setup, ~2 min: install Playwright +
-Chromium. OK?" — then run the install below.
+| Placeholder | Doctor line | Meaning |
+|---|---|---|
+| `<RUNS>` | `runs-root:` | working files for every run |
+| `<OUT>` | `output-root:` | where deliverables go (the user downloads this in the Claude app) |
+| `<MODE>` | `mode:` | `headed` (a window the user watches) or `headless (…)` |
+| `<SLUG>` | — | the run's kebab-case name, chosen in Step 3 |
 
-If `deps:ok`, still run `cd "$SKILL/helpers" && npx playwright install chromium`
-once per run — from `helpers/`, so npx resolves the locally installed Playwright. It is a
-no-op in a second or two when the right build is already cached, and it is the only
-reliable check: Chromium is pinned to the *Playwright* version, so a cache holding
-`chromium-1228` looks fine to `ls` and still fails to launch when the installed
-Playwright wants `chromium-1234`. Do not substitute a directory-existence test — that
-false pass costs a failed daemon start and a confusing error.
+If `deps: missing`, the `fix:` line is the command that fixes it:
 
-```bash
-cd "$SKILL/helpers" && npm install && npx playwright install chromium
-```
+- **Claude Code** — ask once ("First-time setup, ~2 min: install Playwright +
+  Chromium. OK?"), run the `fix:` line, re-run the doctor.
+- **Claude app** (`platform: claude-app`) — run the `fix:` line directly (~30 s; it
+  installs `playwright-core` into a writable folder and uses the sandbox's own
+  Chromium), re-run the doctor. **Never run `playwright install` there** — the browser
+  download is blocked and burns minutes before failing. If the doctor still reports
+  no browser, stop and show the user the doctor block.
+
+`browser-launch:` actually starts Chromium, which is the only reliable check:
+Chromium is pinned to the Playwright version, so a cached build can look present and
+still fail to launch. Note `cdn:` for Library choice below.
 
 ## Step 1 — load knowledge
 
 Read before writing any chart code, in this order:
 
-1. `knowledge/byoc-data-modes.md` — sample vs. live vs. both. **Always.**
-2. `knowledge/hard-rules.md` — the silent failures, and how each one shows up.
-3. `knowledge/examples.md` — the working charts under `examples/`, indexed by shape.
+1. `references/byoc-data-modes.md` — sample vs. live vs. both. **Always.**
+2. `references/hard-rules.md` — the silent failures, and how each one shows up.
+3. `references/examples.md` — the working charts under `examples/`, indexed by shape.
    Find the nearest one and read it before writing; it settles the API questions
    faster than the reference does and carries the workarounds already found.
-4. `reference/system-prompt.md` — long-form recipes and patterns.
-5. `reference/muze-api-reference.md` — when the chart is Muze.
+4. `references/system-prompt.md` — long-form recipes and patterns.
+5. `references/muze-api-reference.md` — when the chart is Muze.
 
 All five ship with the skill; paths are relative to the skill folder, wherever it is
 installed.
@@ -84,7 +94,7 @@ Do this before writing code, and ask if the user has not said. Default to **C**.
   "sample data" badge. One file that works on a live tile, an unbound tile, and a
   plain browser.
 
-Skeletons are in `knowledge/byoc-data-modes.md`. Follow them; do not improvise a
+Skeletons are in `references/byoc-data-modes.md`. Follow them; do not improvise a
 fourth shape.
 
 If the user has a real search, ask them to paste the `Available Columns` block from
@@ -92,16 +102,17 @@ their chart editor and map the field constants onto those exact names.
 
 ## Step 3 — run dir and dataset
 
+Pick `<SLUG>` (kebab-case: `revenue-by-region`, `credit-tier-snapshot`).
+
 ```bash
-SLUG=<kebab-case-slug>          # revenue-by-region, credit-tier-snapshot
-mkdir -p "runs/$SLUG"
+mkdir -p "<RUNS>/<SLUG>/chart"
 ```
 
-Write `runs/$SLUG/intent.txt` — one paragraph. From the image (vision) or the user's
+Write `<RUNS>/<SLUG>/intent.txt` — one paragraph. From the image (vision) or the user's
 prose. This is what you critique against later, so be concrete: chart type, encodings,
 what "correct" looks like.
 
-Write `runs/$SLUG/sample-data.json` **once**, at run start. Never regenerate it
+Write `<RUNS>/<SLUG>/sample-data.json` **once**, at run start. Never regenerate it
 mid-loop — a moving schema means the loop cannot converge.
 
 ```json
@@ -120,37 +131,43 @@ baked-in sample rows and, reshaped into TS's array-row form, as the live query
 result. Schema `type` passes through as declared — real clusters have been seen
 reporting both `measure` and `MEASURE`, so charts should accept either.
 
-## Step 4 — start the headed preview
+## Step 4 — start the preview
+
+Headed is preferred — the user watches each attempt land. Start it even when you are
+not sure a window can open; it falls back on its own.
 
 ```bash
-node ".claude/skills/thoughtspot-amuzing-chart/helpers/start-preview.mjs" "$SLUG" &
+node "<SKILL>/helpers/start-preview.mjs" "<SLUG>"
 ```
 
-Background it (`run_in_background: true`). It seeds `runs/$SLUG/chart/` with three
-placeholder files, copies the scaffold, installs it once, starts Vite, and opens a
-window the user watches. Wait for `runs/$SLUG/.preview/cdp.json` before continuing.
+Background it (`run_in_background: true`). It seeds `<RUNS>/<SLUG>/chart/` with three
+placeholder files, serves the preview, and opens a window. Then wait (up to ~20 s)
+for **either**:
 
-The window shows a tile-shaped box. Editing any of the three chart files triggers a
-full reload — the user sees each attempt land.
+- `<RUNS>/<SLUG>/.preview/cdp.json` — the window is up. It shows a tile-shaped box and
+  reloads itself within a second of any edit to the three chart files.
+- a `headless fallback` line in its output — there is no display (the Claude app) or
+  the headed launch failed. It exits; carry on. `snap.mjs` captures with its own
+  headless browser, so the loop is unchanged.
 
 ## Step 5 — the loop
 
 For `attempt = 01..8`:
 
-1. **Edit** `runs/$SLUG/chart/chart.{html,css,js}`. First attempt: derive from the
-   image or intent plus the knowledge files. Use UPPER_SNAKE_CASE field constants
+1. **Edit** `<RUNS>/<SLUG>/chart/chart.{html,css,js}`. First attempt: derive from the
+   image or intent plus the `references/` files. Use UPPER_SNAKE_CASE field constants
    matching `sample-data.json`.
 2. **Archive this attempt's files** so each `NN.png` sits next to the exact code
    that produced it:
    ```bash
-   mkdir -p "runs/$SLUG/attempts/$attempt" && cp runs/$SLUG/chart/* "runs/$SLUG/attempts/$attempt/"
+   mkdir -p "<RUNS>/<SLUG>/attempts/<NN>" && cp "<RUNS>/<SLUG>/chart/"* "<RUNS>/<SLUG>/attempts/<NN>/"
    ```
 3. **Capture:**
    ```bash
-   node ".claude/skills/thoughtspot-amuzing-chart/helpers/snap.mjs" "$SLUG" "$attempt"
+   node "<SKILL>/helpers/snap.mjs" "<SLUG>" "<NN>"
    ```
-   Writes `attempts/NN.png` and prints a diagnostic block — status line, console
-   errors, whether `emitRenderCompletedEvent` fired.
+   Writes `attempts/NN.png` and prints a diagnostic block — `mode:`, status line,
+   console errors, whether `emitRenderCompletedEvent` fired.
 4. **Critique.** Read the PNG with the Read tool. **Read the diagnostic block too** —
    a chart that throws still screenshots, just empty, and the two failures need
    different fixes. Write `attempts/NN.critique.md`:
@@ -167,6 +184,13 @@ For `attempt = 01..8`:
    - Otherwise → fix the top defect and loop.
 6. **User interjection.** A new message mid-loop is the top defect for the next pass.
 
+**When `mode:` is headless**, the user has no window. After each snap, give them the
+`user-png:` path (the Claude app copies every attempt into `<OUT>/<SLUG>/attempts/`,
+where they can open it) and a one-line verdict. Font and anti-aliasing differences
+from ThoughtSpot are not defects. If `mode:` flips from `headed` to `headless` mid-run
+in Claude Code, the window died: run Step 4 once more, then continue in whatever mode
+results.
+
 Past 8 attempts without MATCH: stop, write `lessons.md` with `STATUS: incomplete`,
 tell the user what is unresolved. Do not quietly keep going.
 
@@ -176,32 +200,32 @@ The loop runs one data mode. These are the failures that only appear in the othe
 and skipping them is how a chart that "worked" breaks on someone else's tile.
 
 ```bash
-H=".claude/skills/thoughtspot-amuzing-chart/helpers/snap.mjs"
-node "$H" "$SLUG" 91 --data absent    # mode C must fall back + badge; B must degrade readably
-node "$H" "$SLUG" 92 --data wrapped   # object-wrapped cells must survive
-node "$H" "$SLUG" 93 --data empty     # zero rows must not throw
-node "$H" "$SLUG" 94 --data noviz     # no host at all - mode C must still render
+node "<SKILL>/helpers/snap.mjs" "<SLUG>" 91 --data absent    # mode C must fall back + badge; B must degrade readably
+node "<SKILL>/helpers/snap.mjs" "<SLUG>" 92 --data wrapped   # object-wrapped cells must survive
+node "<SKILL>/helpers/snap.mjs" "<SLUG>" 93 --data empty     # zero rows must not throw
+node "<SKILL>/helpers/snap.mjs" "<SLUG>" 94 --data noviz     # no host at all - mode C must still render
 ```
 
 Read each PNG — `status: ok` is not the same as correct, and each of these fails
-differently. Use distinct attempt numbers so the three frames survive as evidence.
+differently. Use distinct attempt numbers so the four frames survive as evidence.
 
 Then two more, neither of which the loop exercises.
 
-**Resize the container, not the window.** `Browser.setWindowBounds` over CDP is
-unreliable: it silently no-ops on some builds, and a screenshot taken mid-transition
-shows a clipped chart that looks like a bug that is not there. Both failure modes
-cost a loop. Set the container's width directly and compare the library's rendered
-geometry against it:
+**Resize the container, not the window.** A Liveboard tile resizes while the window
+does not, so only a `ResizeObserver` on the container sees it. `--tile` resizes the
+tile box (never the window — `Browser.setWindowBounds` silently no-ops on some builds
+and a mid-transition screenshot shows a clip that is not a bug) and compares the
+chart's widest `<svg>`/`<canvas>` against it:
 
-```js
-host.style.width = '620px';                  // then, after a beat:
-svg.getAttribute('width') === stage width ?  // fits
+```bash
+node "<SKILL>/helpers/snap.mjs" "<SLUG>" 95 --tile 620x400    # a narrow Liveboard tile
+node "<SKILL>/helpers/snap.mjs" "<SLUG>" 96 --tile 1400x500   # a wide one
 ```
 
-Blank means canvas shadowing. Overflow means a missing `ResizeObserver` — Plotly's
-and Chart.js's `responsive` options listen to `window.resize` only, and a Liveboard
-tile resizes while the window does not. Both are in `knowledge/hard-rules.md`.
+Read `svg-fit:`. `overflow` means a missing `ResizeObserver` — Plotly's and Chart.js's
+`responsive` options listen to `window.resize` only. `blank` means canvas shadowing
+or a zero-size stage. Both are in `references/hard-rules.md`. `n/a` is expected for a
+chart with no svg or canvas (an HTML table); read its PNG instead.
 
 **Empty the HTML tab and re-snap.** `chart.js` must build its own mount points. A
 chart that only renders when `chart.html` is present fails on a host that evaluates
@@ -210,18 +234,19 @@ tile, with nothing useful in the console.
 
 ## Step 7 — emit
 
-Work `knowledge/emit-checklist.md` top to bottom. Then copy the deliverables into
-`output/<slug>/` at the project root — files, not chat scroll:
+Work `references/emit-checklist.md` top to bottom. Then copy the deliverables into
+`<OUT>/<SLUG>/` — files, not chat scroll. In Claude Code that is `output/<slug>/` at
+the project root; in the Claude app it is the outputs folder the user downloads from.
 
 ```bash
-mkdir -p "output/$SLUG" && cp runs/$SLUG/chart/* "output/$SLUG/"
-cp "runs/$SLUG/attempts/<NN>.png" "output/$SLUG/preview.png"   # the MATCH attempt
+mkdir -p "<OUT>/<SLUG>" && cp "<RUNS>/<SLUG>/chart/"* "<OUT>/<SLUG>/"
+cp "<RUNS>/<SLUG>/attempts/<NN>.png" "<OUT>/<SLUG>/preview.png"   # the MATCH attempt
 ```
 
 The chart files are copied unchanged — that is the point of the preview running the
 real shape. `preview.png` is the screenshot of the attempt that passed, so the folder
 shows what the chart looks like without running anything. Write
-`output/$SLUG/README.md` per the checklist: the search to build, the data mode, what
+`<OUT>/<SLUG>/README.md` per the checklist: the search to build, the data mode, what
 could not be reproduced, and which file goes in which tab.
 
 Do **not** paste the three files into the chat. Tell the user the folder path, list
@@ -231,14 +256,15 @@ only if the user asks for it.
 ## Step 8 — close
 
 ```bash
-node ".claude/skills/thoughtspot-amuzing-chart/helpers/close-preview.mjs" "$SLUG"
+node "<SKILL>/helpers/close-preview.mjs" "<SLUG>"
 ```
 
-Always, on success or when the user says stop.
+Always, on success or when the user says stop. In headless mode there is no window
+and it says so — harmless.
 
 ## Library choice
 
-Muze by default. Pick by what the chart is — `knowledge/examples.md` has a working
+Muze by default. Pick by what the chart is — `references/examples.md` has a working
 file under `examples/` for each of these rows:
 
 - **Muze** — bar, line, area, scatter, bubble, box, waterfall, pie, heatmap,
@@ -255,6 +281,12 @@ file under `examples/` for each of these rows:
 - **Raw SVG / Canvas** — single-stat KPI tiles that are mostly typography.
 - **Raw HTML/CSS** — quote cards, text slides, annotation blocks.
 
+**When the doctor reports `cdn: blocked`** (usual in the Claude app), the CDN libraries
+cannot load in the preview, so a Chart.js / Plotly / gridjs chart cannot be verified
+there. Prefer Muze (vendored), a hand-built table, or raw SVG when they fit. When only
+a CDN library fits, write it anyway and tell the user it is **not previewed** — never
+report MATCH on a render that could not load its library.
+
 CDN loading works in BYOC: `document.createElement('script')` + `await new Promise`.
 Never invent `loadScript` / `waitForLib` helpers.
 
@@ -269,5 +301,16 @@ than an honest question.
 - Do not report MATCH off the screenshot alone when the diagnostic block shows console
   errors.
 - Do not leave the preview daemon running.
+- Do not run `playwright install` in the Claude app, and do not rely on a background
+  process surviving there — `snap.mjs` needs neither.
 - Do not claim a chart is verified against ThoughtSpot. It is verified against a
   faithful stub; the version and theme differences are real. Say "verified in preview".
+
+---
+
+## Changelog
+
+| Version | Date | Summary |
+|---|---|---|
+| 1.1.0 | 2026-09-29 | Runs in the Claude app as well as Claude Code: a doctor step resolves every path and the browser, headed is preferred with a headless fallback, the Vite server is replaced by a zero-install static server, `snap --tile` checks container resizes, and docs move to `references/` |
+| 1.0.0 | 2026-08-07 | Initial release |
