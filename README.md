@@ -7,7 +7,7 @@ Two skills:
 
 - **ts-custom-charts-builder** writes the three files a BYOC tile takes (`chart.html`,
   `chart.css`, `chart.js`) and iterates them in a real browser until the render is right,
-  instead of handing you code it has never run. It carries a library of 53 proven charts.
+  instead of handing you code it has never run. It carries a library of 57 proven charts.
 - **ts-custom-charts-liveboard-builder** builds a whole storytelling Liveboard of those charts on a
   real model through the ThoughtSpot MCP: plans the tabs, has each tile built by the chart
   skill, writes the banners, adds filters, imports, proves the import, and screenshots every
@@ -183,7 +183,7 @@ skills/ts-custom-charts-builder/
   references/         byoc-data-modes · hard-rules · examples · emit-checklist ·
                       muze-api-reference · system-prompt · taste-rules · library ·
                       library-contract · library-starters
-  library/            53 proven live-data charts on (Sample) Retail - Apparel, and the
+  library/            57 proven live-data charts on (Sample) Retail - Apparel, and the
                       shared core (_shared/)
   examples/           older charts, indexed by references/examples.md
   helpers/            env (the doctor) · serve · capture · start-preview · snap · probe ·
@@ -206,11 +206,13 @@ skill as a sibling folder (or through `TS_CUSTOM_CHARTS_SKILL`), so install both
 
 ## The chart library and the Amuzing chart samples Liveboard
 
-`skills/ts-custom-charts-builder/library/` holds 53 charts built on the ThoughtSpot model
+`skills/ts-custom-charts-builder/library/` holds 57 charts built on the ThoughtSpot model
 **(Sample) Retail - Apparel**, and 50 of them are arranged as the Liveboard **Amuzing chart samples**:
 seven numbered tabs (About, Pulse, Where, What, When, Who, Next), each answering one question, custom
 charts only, three Liveboard filters (date, region, item type). Every chart reads only what its search
-returns, is interactive, survives a filtered view, and was checked in a real cluster.
+returns, is interactive, survives a filtered view, and was checked in a real cluster, except four newer ones (a pivot table,
+a store league table, a Muze diverging bar and a volume-and-price growth split, rebuilt from the older
+`examples/`) that are marked *preview only* until they have been on a tile.
 `references/library.md` indexes them by tab, library and search; the "Start here" table in
 `references/examples.md` maps chart shapes to the one to copy.
 
