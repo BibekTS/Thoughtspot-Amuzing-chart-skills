@@ -18,8 +18,8 @@ Every fact here was verified on ps-internal (release 26.8) while building *Amuzi
 ## Patch the Liveboard in blocks
 
 A 50-tile Liveboard is about 1.8 MB of TML, mostly base64 chart code. Sending that through your own
-context is slow, and one wrong character corrupts a tile. So `scripts/liveboard-pack.mjs` splits the charts
-into blocks, and each block patches the Liveboard itself (`scripts/patch.js`):
+context is slow, and one wrong character corrupts a tile. So `<L>/scripts/liveboard-pack.mjs` splits the charts
+into blocks, and each block patches the Liveboard itself (`<L>/scripts/patch.js`):
 
 1. every chart and the core carry a sha256; the sandbox refuses the whole block on any mismatch;
 2. it exports the Liveboard and indexes its tiles by the `/* amuzing-slug: <slug> */` marker at the top of
