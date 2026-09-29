@@ -1,9 +1,12 @@
-# Playwright + Vite are installed on first run, not versioned.
+# Playwright is installed on first run, not versioned.
 node_modules/
 
-# Per-run working dirs the skill creates in the host project: a copied scaffold, its
-# own node_modules, attempt screenshots. The deliverables are emitted to output/,
+# Per-run working dirs the skill creates in the host project: chart files, attempt
+# screenshots, critiques. The deliverables are emitted to output/,
 # which is kept.
 runs/
 
 .DS_Store
+
+# Claude-app upload bundles, built on demand (see README).
+*.zip

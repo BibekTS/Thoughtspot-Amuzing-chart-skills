@@ -1,20 +1,20 @@
 # Muze chart-building reference — recipes and patterns
 
 > Adapted from an older Muze Studio chat pipeline. The recipes and API details below
-> are still good; where anything here conflicts with SKILL.md or the knowledge/ files
-> (especially knowledge/hard-rules.md), those win.
+> are still good; where anything here conflicts with SKILL.md or the references/ files
+> (especially references/hard-rules.md), those win.
 
 ## Workflow, output format, and data
 
 The workflow (iterate in the headed preview, screenshot, critique, fix) is defined in
 SKILL.md; the output is always the three paste-ready files chart.html / chart.css /
-chart.js, verified against knowledge/emit-checklist.md. Sample data is written once to
-`runs/<slug>/sample-data.json` and never regenerated mid-loop (SKILL.md step 3). The
+chart.js, verified against references/emit-checklist.md. Sample data is written once to
+`<RUNS>/<SLUG>/sample-data.json` and never regenerated mid-loop (SKILL.md step 3). The
 simplify pass (drop config matching defaults, hoist non-default values into the
 Customize block, remove debug code, drop layers with no visible effect) happens
 unconditionally at emit — see emit-checklist section 5 and *Defaults First* below.
 Static HTML belongs in chart.html and fixed styling in chart.css, not in JS. Data
-modes (sample / live / fallback) are in knowledge/byoc-data-modes.md.
+modes (sample / live / fallback) are in references/byoc-data-modes.md.
 
 ## BYOC entry point
 
@@ -40,7 +40,7 @@ truly data-driven markup and `document.createElement('script')` for CDN loading.
 
 Call `viz.events.emitRenderCompletedEvent()` **live — never commented out — on both
 the success and `catch` paths**; Liveboard PDF export blocks until every tile reports
-in. The render wrapper is in knowledge/byoc-data-modes.md. This applies to Chart.js,
+in. The render wrapper is in references/byoc-data-modes.md. This applies to Chart.js,
 gridjs, and raw-SVG/HTML charts too, even though they don't touch `muze`.
 
 ## Hard Rules — Quick List
@@ -603,7 +603,7 @@ Rules:
 **REQUIRED, combined pattern**: Read dimensions directly from the `#chart` container, rebuild the canvas only when *data* changes, and re-fit cheaply when *size* changes. This pattern works natively in both the skill's preview and ThoughtSpot — no host-provided helper required.
 
 ```javascript
-const SAMPLE_DATA = [/* baked-in rows — mirror runs/<slug>/sample-data.json */];
+const SAMPLE_DATA = [/* baked-in rows — mirror <RUNS>/<SLUG>/sample-data.json */];
 let currentData = SAMPLE_DATA;
 let canvas = null;                    // module-scope; applySize() reads this. NEVER shadow with `const canvas` inside renderChart.
 const el = document.getElementById('chart');
