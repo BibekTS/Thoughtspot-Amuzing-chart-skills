@@ -3,9 +3,15 @@
 Claude skills for building ThoughtSpot custom charts (BYOC), in Claude Code and the
 Claude app.
 
-One skill so far: **thoughtspot-amuzing-chart**. It writes the three files a BYOC
-tile takes (`chart.html`, `chart.css`, `chart.js`) and iterates them in a real
-browser until the render is right, instead of handing you code it has never run.
+Two skills:
+
+- **thoughtspot-amuzing-chart** writes the three files a BYOC tile takes (`chart.html`,
+  `chart.css`, `chart.js`) and iterates them in a real browser until the render is right,
+  instead of handing you code it has never run. It carries a library of 53 proven charts.
+- **thoughtspot-amuzing-liveboard** builds a whole storytelling Liveboard of those charts on a
+  real model through the ThoughtSpot MCP: plans the tabs, has each tile built by the chart
+  skill, writes the banners, adds filters, imports, proves the import, and screenshots every
+  tab in a logged-in browser. It needs the chart skill installed beside it.
 
 ## What it does
 
@@ -46,14 +52,16 @@ Copy the skill folder into the project where you want to use it:
 git clone git@github.com:BibekTS/Thoughtspot-Amuzing-chart-skills.git
 mkdir -p /path/to/your-project/.claude/skills
 cp -R Thoughtspot-Amuzing-chart-skills/skills/thoughtspot-amuzing-chart \
+      Thoughtspot-Amuzing-chart-skills/skills/thoughtspot-amuzing-liveboard \
       /path/to/your-project/.claude/skills/
 ```
 
 Or symlink it once for every project, and update it with `git pull`:
 
 ```bash
-ln -s "$PWD/Thoughtspot-Amuzing-chart-skills/skills/thoughtspot-amuzing-chart" \
-      ~/.claude/skills/thoughtspot-amuzing-chart
+for s in thoughtspot-amuzing-chart thoughtspot-amuzing-liveboard; do
+  ln -s "$PWD/Thoughtspot-Amuzing-chart-skills/skills/$s" ~/.claude/skills/$s
+done
 ```
 
 With the copy, runs and deliverables land in `runs/` and `output/` of the project you
@@ -70,10 +78,16 @@ Requirements: Node 20+ and npm. The first run installs Playwright and Chromium i
 
    ```bash
    cd skills && zip -r ../thoughtspot-amuzing-chart.zip thoughtspot-amuzing-chart \
-     -x '*/node_modules/*' '*.DS_Store'
+     -x '*/node_modules/*' '*.DS_Store' '*/library/*/preview.png'
    ```
 
-3. Upload `thoughtspot-amuzing-chart.zip` under **Settings → Capabilities → Skills**.
+   The library's `preview.png` screenshots (about 6 MB) stay out of the zip; the skill does not need them to run.
+
+   For the Liveboard skill as well: `cd skills && zip -r ../thoughtspot-amuzing-liveboard.zip thoughtspot-amuzing-liveboard -x '*.DS_Store'`.
+   In the Claude app it can plan, build and import, but not take the in-cluster screenshots:
+   those need a browser window you sign in to, so check the tabs yourself there.
+
+3. Upload `thoughtspot-amuzing-chart.zip` (and `thoughtspot-amuzing-liveboard.zip`) under **Settings → Capabilities → Skills**.
 4. Ask for a chart in a new chat.
 
 The first run installs `playwright-core` and uses the sandbox's own Chromium; it never
@@ -165,20 +179,56 @@ node $H/close-preview.mjs my-chart                     # close the window
 
 ```
 skills/thoughtspot-amuzing-chart/
-  SKILL.md            the procedure — the file Claude reads
+  SKILL.md            the procedure: the file Claude reads
   references/         byoc-data-modes · hard-rules · examples · emit-checklist ·
-                      muze-api-reference · system-prompt
-  examples/           working charts, indexed by references/examples.md
-  helpers/            env (the doctor) · serve · capture · start-preview · snap ·
-                      close-preview, plus a smoke-test fixture
+                      muze-api-reference · system-prompt · taste-rules · library ·
+                      library-contract · library-starters
+  library/            53 proven live-data charts on (Sample) Retail - Apparel, and the
+                      shared core (_shared/)
+  examples/           older charts, indexed by references/examples.md
+  helpers/            env (the doctor) · serve · capture · start-preview · snap · probe ·
+                      close-preview · sync-core · library-emit · make-index,
+                      plus a smoke-test fixture
   scaffold/           the preview page, including a vendored Muze bundle
+skills/thoughtspot-amuzing-liveboard/
+  SKILL.md            profile the model, plan the tabs, build, patch the Liveboard, screenshot
+  references/         story-and-layout · pipeline · tile-brief
+  scripts/            liveboard-pack · patch.js (runs in the MCP sandbox) ·
+                      build-narratives · cluster-shot · chart-skill (finds the sibling)
+  narratives/         the template for About and tab-banner tiles
+  liveboards/amuzing-chart-samples/   the worked example: spec, banner configs, data notes
 scripts/
-  export-to-library.sh   copy the skill into thoughtspot-agent-skills
+  export-to-library.sh   copy both skills into thoughtspot-agent-skills
 ```
 
-Everything the skill reads travels inside that one folder, so it works from whatever
-project it is installed into. The helpers never name the skill or assume where it is
-installed, so the same folder works under another name.
+Everything each skill reads travels inside its folder. The Liveboard skill finds the chart
+skill as a sibling folder (or through `TS_AMUZING_CHART_SKILL`), so install both side by side.
+
+## The chart library and the Amuzing chart samples Liveboard
+
+`skills/thoughtspot-amuzing-chart/library/` holds 53 charts built on the ThoughtSpot model
+**(Sample) Retail - Apparel**, and 50 of them are arranged as the Liveboard **Amuzing chart samples**:
+seven numbered tabs (About, Pulse, Where, What, When, Who, Next), each answering one question, custom
+charts only, three Liveboard filters (date, region, item type). Every chart reads only what its search
+returns, is interactive, survives a filtered view, and was checked in a real cluster.
+`references/library.md` indexes them by tab, library and search; the "Start here" table in
+`references/examples.md` maps chart shapes to the one to copy.
+
+Two things about how they are made are worth knowing:
+
+- **Real data, no sample rows.** With the ThoughtSpot MCP connected, each chart is developed against the
+  exact output of its own search (`searchdata`), not invented rows.
+- **The Liveboard is patched in place.** The MCP sandbox has no network and no memory, so a Liveboard's
+  base64 chart code cannot be sent whole. The Liveboard skill's `liveboard-pack.mjs` splits the charts into
+  sha256-checked blocks; each one exports the Liveboard, replaces its charts' tiles, keeps the rest,
+  imports, and proves by export that every tile carries the code that was composed. Nothing else is
+  created in ThoughtSpot. `cluster-shot.mjs` then screenshots each tab in a logged-in browser. The
+  procedure is `skills/thoughtspot-amuzing-liveboard/SKILL.md`.
+
+Facts about ThoughtSpot tiles that the preview cannot show, found this way, are in the "Verified in a
+real cluster" table of the chart skill's `references/hard-rules.md` (for example: `fetch()` is blocked
+inside a tile, `<script src>` from a CDN is not), and the import-side ones in the Liveboard skill's
+`references/pipeline.md`.
 
 ## Examples
 
@@ -197,17 +247,17 @@ not correct-in-preview. Copy the technique, not the file.
 
 ## For maintainers: the ThoughtSpot skills library
 
-The skill is being prepared for
+The skills are being prepared for
 [thoughtspot/thoughtspot-agent-skills](https://github.com/thoughtspot/thoughtspot-agent-skills),
-where it is named `ts-amuzing-chart-builder` (that library requires lowercase `ts-`
-names). This repo stays the source; copy it across with:
+where they are named `ts-amuzing-chart-builder` and `ts-amuzing-liveboard-builder` (that
+library requires lowercase `ts-` names). This repo stays the source; copy them across with:
 
 ```bash
 scripts/export-to-library.sh /path/to/thoughtspot-agent-skills
 ```
 
-That copies the skill to `agents/claude/ts-amuzing-chart-builder/` and renames it in
-`SKILL.md`. Registering it in the library (README, setup docs, runtime coverage,
+That copies both to `agents/claude/` and renames them, and every reference between them,
+in the copies. Registering them in the library (README, setup docs, runtime coverage,
 changelog, smoke test) is part of the library PR.
 
 Open before that PR: the vendored Muze bundle's license is unconfirmed — see

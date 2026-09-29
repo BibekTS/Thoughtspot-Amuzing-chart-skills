@@ -16,6 +16,38 @@ Two rules for using them:
 - **They predate the preview loop.** None was iterated through `snap.mjs`, so treat
   them as correct-in-ThoughtSpot, not correct-in-preview. Still run the loop.
 
+## Start here: the library
+
+`library/` holds 53 charts built on real data. Each was iterated in the preview, is interactive, and was checked in
+a real cluster. They share one core (`library/_shared/core.js`: theme, column lookup, tooltip, CDN loader, motion,
+crumbs, boot). **Look for your shape in this table first**, then in `references/library.md` (every chart by tab,
+library and search). Use the `examples/` files further down only for shapes the library lacks, or for the
+Muze workarounds they document.
+
+| Pattern | Copy | Library | Why this one |
+|---|---|---|---|
+| Hierarchy with animated zoom | `library/what-sunburst` | Plotly | Native `sunburstclick` zoom, crumbs wired to `Plotly.restyle` |
+| Hierarchy as rectangles, drill by click | `library/what-treemap-drill` | hand SVG | Three-level drill with crumbs and a way back |
+| Flow between two or three dimensions | `library/what-money-sankey`, `library/what-chord` | ECharts / D3 | Click a node to isolate its flows; chord drills a family |
+| Map, bubble per state, zoom to stores | `library/where-state-bubbles` | inline SVG map | Inline US paths (`_shared/us-states.js`), because `fetch()` is blocked in tiles |
+| Hex cartogram | `library/where-hex-cartogram` | hand SVG | Supersedes `examples/State-hex-cartogram` |
+| KPI tile | `library/kpi-ring`, `kpi-flip`, `kpi-odometer`, `kpi-bullet`, `kpi-sparkbars`, `kpi-dotstrip`, `kpi-quarter-pairs` | hand SVG | Seven readings of one number, with measure toggles and same-period YoY; supersede `examples/kpi-chart` |
+| Line over time with a prior-year ghost | `library/pulse-monthly-line` | Muze | Muze line stroke fix and own crosshair |
+| Calendar heatmap, click a year to drill | `library/when-calendar-heatmap` | hand SVG | Partial-period cells, measure toggle |
+| Stream or stacked area with drill | `library/when-family-stream` | D3 | Stream / stacked / 100% toggle, family to item-type drill |
+| Animated scatter over time | `library/when-bubble-motion` | hand SVG | Play and scrub control driving tweens |
+| Pareto / concentration | `library/what-pareto` | hand SVG | The 80% line computed from live rows |
+| What-if with sliders | `library/next-what-if` | hand SVG | Tweens from the last drawn state, `AZ.settle()` before measuring |
+| Table with inline marks | `library/who-product-table` | hand HTML | Sort, share bars, sparklines; supersedes `examples/table-pivot/table-chart` for flat tables |
+| Parallel coordinates | `library/who-store-parallel` | D3 | Brush an axis to filter lines |
+| Beeswarm | `library/who-product-beeswarm` | D3 force | Collision layout that fits the tile |
+
+The narrative tiles (tab banners, About) are one template in the `thoughtspot-amuzing-liveboard` skill (`narratives/`), driven by a config per tab.
+
+## Older examples
+
+These predate the preview loop and the shared core. Entries marked *superseded* have a better library chart above.
+
 ## Muze
 
 | Path | What it is | Worth reading for |
@@ -45,7 +77,7 @@ Sunburst, treemap and icicle. Plotly is the only library here with a real
 
 | Path | What it is | Worth reading for |
 |---|---|---|
-| `examples/retail-apparel-sunburst/` | Sunburst, ~470 lines | **Read this one first.** The only example here taken through the preview loop *and* the emit checklist. Hierarchy build, `flatten()` into Plotly's parallel `ids/labels/parents/values` arrays, breadcrumb wired to `plotly_sunburstclick`, plus the four fixes below |
+| `examples/retail-apparel-sunburst/` | Sunburst, ~470 lines | *Superseded by `library/what-sunburst`.* Still the fullest write-up of the four sunburst defects below. Hierarchy build, `flatten()` into Plotly's parallel `ids/labels/parents/values` arrays, breadcrumb wired to `plotly_sunburstclick`, plus the four fixes below |
 | `examples/Sunburst-chart/result/` and `examples/NWP-sunburst/result/` | Sunburst, ~330 lines each | The same hierarchy technique, older. Carry the defects below — read them for shape, not for correctness |
 
 These two were filed under Chart.js until this commit and are **not** Chart.js. If
@@ -68,7 +100,7 @@ all fixed in `examples/retail-apparel-sunburst/`:
 | Path | What it is | Worth reading for |
 |---|---|---|
 | `examples/table-pivot/pivot-table/newused-summary/` | Pivot table, ~720 lines | The most worked-over file here. A `CONFIG` block at the top is the whole interface; below it are the aggregation rules that make totals match TS — `weightedTotal`, `totalFrom`, `ratioTotal`, `computed` — plus `cellVal` for object-wrapped cells and loose column-name matching for non-breaking spaces. Read it before any pivot or crosstab |
-| `examples/table-pivot/table-chart/newused-summary/` | Flat table, ~210 lines | The same CONFIG idea without the pivot machinery |
+| `examples/table-pivot/table-chart/newused-summary/` | Flat table, ~210 lines | *Superseded by `library/who-product-table`.* The same CONFIG idea without the pivot machinery |
 | `examples/waffle_chart/result/` | Waffle grid, ~230 lines | Cards built with `createElement`, no library |
 | `examples/progression-funnel/progression-funnel.js` | Funnel, ~280 lines | Pure DOM funnel; `_progression_funnel_demo.html` beside it is a standalone preview |
 | `examples/Examples/Example 4 growth comp/` | Growth comparison | DOM plus `ResizeObserver`, no charting library at all |
@@ -77,8 +109,8 @@ all fixed in `examples/retail-apparel-sunburst/`:
 
 | Path | What it is | Worth reading for |
 |---|---|---|
-| `examples/State-hex-cartogram/result/` | US hex cartogram, ~370 lines | `createElementNS` throughout, a fixed layout table keyed by state, and a `ResizeObserver` redraw |
-| `examples/kpi-chart/result/` | KPI tile, ~150 lines | Small, typography-led, resize-aware. Has a `README.md` |
+| `examples/State-hex-cartogram/result/` | US hex cartogram, ~370 lines | *Superseded by `library/where-hex-cartogram`.* `createElementNS` throughout, a fixed layout table keyed by state, and a `ResizeObserver` redraw |
+| `examples/kpi-chart/result/` | KPI tile, ~150 lines | *Superseded by the `library/kpi-*` charts.* Small, typography-led, resize-aware. Has a `README.md` |
 
 ## Self-contained HTML (everything in the HTML tab)
 
