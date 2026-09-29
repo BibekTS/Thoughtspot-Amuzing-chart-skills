@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # export-to-library.sh <thoughtspot-agent-skills checkout>
 #
-# Copies the skill into the thoughtspot-agent-skills library, where it ships as
-# `ts-amuzing-chart-builder` under agents/claude/. This repo keeps the name
+# Copies both skills into the thoughtspot-agent-skills library, where they ship as
+# `ts-amuzing-chart-builder` and `ts-amuzing-liveboard-builder` under agents/claude/. This repo keeps the name
 # `thoughtspot-amuzing-chart`; the helpers read the name off their own folder, so
 # the copy only needs its SKILL.md frontmatter and prose renamed.
 #
@@ -13,20 +13,23 @@
 set -euo pipefail
 
 LIB="${1:?usage: export-to-library.sh <path to thoughtspot-agent-skills checkout>}"
-SRC="$(cd "$(dirname "$0")/.." && pwd)/skills/thoughtspot-amuzing-chart"
-NAME="ts-amuzing-chart-builder"
-DST="$LIB/agents/claude/$NAME"
-
+ROOT="$(cd "$(dirname "$0")/.." && pwd)/skills"
 [ -d "$LIB/agents/claude" ] || { echo "not a thoughtspot-agent-skills checkout: $LIB" >&2; exit 1; }
 
-mkdir -p "$DST"
-rsync -a --delete --exclude node_modules --exclude .DS_Store "$SRC/" "$DST/"
+# source name -> library name. The Liveboard skill refers to the chart skill by name, so every
+# copy is renamed for both.
+RENAMES="s/thoughtspot-amuzing-chart/ts-amuzing-chart-builder/g; s/thoughtspot-amuzing-liveboard/ts-amuzing-liveboard-builder/g"
 
-# Rename in text files only; the vendored bundle and PNGs are left alone.
-grep -rlI --exclude-dir=node_modules --exclude-dir=vendor "thoughtspot-amuzing-chart" "$DST" |
-  while IFS= read -r f; do
-    perl -pi -e "s/thoughtspot-amuzing-chart/$NAME/g" "$f"
-    echo "renamed in ${f#"$LIB/"}"
-  done
-
-echo "exported to ${DST#"$LIB/"}"
+for pair in "thoughtspot-amuzing-chart:ts-amuzing-chart-builder" "thoughtspot-amuzing-liveboard:ts-amuzing-liveboard-builder"; do
+  SRC="$ROOT/${pair%%:*}"
+  DST="$LIB/agents/claude/${pair##*:}"
+  mkdir -p "$DST"
+  rsync -a --delete --exclude node_modules --exclude .DS_Store "$SRC/" "$DST/"
+  # Rename in text files only; the vendored bundle and PNGs are left alone.
+  grep -rlIE --exclude-dir=node_modules --exclude-dir=vendor "thoughtspot-amuzing-(chart|liveboard)" "$DST" |
+    while IFS= read -r f; do
+      perl -pi -e "$RENAMES" "$f"
+      echo "renamed in ${f#"$LIB/"}"
+    done
+  echo "exported to ${DST#"$LIB/"}"
+done

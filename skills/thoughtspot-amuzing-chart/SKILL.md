@@ -1,6 +1,6 @@
 ---
 name: thoughtspot-amuzing-chart
-description: Build a ThoughtSpot custom chart (BYOC) as three paste-ready files — chart.html, chart.css, chart.js — by iterating in a real browser until the render is right. Opens a preview the user watches (a headed window in Claude Code; headless screenshots in the Claude app or wherever no window can open), screenshots each attempt, critiques it with vision, and fixes the top defect. Use when the user wants a ThoughtSpot custom chart, a BYOC tile, a Muze chart, or wants an existing chart tile rebuilt, debugged, or converted between sample and live data. Covers Muze, Chart.js, gridjs, hand-built HTML tables, and raw SVG. Not for native ThoughtSpot chart configuration or non-ThoughtSpot charting work.
+description: Build a ThoughtSpot custom chart (BYOC) as three paste-ready files — chart.html, chart.css, chart.js — by iterating in a real browser until the render is right. Opens a preview the user watches (a headed window in Claude Code; headless screenshots in the Claude app or wherever no window can open), screenshots each attempt, critiques it with vision, and fixes the top defect. Use when the user wants a ThoughtSpot custom chart, a BYOC tile, a Muze chart, or wants an existing chart tile rebuilt, debugged, or converted between sample and live data. Covers Muze, D3, ECharts, Plotly, Chart.js, gridjs, hand-built HTML tables, and raw SVG, and hands finished tiles to the thoughtspot-amuzing-liveboard skill to put on a Liveboard. Ships a library of proven live-data charts under library/. Not for native ThoughtSpot chart configuration or non-ThoughtSpot charting work.
 ---
 
 # ThoughtSpot custom chart builder
@@ -32,6 +32,8 @@ screenshot.
 | User describes a chart in prose | **Build** — match the description |
 | User has an existing tile that misbehaves | **Debug** — start from their files, skip to the loop |
 | User wants sample→live or live→sample | **Convert** — read `references/byoc-data-modes.md`, change the mode, verify both |
+| User wants a chart that a library chart already covers | **Adapt** - open `references/library.md`, copy the nearest `library/<slug>/`, change the search and copy, then run the loop |
+| User wants finished tiles on a Liveboard, or a whole Liveboard | **Hand over** - `## Step 9`; the Liveboard work is the `thoughtspot-amuzing-liveboard` skill |
 | Ambiguous | Ask once, briefly, then go |
 
 ## Step 0 — doctor (every run, one Bash call)
@@ -80,8 +82,10 @@ Read before writing any chart code, in this order:
    faster than the reference does and carries the workarounds already found.
 4. `references/system-prompt.md` — long-form recipes and patterns.
 5. `references/muze-api-reference.md` — when the chart is Muze.
+6. `references/taste-rules.md` — the design bans and copy rules every chart is critiqued against (no emojis, no em-dashes, one accent rule, specific copy).
+7. `references/library.md` — the proven live-data charts in `library/`, indexed by question. Start from the nearest one.
 
-All five ship with the skill; paths are relative to the skill folder, wherever it is
+All seven ship with the skill; paths are relative to the skill folder, wherever it is
 installed.
 
 ## Step 2 — settle the data mode
@@ -125,7 +129,7 @@ mid-loop — a moving schema means the loop cannot converge.
 }
 ```
 
-Max 30 rows. If the user supplied a CSV, parse it and cap it. Otherwise invent
+Max 30 rows. If the user supplied a CSV, parse it and cap it. **If the ThoughtSpot MCP is connected and the tile has a real search, do not invent rows: run the exact search with `searchdata` and write its output as the fixture** (`{schema, rows}`, dates multiplied by 1000 because tiles receive epoch milliseconds, column names exactly as the search returns them: `Total sales`, `Month(date)`). The 30-row cap is lifted for real data, but keep searches aggregated so the fixture stays under about 1,000 rows. Otherwise invent
 something plausible for the chart type. The preview serves this file both as the
 baked-in sample rows and, reshaped into TS's array-row form, as the live query
 result. Schema `type` passes through as declared — real clusters have been seen
@@ -227,6 +231,17 @@ Read `svg-fit:`. `overflow` means a missing `ResizeObserver` — Plotly's and Ch
 or a zero-size stage. Both are in `references/hard-rules.md`. `n/a` is expected for a
 chart with no svg or canvas (an HTML table); read its PNG instead.
 
+**Prove it responds.** Every chart must react to the pointer: at minimum a hover tooltip, and where the shape allows a click to isolate, a toggle, a sort or a scrub. Check it, do not assume it:
+
+```bash
+node "<SKILL>/helpers/probe.mjs" "<SLUG>" --tile 620x400 --sweep                 # >= 3 of 5 points must change the DOM
+node "<SKILL>/helpers/probe.mjs" "<SLUG>" --tile 620x400 --hover 0.6,0.5 --out 97   # then Read attempts/97.hover.png
+node "<SKILL>/helpers/probe.mjs" "<SLUG>" --tile 620x400 --click 0.9,0.1 --out 98   # a toggle or a mark
+node "<SKILL>/helpers/probe.mjs" "<SLUG>" --tile 620x400 --click-sel ".wedge" --wait 900 --after "document.querySelector(\".crumbs\").innerText" --out 99   # read what a drill changed
+```
+
+`--eval "js"` inspects the DOM after the interaction. A chart whose sweep reports `NOT INTERACTIVE` is not done. Click-only charts (toggles, expanders) report 0 on the sweep by design: verify those with `--click`.
+
 **Empty the HTML tab and re-snap.** `chart.js` must build its own mount points. A
 chart that only renders when `chart.html` is present fails on a host that evaluates
 the JS first — which surfaces as the host's own "Chart did not render" over an empty
@@ -262,16 +277,35 @@ node "<SKILL>/helpers/close-preview.mjs" "<SLUG>"
 Always, on success or when the user says stop. In headless mode there is no window
 and it says so — harmless.
 
+## Step 9 - put it on a Liveboard (optional)
+
+Publishing tiles to a Liveboard, and building a whole storytelling Liveboard of them, is the sibling
+skill **thoughtspot-amuzing-liveboard** (patches the Liveboard through the ThoughtSpot MCP, narrative
+tiles, filters, round-trip proof, in-cluster screenshots). To hand a chart over:
+
+1. Build it to `references/library-contract.md` (shared core, ASCII, no template strings).
+2. `node "<SKILL>/helpers/sync-core.mjs" "<RUNS>/<SLUG>/chart"`, then
+   `node "<SKILL>/helpers/library-emit.mjs" <SLUG> --title ... --search ... --tile WxH ...` publishes it to
+   `library/<slug>/` (refuses non-ASCII or a drifted core). `python3 "<SKILL>/helpers/make-index.py"`
+   refreshes `references/library.md`.
+
+Without that skill or the MCP, hand the user the three files and the search to bind.
+
 ## Library choice
 
-Muze by default. Pick by what the chart is — `references/examples.md` has a working
-file under `examples/` for each of these rows:
+Start from a library chart: the "Start here" table at the top of `references/examples.md`
+maps shapes (animated drill, map zoom, flow, KPI variants, what-if, beeswarm ...) to a
+proven chart under `library/`. Copy its technique; keep the shared core. Otherwise,
+Muze by default, and pick by what the chart is — `references/examples.md` has a working
+file for each of these rows:
 
 - **Muze** — bar, line, area, scatter, bubble, box, waterfall, pie, heatmap,
   dual-axis, data-bound KPIs. Anything wanting axes, legends, color encodings, or
   tooltips wired to a DataModel.
 - **Chart.js** (CDN) — radar, polar, doughnut, sankey, gauges, bespoke smoothing,
   conditional bar coloring, background bands.
+- **D3** (CDN) — stream graphs, force layouts (beeswarm), parallel coordinates, chord; anything with a bespoke layout.
+- **ECharts** (CDN) — sankey and dense flow diagrams.
 - **Plotly** (CDN) — **sunburst**, treemap, icicle. Anything hierarchical where a
   parent's arc must equal the sum of its children (`branchvalues: 'total'`) and
   clicking a wedge should zoom. Do not hand-roll this on Chart.js doughnuts.
@@ -287,8 +321,7 @@ there. Prefer Muze (vendored), a hand-built table, or raw SVG when they fit. Whe
 a CDN library fits, write it anyway and tell the user it is **not previewed** — never
 report MATCH on a render that could not load its library.
 
-CDN loading works in BYOC: `document.createElement('script')` + `await new Promise`.
-Never invent `loadScript` / `waitForLib` helpers.
+CDN loading works in BYOC: a `<script src>` in `chart.html`, or `document.createElement('script')` + a bounded promise (the shared core's `AZ.loadScript` is that, with a timeout and a fallback host). **Verified in a real cluster: `<script src>` from cdn.jsdelivr.net and unpkg loads (d3, echarts, topojson-client), but `fetch()` to any external URL is blocked** ("Network requests are blocked for security"). Data files, GeoJSON and topologies must be inlined in `chart.js`; `library/_shared/us-states.js` is an inline US map for that reason.
 
 If the request matches none of these and no close analogue exists, say so before
 writing code and offer two or three concrete paths. A confident wrong chart costs more
@@ -303,8 +336,8 @@ than an honest question.
 - Do not leave the preview daemon running.
 - Do not run `playwright install` in the Claude app, and do not rely on a background
   process surviving there — `snap.mjs` needs neither.
-- Do not claim a chart is verified against ThoughtSpot. It is verified against a
-  faithful stub; the version and theme differences are real. Say "verified in preview".
+- Do not claim a chart is verified against ThoughtSpot unless it has been screenshotted there (`thoughtspot-amuzing-liveboard`'s `cluster-shot.mjs`). Otherwise it is verified against a faithful stub; the Muze build, theme and network rules differ. Say "verified in preview".
+- Do not ship a chart nothing reacts to, or one that invents rows when the search returns none.
 
 ---
 
@@ -312,5 +345,9 @@ than an honest question.
 
 | Version | Date | Summary |
 |---|---|---|
+| 1.2.0 | 2026-09-30 | Library of live-data charts (`library/`) with a shared core (theme, data access, tooltip, bounded CDN loader, boot); real-data fixtures from the ThoughtSpot MCP; interactivity required and checked with `probe.mjs`; publish route (`sync-core`, `library-emit`, `board-pack`, `assemble.js`, `cluster-shot`); cluster facts recorded (script tags load, `fetch()` is blocked); design rules in `references/taste-rules.md` |
+| 1.4.1 | 2026-09-30 | Drill-down traps from the treemap, in `references/library-starters.md`: a click resolves to the next level down (a view drawing two levels puts the pointer over the inner one); never raise a hovered SVG element to show its outline (a parent covers its children), use a `pointer-events: none` overlay; never gate clicks on an animation finishing (browsers pause frames in hidden tiles). Test a drill by hovering every parent first, then clicking the centre of the largest rectangle at each level |
+| 1.4.0 | 2026-09-30 | Liveboard building moved to the new sibling skill `thoughtspot-amuzing-liveboard` (`board-pack` became its `liveboard-pack`, with `assemble.js`, `cluster-shot`, the narrative template and the example spec). The chart contract that was in the build guide is now `references/library-contract.md`; `make-index.py` moved to `helpers/`; a "Start here" table in `references/examples.md` maps shapes to library charts |
+| 1.3.0 | 2026-09-30 | Library grown to 53 charts and a 50-tile, 7-tab board. Motion and drill-down rules (`AZ.tween`, `animator`, `settle`, crumbs; entrance is opacity-only); seven KPI variants; the sunburst is rebuilt on Plotly so its drill is an animated zoom; `assemble.js` strips comments and indentation from shipped code because the 50-tile import (2.8 MB) reset the connection while the trimmed 1.8 MB import succeeded; populate header text, then `await AZ.settle()`, before measuring layout |
 | 1.1.0 | 2026-09-29 | Runs in the Claude app as well as Claude Code: a doctor step resolves every path and the browser, headed is preferred with a headless fallback, the Vite server is replaced by a zero-install static server, `snap --tile` checks container resizes, and docs move to `references/` |
 | 1.0.0 | 2026-08-07 | Initial release |

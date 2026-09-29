@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // snap.mjs <slug> <attempt> [--data live|empty|absent|wrapped|noviz] [--tile WxH] [--standalone]
+//   (--data=absent and --tile=620x400 also work: under zsh an unquoted "$args" is not split, so prefer the = form in loops)
 //
 // Captures one attempt to <runs>/<slug>/attempts/<NN>.png.
 //
@@ -29,7 +30,9 @@ const argv = process.argv.slice(2);
 const positional = [];
 let dataOverride = null, tileSpec = null, standalone = false;
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i] === "--data") dataOverride = argv[++i];
+  if (argv[i].startsWith("--data=")) dataOverride = argv[i].slice(7);
+  else if (argv[i].startsWith("--tile=")) tileSpec = argv[i].slice(7);
+  else if (argv[i] === "--data") dataOverride = argv[++i];
   else if (argv[i] === "--tile") tileSpec = argv[++i];
   else if (argv[i] === "--standalone") standalone = true;
   else positional.push(argv[i]);
