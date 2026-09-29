@@ -234,105 +234,114 @@ const AZ = (function () {
 })();
 /* ==== end amuzing core ==== */
 
-// -- helpers shared by the narrative configs ---------------------------------
-const sum = (a) => a.reduce((x, y) => x + y, 0);
-function groupSum(rows, kKey, vKey) {
-  const m = new Map();
-  rows.forEach((r) => m.set(r[kKey], (m.get(r[kKey]) || 0) + AZ.num(r[vKey])));
-  return [...m.entries()].map((e) => ({ k: e[0], v: e[1] })).sort((a, b) => b.v - a.v);
-}
-function monthly(rows, schema) {
-  const dK = AZ.col(schema, /date|month/i), sK = AZ.col(schema, /sales/i), uK = AZ.col(schema, /quantity|units/i, { optional: true });
-  return rows.map((r) => ({ t: AZ.ms(r[dK]), s: AZ.num(r[sK]), u: uK ? AZ.num(r[uK]) : 0 })).filter((r) => isFinite(r.t)).sort((a, b) => a.t - b.t);
-}
-const money = AZ.money, pct = AZ.pct;
+// Search: [sales] [quantity purchased] [state]   (columns arrive as "state", "Total sales", "Total quantity purchased")
+// Interactions: hover a dot for its tooltip; click a dot to pin it (the others dim); click the background to clear.
+let pinned = null;
 
-const CFG = {
-  kind: 'banner', tab: '03  Where', question: 'Where does it sell?',
-  need: 'sales by region and state, e.g. [sales] [region] [state]',
-  prompts: ['Show sales by state and region', 'Highest-selling store in each state', 'How many stores does each state have?'],
-  next: 'Then: 04 What',
-  build: function (rows, schema) {
-    const rK = AZ.col(schema, /^region$/i), sK = AZ.col(schema, /^state$/i), vK = AZ.col(schema, /sales/i);
-    const reg = groupSum(rows, rK, vK), st = groupSum(rows, sK, vK), tot = sum(st.map((x) => x.v));
-    if (!tot) return { lead: 'No sales in this view.', stats: [] };
-    const two = st.length > 1 ? st[0].v + st[1].v : st[0].v;
-    const one = reg.length === 1; // a region filter leaves one: a 100% share says nothing
-    const lead = (one ? 'Only the ' + reg[0].k + ' region is in this view. ' : reg[0].k + ' is the largest region at ' + pct(reg[0].v / tot, 0) + ' of sales. ')
-      + (st.length > 1 ? st[0].k + ' and ' + st[1].k + ' together make ' + pct(two / tot, 0) + ', ahead of the other ' + (st.length - 2) + ' state' + (st.length - 2 === 1 ? '' : 's') + '.' : st[0].k + ' is the only state in this view.');
-    return {
-      lead: lead,
-      stats: [
-        one ? { v: money(tot), k: reg[0].k + ' region sales in this view', note: 'Sales of the ' + reg[0].k + ' region, the only region in the current filter.' } : { v: pct(reg[0].v / tot, 0), k: reg[0].k + ', the largest region', note: 'Sales of the ' + reg[0].k + ' region (' + money(reg[0].v) + ') as a share of all sales in this view (' + money(tot) + ').' },
-        { v: pct(two / tot, 0), k: 'Top two states together', note: (st.length > 1 ? st[0].k + ' (' + money(st[0].v) + ') and ' + st[1].k + ' (' + money(st[1].v) + ')' : st[0].k) + ' as a share of sales in this view.' },
-        { v: String(st.length), k: 'States with sales, in ' + reg.length + ' region' + (reg.length === 1 ? '' : 's'), note: 'Count of distinct states in the current filter.' }
-      ]
-    };
-  }
-};
-
-// -- renderer ----------------------------------------------------------------
-function copyText(text, btn) {
-  const ok = () => { btn.classList.add('done'); const t = btn.textContent; btn.textContent = 'Copied. Paste it into Spotter.'; setTimeout(() => { btn.classList.remove('done'); btn.textContent = t; }, 1800); };
-  const legacy = () => {
-    try {
-      const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.select(); const good = document.execCommand('copy'); ta.remove();
-      if (good) return ok();
-    } catch (e) {}
-    const r = document.createRange(); r.selectNodeContents(btn); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
-  };
-  try { if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(ok, legacy); } catch (e) {}
-  legacy();
-}
-
-const state = { open: -1, fam: null };
 AZ.boot({
-  need: CFG.need,
-  render: async ({ el, rows, schema, redraw }) => {
-    const o = CFG.build(rows, schema);
-    const H = AZ.esc;
-    if (CFG.kind === 'banner') {
-      el.innerHTML = '<div class="nv nv-banner">'
-        + '<div class="nv-col"><div class="nv-tabno">' + H(CFG.tab) + '</div><h2 class="nv-q">' + H(CFG.question) + '</h2><p class="nv-lead">' + H(o.lead) + '</p></div>'
-        + '<div class="nv-col"><div class="nv-h">What the numbers say</div>' + (o.stats.length ? o.stats.map((s, i) => '<div class="nv-stat" data-i="' + i + '" tabindex="0"><span class="nv-sv">' + H(s.v) + '</span><span class="nv-sk">' + H(s.k) + '</span></div>').join('') : '<p class="nv-lead">Not enough data in this view.</p>') + '</div>'
-        + '<div class="nv-col"><div class="nv-h">Ask Spotter</div>' + CFG.prompts.map((p, i) => '<button type="button" class="nv-p" data-i="' + i + '">' + H(p) + '</button>').join('') + '<p class="nv-note">' + H(CFG.next) + '</p></div>'
-        + '</div>';
-      const tip = AZ.tip(el);
-      el.querySelectorAll('.nv-stat').forEach((n) => {
-        const s = o.stats[Number(n.getAttribute('data-i'))];
-        const show = () => { const r = n.getBoundingClientRect(), b = el.getBoundingClientRect(); tip.show('<b>' + H(s.k) + '</b>' + H(s.note || ''), r.left - b.left + 20, r.top - b.top + 10); };
-        n.addEventListener('mouseenter', show); n.addEventListener('focus', show);
-        n.addEventListener('mouseleave', () => tip.hide()); n.addEventListener('blur', () => tip.hide());
+  need: 'sales and units by state, e.g. [sales] [quantity purchased] [state]',
+  render: async ({ el, rows, schema }) => {
+    const { muze } = AZ.host();
+    const { DataModel } = muze;
+    const kState = AZ.col(schema, /state/i), kSales = AZ.col(schema, /sales/i), kUnits = AZ.col(schema, /quantity|units/i);
+
+    const pts = rows.map((r) => ({ s: String(r[kState]), v: AZ.num(r[kSales]), u: AZ.num(r[kUnits]) }))
+      .filter((p) => p.u > 0);
+    if (pts.length < 2) throw new Error('Need at least 2 states with units, got ' + pts.length);
+    const totV = pts.reduce((a, p) => a + p.v, 0), totU = pts.reduce((a, p) => a + p.u, 0);
+    const avg = totV / totU;
+    pts.forEach((p) => { p.ppu = p.v / p.u; });
+    const byU = pts.slice().sort((a, b) => b.u - a.u);
+    const top2 = byU.slice(0, 2), top2Share = (top2[0].u + top2[1].u) / totU;
+    const lo = pts.reduce((a, p) => (p.ppu < a.ppu ? p : a)), hi = pts.reduce((a, p) => (p.ppu > a.ppu ? p : a));
+    if (pinned && !pts.some((p) => p.s === pinned)) pinned = null;
+
+    const lead = top2[0].s + ' and ' + top2[1].s + ' sell ' + AZ.pct(top2Share, 0) + ' of all units across ' + pts.length + ' states.';
+    const sub = 'Sales per unit only runs from ' + AZ.money(lo.ppu, 2) + ' (' + lo.s + ') to ' + AZ.money(hi.ppu, 2) + ' (' + hi.s + '), so volume decides sales. Dashed line: the ' + AZ.money(avg, 2) + ' average.';
+    el.innerHTML = '<div class="sc-head"><p class="sc-lead">' + AZ.esc(lead) + '</p><p class="sc-sub">' + AZ.esc(sub) + '</p></div><div class="sc-plot" id="sc-plot"></div>';
+    await AZ.settle();
+
+    const dm = new DataModel(DataModel.loadDataSync(pts.map((p) => ({ State: p.s, Units: p.u, Sales: p.v })), [
+      { name: 'State', type: 'dimension' },
+      { name: 'Units', type: 'measure', defAggFn: 'sum' },
+      { name: 'Sales', type: 'measure', defAggFn: 'sum' }
+    ]));
+    const plot = document.getElementById('sc-plot');
+    const pr = plot.getBoundingClientRect();
+    const fmtAxis = (f) => (d) => f(d && typeof d === 'object' ? d.rawValue : d);
+    const canvas = muze.canvas()
+      .data(dm)
+      .width(Math.max(240, Math.round(pr.width))).height(Math.max(160, Math.round(pr.height)))
+      .rows(['Sales']).columns(['Units'])
+      .detail(['State'])
+      .layers([{ mark: 'point', encoding: { color: { value: () => AZ.T.ink }, size: { value: () => 0.05 } } }])
+      .config({
+        legend: { show: false },
+        gridLines: { x: { show: false }, y: { show: true }, color: AZ.T.grid },
+        axes: {
+          x: { showAxisName: false, numberOfTicks: 5, tickFormat: fmtAxis((n) => AZ.int(n)) },
+          y: { showAxisName: false, numberOfTicks: 4, tickFormat: fmtAxis((n) => AZ.money(n, 0)) }
+        }
+      })
+      .mount(plot);
+
+    // Wait until Muze has drawn every dot, then read their centres.
+    const dots = () => [...plot.querySelectorAll('[class*="muze-layer-point"] path, [class*="muze-layer-point"] circle')];
+    await new Promise((res) => {
+      let n = 0; const tick = () => { if (dots().length >= pts.length || n++ > 40) return res(); setTimeout(tick, 100); };
+      canvas.once('afterRendered', tick); setTimeout(tick, 400);
+    });
+
+    // Match dots to states by rank on x: x is units, and units differ between states.
+    const pb = () => plot.getBoundingClientRect();
+    const centre = (d) => { const r = d.getBoundingClientRect(), b = pb(); return [r.x + r.width / 2 - b.x, r.y + r.height / 2 - b.y]; };
+    const ds = dots().map((d) => ({ d, c: centre(d) })).sort((a, b) => a.c[0] - b.c[0]);
+    const byUAsc = pts.slice().sort((a, b) => a.u - b.u);
+    ds.forEach((o, i) => { if (byUAsc[i]) byUAsc[i].dot = o.d; });
+    ds.forEach((o) => { o.d.style.fill = AZ.T.ink; o.d.style.fillOpacity = '0.85'; o.d.style.stroke = '#fff'; o.d.style.strokeWidth = '1'; });
+
+    // Linear pixel scales from the two extreme dots, to draw the average line in data terms.
+    const a0 = byUAsc[0], a1 = byUAsc[byUAsc.length - 1];
+    const c0 = centre(a0.dot), c1 = centre(a1.dot);
+    const sx = (u) => c0[0] + (u - a0.u) * (c1[0] - c0[0]) / (a1.u - a0.u);
+    const sy = (v) => c0[1] + (v - a0.v) * (c1[1] - c0[1]) / (a1.v - a0.v);
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const over = document.createElementNS(NS, 'svg'); over.setAttribute('class', 'sc-over');
+    plot.appendChild(over);
+    const mk = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); Object.keys(attrs).forEach((k) => n.setAttribute(k, attrs[k])); (parent || over).appendChild(n); return n; };
+    const uA = a0.u * 0.92, uB = a1.u * 1.02;
+    mk('line', { class: 'sc-avg', x1: sx(uA), y1: sy(avg * uA), x2: sx(uB), y2: sy(avg * uB) });
+    const labels = mk('g', {}), ring = mk('circle', { class: 'sc-ring', r: 7, opacity: 0 });
+
+    const draw = () => {
+      labels.innerHTML = '';
+      const show = pinned ? [pts.find((p) => p.s === pinned)] : byU.slice(0, 2);
+      show.forEach((p, i) => {
+        const [x, y] = centre(p.dot), right = x > plot.clientWidth * 0.6;
+        const t = mk('text', { x: x + (right ? -10 : 10), y: y + (i === 1 && !pinned ? 14 : -8), 'text-anchor': right ? 'end' : 'start' }, labels);
+        t.textContent = p.s;
       });
-      el.querySelectorAll('.nv-p').forEach((b) => b.addEventListener('click', () => copyText(CFG.prompts[Number(b.getAttribute('data-i'))], b)));
-    } else if (CFG.kind === 'about') {
-      const open = state.open;
-      el.innerHTML = '<div class="nv nv-about">'
-        + '<div class="nv-col"><h1 class="nv-title">' + H(CFG.title) + '</h1><p class="nv-sub">' + H(o.sub) + '</p>'
-        + '<div class="nv-stakes">' + o.stakes.map((s) => '<div class="nv-stake"><b>' + H(s.v) + '</b><span>' + H(s.k) + '</span></div>').join('') + '</div>'
-        + '<p class="nv-body">' + H(o.body) + '</p></div>'
-        + '<div class="nv-col"><div class="nv-h">Who it is for</div><ul class="nv-list">' + CFG.people.map((p, i) => '<li><button type="button" class="nv-row' + (open === i ? ' open' : '') + '" data-i="' + i + '"><b>' + H(p.who) + '</b><span>' + H(p.asks) + '</span><span class="more">Start at ' + H(p.start) + '.</span></button></li>').join('') + '</ul>'
-        + '<div class="nv-h">Terms</div><ul class="nv-list">' + CFG.terms.map((t, i) => '<li><button type="button" class="nv-row' + (open === 100 + i ? ' open' : '') + '" data-i="' + (100 + i) + '"><b>' + H(t.term) + '</b><span class="more">' + H(t.def) + '</span></button></li>').join('') + '</ul></div>'
-        + '</div>';
-      el.querySelectorAll('.nv-row').forEach((b) => b.addEventListener('click', () => { const i = Number(b.getAttribute('data-i')); state.open = state.open === i ? -1 : i; redraw(); }));
-    } else {
-      const items = groupSum(rows, AZ.col(schema, /item/i), AZ.col(schema, /sales/i));
-      const fam = {}; items.forEach((x) => { const f = AZ.familyOf(x.k); (fam[f] = fam[f] || { v: 0, items: [] }); fam[f].v += x.v; fam[f].items.push(x); });
-      const tot = sum(Object.values(fam).map((f) => f.v)) || 1;
-      const names = Object.keys(AZ.T.family).filter((f) => fam[f]).sort((a, b) => fam[b].v - fam[a].v);
-      el.innerHTML = '<div class="nv nv-guide">'
-        + '<div class="nv-col"><div class="nv-h">' + H(CFG.mapTitle) + '</div><div class="nv-map">' + CFG.tabs.map((t, i) => '<button type="button" class="nv-row' + (state.open === i ? ' open' : '') + '" data-i="' + i + '"><b><i>' + H(t.no) + '</i>' + H(t.name) + '</b><span>' + H(t.q) + '</span><span class="more">' + H(t.how) + '</span></button>').join('') + '</div></div>'
-        + '<div class="nv-col"><div class="nv-h">Colour is reserved for product families</div><div class="nv-fam">' + names.map((f) => '<button type="button" class="nv-row' + (state.fam && state.fam !== f ? ' dim' : '') + '" data-f="' + H(f) + '"><span class="sw" style="background:' + AZ.T.family[f] + '"></span><b>' + H(f) + '</b><span class="items">' + fam[f].items.length + ' item types</span><span>' + pct(fam[f].v / tot, 0) + '</span></button>').join('') + '</div><p class="nv-note">Region is never a colour: it is shown by position and label. The grouping into families is editorial, not a column in the model.</p></div>'
-        + '</div>';
-      el.querySelectorAll('.nv-map .nv-row').forEach((b) => b.addEventListener('click', () => { const i = Number(b.getAttribute('data-i')); state.open = state.open === i ? -1 : i; redraw(); }));
-      el.querySelectorAll('.nv-fam .nv-row').forEach((b) => b.addEventListener('click', () => { const f = b.getAttribute('data-f'); state.fam = state.fam === f ? null : f; redraw(); }));
-      const tip = AZ.tip(el);
-      el.querySelectorAll('.nv-fam .nv-row').forEach((b) => {
-        const f = b.getAttribute('data-f');
-        b.addEventListener('mouseenter', () => { const r = b.getBoundingClientRect(), bb = el.getBoundingClientRect(); tip.show('<b>' + H(f) + '</b>' + fam[f].items.map((x) => AZ.row(x.k, money(x.v, 1) + ', ' + pct(x.v / tot, 1), AZ.T.family[f])).join(''), r.left - bb.left + 30, r.top - bb.top); });
-        b.addEventListener('mouseleave', () => tip.hide());
-      });
-    }
+      pts.forEach((p) => { p.dot.style.fillOpacity = !pinned || p.s === pinned ? '0.85' : '0.25'; });
+    };
+    draw();
+
+    const tip = AZ.tip(plot);
+    const nearest = (e) => {
+      const b = pb(), mx = e.clientX - b.x, my = e.clientY - b.y;
+      let best = null, bd = 24 * 24;
+      pts.forEach((p) => { const [x, y] = centre(p.dot), d = (x - mx) * (x - mx) + (y - my) * (y - my); if (d < bd) { bd = d; best = p; } });
+      return best;
+    };
+    plot.addEventListener('mousemove', (e) => {
+      const p = nearest(e);
+      if (!p) { tip.hide(); ring.setAttribute('opacity', 0); plot.style.cursor = ''; return; }
+      const [x, y] = centre(p.dot);
+      ring.setAttribute('cx', x); ring.setAttribute('cy', y); ring.setAttribute('opacity', 1); plot.style.cursor = 'pointer';
+      tip.show('<b>' + AZ.esc(p.s) + '</b>' + AZ.row('Sales', AZ.money(p.v, 1)) + AZ.row('Units', AZ.int(p.u)) + AZ.row('Sales per unit', AZ.money(p.ppu, 2)) + AZ.row('Against average', AZ.pct(p.ppu / avg - 1, 1, true)), x, y);
+    });
+    plot.addEventListener('mouseleave', () => { tip.hide(); ring.setAttribute('opacity', 0); });
+    plot.addEventListener('click', (e) => { const p = nearest(e); pinned = p && p.s !== pinned ? p.s : null; draw(); });
+    return () => { try { canvas.dispose && canvas.dispose(); } catch (e) {} };
   }
 });

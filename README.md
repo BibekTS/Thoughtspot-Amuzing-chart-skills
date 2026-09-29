@@ -183,18 +183,21 @@ skills/ts-custom-charts-builder/
   references/         byoc-data-modes · hard-rules · examples · emit-checklist ·
                       muze-api-reference · system-prompt · taste-rules · library ·
                       library-contract · library-starters
-  library/            57 proven live-data charts on (Sample) Retail - Apparel, and the
+  library/            58 proven live-data charts on (Sample) Retail - Apparel, and the
                       shared core (_shared/)
   examples/           older charts, indexed by references/examples.md
   helpers/            env (the doctor) · serve · capture · start-preview · snap · probe ·
-                      close-preview · sync-core · library-emit · make-index,
+                      close-preview · sync-core · library-emit · make-index ·
+                      answer-pack and answer-patch.js (save a chart as an answer) ·
+                      cluster-shot (screenshot an answer or a Liveboard, logged in),
                       plus a smoke-test fixture
   scaffold/           the preview page, including a vendored Muze bundle
 skills/ts-custom-charts-liveboard-builder/
-  SKILL.md            profile the model, plan the tabs, build, patch the Liveboard, screenshot
+  SKILL.md            intake, profile the model, plan the tabs, build, patch the Liveboard, screenshot
   references/         story-and-layout · pipeline · tile-brief
   scripts/            liveboard-pack · patch.js (runs in the MCP sandbox) ·
-                      build-narratives · cluster-shot · chart-skill (finds the sibling)
+                      build-narratives · cluster-shot (passes through to the chart skill's) ·
+                      chart-skill (finds the sibling)
   narratives/         the template for About and tab-banner tiles
   liveboards/amuzing-chart-samples/   the worked example: spec, banner configs, data notes
 scripts/
@@ -206,7 +209,7 @@ skill as a sibling folder (or through `TS_CUSTOM_CHARTS_SKILL`), so install both
 
 ## The chart library and the Amuzing chart samples Liveboard
 
-`skills/ts-custom-charts-builder/library/` holds 57 charts built on the ThoughtSpot model
+`skills/ts-custom-charts-builder/library/` holds 58 charts built on the ThoughtSpot model
 **(Sample) Retail - Apparel**, and 50 of them are arranged as the Liveboard **Amuzing chart samples**:
 seven numbered tabs (About, Pulse, Where, What, When, Who, Next), each answering one question, custom
 charts only, three Liveboard filters (date, region, item type). Every chart reads only what its search
@@ -223,8 +226,9 @@ Two things about how they are made are worth knowing:
 - **The Liveboard is patched in place.** The MCP sandbox has no network and no memory, so a Liveboard's
   base64 chart code cannot be sent whole. The Liveboard skill's `liveboard-pack.mjs` splits the charts into
   sha256-checked blocks; each one exports the Liveboard, replaces its charts' tiles, keeps the rest,
-  imports, and proves by export that every tile carries the code that was composed. Nothing else is
-  created in ThoughtSpot. `cluster-shot.mjs` then screenshots each tab in a logged-in browser. The
+  imports, and proves by export that every tile carries the code that was composed. A chart already on
+  another Liveboard travels as a checksum (`--reuse`), and so can the shared core (`--core-ref`). Nothing
+  else is created in ThoughtSpot. `cluster-shot.mjs` then screenshots each tab in a logged-in browser. The
   procedure is `skills/ts-custom-charts-liveboard-builder/SKILL.md`.
 
 Facts about ThoughtSpot tiles that the preview cannot show, found this way, are in the "Verified in a
