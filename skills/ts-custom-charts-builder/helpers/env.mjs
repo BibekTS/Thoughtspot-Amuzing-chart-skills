@@ -9,7 +9,7 @@
 // every later command, which browser will be used, and the one command that
 // fixes a missing dependency. Exit 0 when `deps: ok`, 1 otherwise.
 //
-// Nothing here may name the skill: an install may still use its old folder name
+// Nothing here may name the skill: an install may still use an older folder name
 // (`thoughtspot-amuzing-chart`), so the name is read off the directory.
 
 import { spawnSync } from "node:child_process";

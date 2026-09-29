@@ -3,7 +3,7 @@ name: ts-custom-charts-liveboard-builder
 description: Build or rebuild a whole ThoughtSpot Liveboard made of custom charts (BYOC / Muze Studio tiles) that tells one story across numbered tabs, on a real model, through the ThoughtSpot MCP. Starts with an intake that checks the prerequisites and asks the model, Liveboard, story, audience, size, filters and sign-in as pick-from-a-list questions. Profiles the model, plans the tabs and the question each answers, has each tile built with the ts-custom-charts-builder skill against real search results, writes the narrative tiles (About, tab banners), adds Liveboard filters, imports the Liveboard (validate, then commit, then a round-trip proof), and screenshots every tab in a logged-in browser. Use when the user wants a storytelling or demo Liveboard of custom charts, wants tiles added to or rearranged on such a Liveboard, or wants the Amuzing chart samples Liveboard rebuilt. Needs the ts-custom-charts-builder skill installed alongside and the ThoughtSpot MCP (execute-thoughtspot-code). Not for a single chart (use ts-custom-charts-builder) or for Liveboards of native ThoughtSpot charts.
 ---
 
-# ThoughtSpot amuzing Liveboard builder
+# ThoughtSpot custom charts Liveboard builder
 
 You turn a model into a Liveboard that reads as one argument, every tile a custom chart that reads
 live data. You never start building from guesses: Step 0 checks the prerequisites and asks the user
@@ -159,7 +159,7 @@ checksum of the spec, because the spec sets every title, search and position: a 
 slip in chart code.
 
 Each block carries some charts (up to `--max`, default 60,000 characters), the spec and the shared core.
-In the sandbox (`scripts/patch.js`) it checks every sha256, exports the Liveboard, replaces those charts'
+In the sandbox (`<L>/scripts/patch.js`) it checks every sha256, exports the Liveboard, replaces those charts'
 tiles, keeps every other tile exactly as it is, imports, and after a commit proves by export that every
 tile carries the code that was composed. Read the file and paste **each block between the `=====` lines
 unchanged** as the `code` of `execute-thoughtspot-code` with `confirm_write_operations: true`, in order.

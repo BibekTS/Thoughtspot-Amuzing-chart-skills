@@ -15,7 +15,8 @@
 //   --all       every slug in <liveboard dir>/liveboard.spec.json
 //   --list      print what would be sent, with sizes, and stop
 //   --core-ref  send the shared core as a checksum only: the sandbox takes it from a tile already on the Liveboard.
-//               Blocks after the first in one run do this by themselves, since the first block puts the core there.
+//               Blocks after the first in one --commit run do this by themselves, since the first block puts the
+//               core there (a --validate run writes nothing, so every block carries the core).
 //   --reuse <liveboard guid>  send only checksums for these charts: the sandbox copies each one from that Liveboard
 //               (found by its slug marker) when its body matches the library, and lists the rest under needCode.
 //               Use it for library charts already on another Liveboard in the same cluster; it saves the paste.
@@ -127,5 +128,5 @@ for (const s of slugs) {
 if (size) blocks.push(cur);
 // Tiles still to come in later blocks are reported as pending, not as problems.
 const coreRef = { ref: true, sha: core.sha };
-console.log(blocks.map((t, i) => block({ spec, core: flags.has("--core-ref") || i > 0 ? coreRef : core, tiles: t, bodySha: {}, pending: blocks.slice(i + 1).flatMap((b) => Object.keys(b)) })).join("\n=====\n"));
+console.log(blocks.map((t, i) => block({ spec, core: flags.has("--core-ref") || (i > 0 && MODE === "commit") ? coreRef : core, tiles: t, bodySha: {}, pending: blocks.slice(i + 1).flatMap((b) => Object.keys(b)) })).join("\n=====\n"));
 console.error(`\n[liveboard-pack] ${slugs.length} tile(s) in ${blocks.length} block(s), mode ${MODE}: ` + blocks.map((b) => Object.keys(b).join(" ")).join(" | "));

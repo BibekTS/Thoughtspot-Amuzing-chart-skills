@@ -134,8 +134,9 @@ Read before writing any chart code, in this order:
 5. `references/muze-api-reference.md` — when the chart is Muze.
 6. `references/taste-rules.md` — the design bans and copy rules every chart is critiqued against (no emojis, no em-dashes, one accent rule, specific copy).
 7. `references/library.md` — the proven live-data charts in `library/`, indexed by question. Start from the nearest one.
+8. `references/library-starters.md` — per-library starters and traps (CDN loading, drill-down, motion) learned in real tiles. Read it before using a library for the first time.
 
-All seven ship with the skill; paths are relative to the skill folder, wherever it is
+All eight ship with the skill; paths are relative to the skill folder, wherever it is
 installed.
 
 ## Step 2 — settle the data mode
