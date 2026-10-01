@@ -5,10 +5,11 @@ Claude app.
 
 Two skills:
 
-- **ts-custom-charts-builder** writes the three files a BYOC tile takes (`chart.html`,
+- **ts-object-answer-chart-builder** writes the three files a BYOC tile takes (`chart.html`,
   `chart.css`, `chart.js`) and iterates them in a real browser until the render is right,
-  instead of handing you code it has never run. It carries a library of 57 proven charts.
-- **ts-custom-charts-liveboard-builder** builds a whole storytelling Liveboard of those charts on a
+  instead of handing you code it has never run. It carries a library of 58 proven charts, and can
+  save a finished chart as a ThoughtSpot answer through the MCP.
+- **ts-object-liveboard-chart-builder** builds a whole storytelling Liveboard of those charts on a
   real model through the ThoughtSpot MCP: plans the tabs, has each tile built by the chart
   skill, writes the banners, adds filters, imports, proves the import, and screenshots every
   tab in a logged-in browser. It needs the chart skill installed beside it.
@@ -38,7 +39,7 @@ A run goes:
 |---|---|---|
 | Preview | A Chromium window you watch; it reloads on every edit | Headless; each attempt comes back as a PNG |
 | First run | Installs Playwright + Chromium (~2 min, asked once) | Installs `playwright-core` (~30 s), uses the sandbox's Chromium |
-| Deliverables | `output/<chart-name>/` in your project | `<chart-name>/` in the chat's outputs folder |
+| Deliverables | `~/.cache/ts-charts/output/<chart-name>/` | `<chart-name>/` in the chat's outputs folder |
 | Chart libraries | All | Muze, HTML tables and raw SVG are fully previewed; CDN libraries (Chart.js, Plotly, gridjs) are usually blocked, so those charts are written but marked *not previewed* |
 
 If a window cannot open in Claude Code either — no display, or Chromium fails to start
@@ -51,22 +52,24 @@ Copy the skill folder into the project where you want to use it:
 ```bash
 git clone git@github.com:BibekTS/Thoughtspot-Amuzing-chart-skills.git
 mkdir -p /path/to/your-project/.claude/skills
-cp -R Thoughtspot-Amuzing-chart-skills/skills/ts-custom-charts-builder \
-      Thoughtspot-Amuzing-chart-skills/skills/ts-custom-charts-liveboard-builder \
+cp -R Thoughtspot-Amuzing-chart-skills/skills/ts-object-answer-chart-builder \
+      Thoughtspot-Amuzing-chart-skills/skills/ts-object-liveboard-chart-builder \
       /path/to/your-project/.claude/skills/
 ```
 
 Or symlink it once for every project, and update it with `git pull`:
 
 ```bash
-for s in ts-custom-charts-builder ts-custom-charts-liveboard-builder; do
+for s in ts-object-answer-chart-builder ts-object-liveboard-chart-builder; do
   ln -s "$PWD/Thoughtspot-Amuzing-chart-skills/skills/$s" ~/.claude/skills/$s
 done
 ```
 
-With the copy, runs and deliverables land in `runs/` and `output/` of the project you
-installed into. With the symlink they land in the clone's own `runs/` and `output/`,
-whichever project you open Claude Code in. Neither ends up in your home directory.
+Either way, runs and deliverables land in `~/.cache/ts-charts/runs/` and `~/.cache/ts-charts/output/`
+(or under `$XDG_CACHE_HOME`), never inside a repo: runs hold live search results and screenshots of
+real Liveboards. `TS_CHART_HOME` and `TS_CHART_OUTPUT_ROOT` override them. Charts you publish with
+`library-emit`, Liveboard working folders, backups and sign-in profiles live under `~/.cache/ts-charts`
+too.
 
 Requirements: Node 20+ and npm. The first run installs Playwright and Chromium into
 `helpers/node_modules` (~2 min, asked for once). That directory is gitignored.
@@ -77,17 +80,17 @@ Requirements: Node 20+ and npm. The first run installs Playwright and Chromium i
 2. Build the upload bundle from a checkout of this repo:
 
    ```bash
-   cd skills && zip -r ../ts-custom-charts-builder.zip ts-custom-charts-builder \
+   cd skills && zip -r ../ts-object-answer-chart-builder.zip ts-object-answer-chart-builder \
      -x '*/node_modules/*' '*.DS_Store' '*/library/*/preview.png'
    ```
 
    The library's `preview.png` screenshots (about 6 MB) stay out of the zip; the skill does not need them to run.
 
-   For the Liveboard skill as well: `cd skills && zip -r ../ts-custom-charts-liveboard-builder.zip ts-custom-charts-liveboard-builder -x '*.DS_Store'`.
+   For the Liveboard skill as well: `cd skills && zip -r ../ts-object-liveboard-chart-builder.zip ts-object-liveboard-chart-builder -x '*.DS_Store'`.
    In the Claude app it can plan, build and import, but not take the in-cluster screenshots:
    those need a browser window you sign in to, so check the tabs yourself there.
 
-3. Upload `ts-custom-charts-builder.zip` (and `ts-custom-charts-liveboard-builder.zip`) under **Settings → Capabilities → Skills**.
+3. Upload `ts-object-answer-chart-builder.zip` (and `ts-object-liveboard-chart-builder.zip`) under **Settings → Capabilities → Skills**.
 4. Ask for a chart in a new chat.
 
 The first run installs `playwright-core` and uses the sandbox's own Chromium; it never
@@ -102,7 +105,7 @@ After a `git pull`, rebuild the zip and upload it again.
 
 1. **Ask for one.** In Claude Code, open the project you installed the skill into; in
    the Claude app, start a new chat. Describe the chart, or invoke the skill directly
-   with `/ts-custom-charts-builder`. All of these work:
+   with `/ts-object-answer-chart-builder`. All of these work:
    - *"Build me a diverging bar chart of revenue vs. target by region"* (from prose)
    - Attach a screenshot of a chart you want recreated (from an image)
    - Point it at an existing tile's three files that misbehave (debug)
@@ -127,7 +130,7 @@ After a `git pull`, rebuild the zip and upload it again.
    verdict instead. Anything you say mid-loop ("make the bars horizontal") becomes the
    next fix.
 
-4. **Collect the deliverables.** Each chart gets its own folder — `output/<chart-name>/`
+4. **Collect the deliverables.** Each chart gets its own folder — `~/.cache/ts-charts/output/<chart-name>/`
    in Claude Code, `<chart-name>/` in the Claude app's outputs — containing the three
    files, a `preview.png` of the final render, and a `README.md` that states the exact
    search to build in ThoughtSpot (including any prior-period columns needed for
@@ -140,10 +143,9 @@ After a `git pull`, rebuild the zip and upload it again.
    paste it before the search exists — it renders its sample rows with a
    "sample data" badge until real rows arrive.
 
-Working artifacts stay under `runs/<chart-name>/` (chart files, attempt screenshots,
-critiques), so a run can be resumed or audited later. `output/` is the result you
-keep. Both are gitignored in this repo; in your own project, commit `output/` if you
-want to keep the charts with it.
+Working artifacts stay under `~/.cache/ts-charts/runs/<chart-name>/` (chart files, attempt
+screenshots, critiques), so a run can be resumed or audited later. `output/` beside it is the
+result you keep; copy a chart folder into your project if you want it versioned there.
 
 "Verified in preview" means verified against a faithful stub of the ThoughtSpot host,
 not against your cluster — theme and version differences are real, so give the pasted
@@ -154,8 +156,8 @@ tile a look.
 The skill runs a doctor at the start of every run. You can run it yourself:
 
 ```bash
-node .claude/skills/ts-custom-charts-builder/helpers/env.mjs          # Claude Code
-node /mnt/skills/user/ts-custom-charts-builder/helpers/env.mjs        # Claude app (ask Claude to run it)
+node .claude/skills/ts-object-answer-chart-builder/helpers/env.mjs          # Claude Code
+node /mnt/skills/user/ts-object-answer-chart-builder/helpers/env.mjs        # Claude app (ask Claude to run it)
 ```
 
 It prints where runs and deliverables go, whether the preview will be headed or
@@ -167,7 +169,7 @@ output is the thing to send to the skill author.
 The helpers also work by hand, which is useful when debugging a chart outside a run:
 
 ```bash
-H=.claude/skills/ts-custom-charts-builder/helpers
+H=.claude/skills/ts-object-answer-chart-builder/helpers
 node $H/start-preview.mjs my-chart                     # open the preview window
 node $H/snap.mjs my-chart 01                           # screenshot + diagnostic block
 node $H/snap.mjs my-chart 91 --data absent             # also: wrapped, empty, noviz
@@ -178,7 +180,7 @@ node $H/close-preview.mjs my-chart                     # close the window
 ## Layout
 
 ```
-skills/ts-custom-charts-builder/
+skills/ts-object-answer-chart-builder/
   SKILL.md            the procedure: the file Claude reads
   references/         byoc-data-modes · hard-rules · examples · emit-checklist ·
                       muze-api-reference · system-prompt · taste-rules · library ·
@@ -188,11 +190,11 @@ skills/ts-custom-charts-builder/
   examples/           older charts, indexed by references/examples.md
   helpers/            env (the doctor) · serve · capture · start-preview · snap · probe ·
                       close-preview · sync-core · library-emit · make-index ·
-                      answer-pack and answer-patch.js (save a chart as an answer) ·
+                      answer-pack, answer-patch.js and backup-check (save a chart as an answer) ·
                       cluster-shot (screenshot an answer or a Liveboard, logged in),
                       plus a smoke-test fixture
   scaffold/           the preview page, including a vendored Muze bundle
-skills/ts-custom-charts-liveboard-builder/
+skills/ts-object-liveboard-chart-builder/
   SKILL.md            intake, profile the model, plan the tabs, build, patch the Liveboard, screenshot
   references/         story-and-layout · pipeline · tile-brief
   scripts/            liveboard-pack · patch.js (runs in the MCP sandbox) ·
@@ -201,15 +203,15 @@ skills/ts-custom-charts-liveboard-builder/
   narratives/         the template for About and tab-banner tiles
   liveboards/amuzing-chart-samples/   the worked example: spec, banner configs, data notes
 scripts/
-  export-to-library.sh   copy both skills into thoughtspot-agent-skills
+  export-to-library.sh   copy both skills into thoughtspot-agent-skills (keeps its changelogs)
 ```
 
 Everything each skill reads travels inside its folder. The Liveboard skill finds the chart
-skill as a sibling folder (or through `TS_CUSTOM_CHARTS_SKILL`), so install both side by side.
+skill as a sibling folder (or through `TS_ANSWER_CHART_SKILL`), so install both side by side.
 
 ## The chart library and the Amuzing chart samples Liveboard
 
-`skills/ts-custom-charts-builder/library/` holds 58 charts built on the ThoughtSpot model
+`skills/ts-object-answer-chart-builder/library/` holds 58 charts built on the ThoughtSpot model
 **(Sample) Retail - Apparel**, and 50 of them are arranged as the Liveboard **Amuzing chart samples**:
 seven numbered tabs (About, Pulse, Where, What, When, Who, Next), each answering one question, custom
 charts only, three Liveboard filters (date, region, item type). Every chart reads only what its search
@@ -229,7 +231,7 @@ Two things about how they are made are worth knowing:
   imports, and proves by export that every tile carries the code that was composed. A chart already on
   another Liveboard travels as a checksum (`--reuse`), and so can the shared core (`--core-ref`). Nothing
   else is created in ThoughtSpot. `cluster-shot.mjs` then screenshots each tab in a logged-in browser. The
-  procedure is `skills/ts-custom-charts-liveboard-builder/SKILL.md`.
+  procedure is `skills/ts-object-liveboard-chart-builder/SKILL.md`.
 
 Facts about ThoughtSpot tiles that the preview cannot show, found this way, are in the "Verified in a
 real cluster" table of the chart skill's `references/hard-rules.md` (for example: `fetch()` is blocked
@@ -238,7 +240,7 @@ inside a tile, `<script src>` from a CDN is not), and the import-side ones in th
 
 ## Examples
 
-`skills/ts-custom-charts-builder/examples/` carries charts that already render
+`skills/ts-object-answer-chart-builder/examples/` carries charts that already render
 correctly in ThoughtSpot, grouped by library: Muze (bubble, diverging axis, funnel,
 invoice), Chart.js over CDN (bump, sunburst, KPI), hand-built DOM (pivot table, flat
 table, waffle, funnel), raw SVG (hex cartogram, KPI), and self-contained HTML.
