@@ -191,7 +191,8 @@ skills/ts-object-answer-chart-builder/
   helpers/            env (the doctor) · serve · capture · start-preview · snap · probe ·
                       close-preview · sync-core · library-emit · make-index ·
                       answer-pack, answer-patch.js and backup-check (save a chart as an answer) ·
-                      cluster-shot (screenshot an answer or a Liveboard, logged in)
+                      cluster-shot (screenshot an answer or a Liveboard, logged in),
+                      plus the smoke-test fixture the library's smoke test renders
   scaffold/           the preview page, including a vendored Muze bundle
 skills/ts-object-liveboard-chart-builder/
   SKILL.md            intake, profile the model, plan the tabs, build, patch the Liveboard, screenshot
