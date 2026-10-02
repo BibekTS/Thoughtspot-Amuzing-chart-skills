@@ -420,8 +420,8 @@ maps shapes (animated drill, map zoom, flow, KPI variants, what-if, beeswarm ...
 proven chart under `library/`. Copy its technique; keep the shared core. Otherwise,
 pick by what the chart is. Muze is the default only when the doctor reports `muze: found`; without it a Muze chart
 cannot render in the preview (the diagnostic block says `muze: unavailable`), so prefer D3, a hand-built table or raw
-SVG when they fit, and when only Muze fits, write it, mark it **not previewed**, and verify it in ThoughtSpot (Step 9),
-which supplies Muze itself. Pick by shape — `references/examples.md` has a working
+SVG when they fit, and when only Muze fits, write it, mark it **not previewed**, and verify it in ThoughtSpot (Step 9);
+ThoughtSpot supplies Muze itself. Pick by shape — `references/examples.md` has a working
 file for each of these rows:
 
 - **Muze** — bar, line, area, scatter, bubble, box, waterfall, pie, heatmap,
