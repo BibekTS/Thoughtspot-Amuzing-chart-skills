@@ -182,17 +182,16 @@ node $H/close-preview.mjs my-chart                     # close the window
 ```
 skills/ts-object-answer-chart-builder/
   SKILL.md            the procedure: the file Claude reads
-  references/         byoc-data-modes · hard-rules · examples · emit-checklist ·
-                      muze-api-reference · system-prompt · taste-rules · library ·
-                      library-contract · library-starters
+  references/         byoc-data-modes · hard-rules · taste-rules · library ·
+                      library-starters · muze-api-reference · examples ·
+                      emit-checklist · library-contract
   library/            58 proven live-data charts on (Sample) Retail - Apparel, and the
                       shared core (_shared/)
   examples/           older charts, indexed by references/examples.md
   helpers/            env (the doctor) · serve · capture · start-preview · snap · probe ·
                       close-preview · sync-core · library-emit · make-index ·
                       answer-pack, answer-patch.js and backup-check (save a chart as an answer) ·
-                      cluster-shot (screenshot an answer or a Liveboard, logged in),
-                      plus a smoke-test fixture
+                      cluster-shot (screenshot an answer or a Liveboard, logged in)
   scaffold/           the preview page, including a vendored Muze bundle
 skills/ts-object-liveboard-chart-builder/
   SKILL.md            intake, profile the model, plan the tabs, build, patch the Liveboard, screenshot
@@ -219,7 +218,10 @@ returns, is interactive, survives a filtered view, and was checked in a real clu
 a store league table, a Muze diverging bar and a volume-and-price growth split, rebuilt from the older
 `examples/`) that are marked *preview only* until they have been on a tile.
 `references/library.md` indexes them by tab, library and search; the "Start here" table in
-`references/examples.md` maps chart shapes to the one to copy.
+`references/examples.md` maps chart shapes to the one to copy. The library is one worked Liveboard on
+that model rather than 58 model-agnostic templates: the shared core knows the apparel item families and
+a few charts know that model's part years, so on another model a copy needs its search, copy and those
+lines changed.
 
 Two things about how they are made are worth knowing:
 
