@@ -1,6 +1,6 @@
 ---
 name: ts-object-liveboard-chart-builder
-description: Build or rebuild a whole ThoughtSpot Liveboard made of custom charts (BYOC / Muze Studio tiles) that tells one story across numbered tabs, on a real model, through the ThoughtSpot MCP. Starts with an intake that checks the prerequisites and asks the model, Liveboard, story, audience, size, filters and sign-in as pick-from-a-list questions. Profiles the model, plans the tabs and the question each answers, has each tile built with the ts-object-answer-chart-builder skill against real search results, writes the narrative tiles (About, tab banners), adds Liveboard filters, imports the Liveboard (validate, then commit, then a round-trip proof), and screenshots every tab in a logged-in browser. Use when the user wants a storytelling or demo Liveboard of custom charts, wants tiles added to or rearranged on such a Liveboard, or wants the Amuzing chart samples Liveboard rebuilt. Needs the ts-object-answer-chart-builder skill installed alongside and the ThoughtSpot MCP (execute-thoughtspot-code). Not for a single chart (use ts-object-answer-chart-builder) or for Liveboards of native ThoughtSpot charts.
+description: Build or rebuild a whole ThoughtSpot Liveboard of custom charts (BYOC / Muze Studio tiles) that tells one story across numbered tabs, on a real model, through the ThoughtSpot MCP. An intake checks the prerequisites and asks the model, Liveboard, story, audience, size, filters and sign-in as pick-from-a-list questions. It profiles the model, plans the tabs and the question each answers, has each tile built by ts-object-answer-chart-builder on real searches, writes the About and banner tiles, adds Liveboard filters, patches the Liveboard in checksummed blocks (validate, commit, round-trip proof) and screenshots every tab in a logged-in browser. Use when the user wants a storytelling or demo Liveboard of custom charts, wants tiles added to or rearranged on such a Liveboard, or wants the Amuzing chart samples Liveboard rebuilt. Needs ts-object-answer-chart-builder installed alongside and the ThoughtSpot MCP (execute-thoughtspot-code). Not for a single chart or for Liveboards of native ThoughtSpot charts.
 ---
 
 # ThoughtSpot custom charts Liveboard builder
@@ -110,15 +110,23 @@ tabs", "Change the tiles". Do not build until it is approved, because building i
 ## Step 3 - set up the Liveboard
 
 Use the Liveboard chosen in Step 0. For "Create a new one", create an empty Liveboard now, named with
-the user's approval. Its guid goes in the spec, and every import updates it in place. One import makes it,
-with the tabs already named:
+the user's approval. Its guid goes in the spec, and every import updates it in place. One call makes it,
+with the tabs already named: a `VALIDATE_ONLY` import first, then the real one, and both statuses checked
+before the guid is trusted (the same validate-then-commit rule every later block follows):
 
 ```js
 const tml = { liveboard: { name: '<name>', description: '<one line>', visualizations: [],
   layout: { tabs: [{ name: '01 About', tiles: [] }, { name: '02 Where', tiles: [] }] } } };
-const r = await ts.post('/api/rest/2.0/metadata/tml/import', { metadata_tmls: [JSON.stringify(tml)], import_policy: 'ALL_OR_NONE', create_new: true });
-return r.body[0].response.header.id_guid;   // confirm_write_operations: true
+const body = { metadata_tmls: [JSON.stringify(tml)], import_policy: 'ALL_OR_NONE', create_new: true };
+const first = (r) => (((r || {}).body || [])[0] || {}).response || {};
+const v = first(await ts.post('/api/rest/2.0/metadata/tml/import', { ...body, import_policy: 'VALIDATE_ONLY' }));
+if ((v.status || {}).status_code !== 'OK') return { refused: 'validate failed', validate: v.status };
+const i = first(await ts.post('/api/rest/2.0/metadata/tml/import', body));
+if ((i.status || {}).status_code !== 'OK' || !(i.header || {}).id_guid) return { refused: 'import failed', import: i.status };
+return { guid: i.header.id_guid, validate: v.status, import: i.status };   // confirm_write_operations: true
 ```
+
+A `refused` result means nothing was created: read the status and fix the TML before trying again.
 
 ## Step 4 - build the tiles
 
@@ -223,8 +231,11 @@ Every block leaves a complete, working Liveboard, so a build can stop between bl
 
 1. `--commit` runs a `VALIDATE_ONLY` import first and commits only if it passes, so each block is pasted
    once. `--validate` alone checks without writing.
-2. Success is `validate.status_code: OK`, `import.status_code: OK`, `roundTripAllOk: true`, `problems: []`,
-   and the slugs you meant in `replaced`. `refused: NOT COMMITTED ...` means nothing was written: fix what it
+2. Success is `validate.status_code: OK`, `import.status_code: OK`, `recheck: unchanged`, `roundTripAllOk: true`,
+   `problems: []`, and the slugs you meant in `replaced`. `recheck` is a second export taken right before the
+   import; `changed` means someone edited the Liveboard while the block ran, so nothing was written: send the
+   block again. `searches` counts the searches the block ran; kept tiles whose search and model did not change
+   are carried over without one. `refused: NOT COMMITTED ...` means nothing was written: fix what it
    names and send the block again. `kept` counts the visualizations the skill does not own; `removed`,
    `marked`, `droppedTabs` and `shiftedBelowCharts` list anything else it changed: tell the user.
    `roundTripLost`, `roundTripChanged`, `roundTripLayout` or `roundTripFailed` after a commit mean the import changed more than
@@ -250,8 +261,9 @@ node <L>/scripts/cluster-shot.mjs --url "<liveboard url>" --tabs "03 Where" --fi
 If the user chose to skip the screenshots in Step 0, do not run this step. Mark every tab as
 unverified in the report. Otherwise a headed Chromium opens with a sign-in profile of its own for this
 cluster (`~/.cache/ts-charts/cluster-profiles/<host>`, readable only by the user). The first time, the user
-signs in (SSO) in that window, so remind them right before you run it. It scrolls each tab, saves `<tab>-N.png`, and lists tiles
-showing failure text. **Read every PNG**: blank or clipped tiles, overlapping text, a tooltip stuck on,
+signs in (SSO) in that window, so remind them right before you run it. It scrolls each tab, saves `<tab>-N.png`, lists tiles
+showing failure text, and checks `rendered=N of M custom-chart tiles` on every tab line; it exits 2 when a tile did
+not render (raise `--wait` first: a tile still loading counts as not rendered). **Read every PNG**: blank or clipped tiles, overlapping text, a tooltip stuck on,
 colours that break the rules, copy that reads wrong. The filtered run proves tiles survive filters. Fix
 in the chart skill, then send just that chart (`--commit <slug>`).
 
@@ -270,7 +282,7 @@ Update the example's README when the story changes.
 - Do not send a whole Liveboard's TML from your context; it is megabytes of base64. Patch it in blocks.
 - Do not create helper objects (stores, scratch Liveboards, answers) in the user's ThoughtSpot. If a task
   ever needs one, name it in the plan, get a yes, and delete it before you finish.
-- Do not commit without a validate: `--commit` does it in the same call; never import with `ALL_OR_NONE` by hand.
+- Do not commit without a validate: `--commit` does it in the same call, and the Step 3 create does it in the same block; never send an `ALL_OR_NONE` import that was not validated first.
 - Do not claim a tile works in ThoughtSpot until its tab has been screenshotted and the PNG read.
 - Do not put a native ThoughtSpot chart on these Liveboards, or sample rows in a chart.
 - No emojis, em-dashes or stock phrasing anywhere, including tab names and banners
@@ -280,6 +292,7 @@ Update the example's README when the story changes.
 
 | Version | Date | Change |
 |---|---|---|
+| 4.1.0 | 2026-10-02 | Step 3 creates the Liveboard with a validate before the import and checks both statuses, as the "what not to do" list already required. `patch.js` exports the Liveboard a second time right before the import and refuses the commit if anything changed in between (`recheck:` in the summary), lowercases the `--reuse` guid, runs searches only for the tiles a block composes while still refusing on a failed search, and turns odd export shapes into refusals instead of throws. `chart-skill.mjs` finds the sibling under its two earlier names. `export-to-library.sh` deletes files removed here. The description fits the 1024-character limit |
 | 4.0.0 | 2026-10-01 | Renamed from `ts-custom-charts-liveboard-builder` to `ts-object-liveboard-chart-builder` (BL-026 in thoughtspot-agent-skills keeps `ts-object-liveboard-builder`). Synced with thoughtspot-agent-skills PR 553 after three review rounds and a live run on ps-internal. A patch merges into the exported Liveboard and changes only tiles carrying `/* ts-lb-owner: <guid> */` for that Liveboard (guids compare in lower case; copies on other tabs, pinned answer charts and other Liveboards' tiles are kept); older tiles need `--adopt` (slug marker) or `--adopt-by-position`; any problem (failed or empty search, missing tile, ownership conflict, untabbed layout, owned tile it cannot place) refuses the commit; content the skill does not own needs a `--backup` that is a full export holding every visualization on the Liveboard now (checksummed in the block); the user's filters, name and description are kept; the round trip matches tiles by content and placement (ThoughtSpot renumbers ids) and allows defaults ThoughtSpot adds on re-export, but catches losses, edits, moves and lost style or chips. Working folders and real-guid specs live under `~/.cache/ts-charts/liveboards/<name>` |
 | 3.3.0 | 2026-09-29 | `--core-ref` (core by checksum, automatic after the first block), a spec checksum in every block, and `--reuse` of this Liveboard matched by grid position. Amuzing chart samples: all 50 tiles now carry slug markers (stamped with no chart code sent), and the Where banner says "Only the West region is in this view" instead of "100% of sales" under a one-region filter. The description mentions the intake |
 | 3.2.0 | 2026-09-29 | First pilot through the new intake: a 2-tab, 6-tile Liveboard on (Sample) Retail - Apparel, committed, round-tripped, drift-checked and screenshotted with and without a Region filter. `--commit` validates and commits in one paste; `--reuse <guid>` copies library charts from another Liveboard by checksum instead of pasting them (older tiles are found by title and keep their whole CSS); later blocks' tiles report as `pending`; an empty block is skipped. `build-narratives` records each narrative's owner and refuses another Liveboard's slug. Step 0 offers a Pilot size and the model lookup; Step 3 has the create snippet; Step 7 has the URL form |
