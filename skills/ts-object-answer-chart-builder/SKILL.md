@@ -73,7 +73,8 @@ If `deps: missing`, the `fix:` line is the command that fixes it:
 
 `browser-launch:` actually starts Chromium, which is the only reliable check:
 Chromium is pinned to the Playwright version, so a cached build can look present and
-still fail to launch. Note `cdn:` for Library choice below.
+still fail to launch. Note `cdn:` and `muze:` for Library choice below: no Muze build ships with the skill, so
+Muze charts preview only when the user has installed their own (`muze: found`).
 
 Also check whether the ThoughtSpot MCP tool `execute-thoughtspot-code` is connected. If it is, one
 read-only call returns the signed-in user, the org, the cluster name and the models. The token is bound
@@ -417,7 +418,10 @@ Without that skill or the MCP, hand the user the three files and the search to b
 Start from a library chart: the "Start here" table at the top of `references/examples.md`
 maps shapes (animated drill, map zoom, flow, KPI variants, what-if, beeswarm ...) to a
 proven chart under `library/`. Copy its technique; keep the shared core. Otherwise,
-Muze by default, and pick by what the chart is — `references/examples.md` has a working
+pick by what the chart is. Muze is the default only when the doctor reports `muze: found`; without it a Muze chart
+cannot render in the preview (the diagnostic block says `muze: unavailable`), so prefer D3, a hand-built table or raw
+SVG when they fit, and when only Muze fits, write it, mark it **not previewed**, and verify it in ThoughtSpot (Step 9),
+which supplies Muze itself. Pick by shape — `references/examples.md` has a working
 file for each of these rows:
 
 - **Muze** — bar, line, area, scatter, bubble, box, waterfall, pie, heatmap,
@@ -438,7 +442,7 @@ file for each of these rows:
 
 **When the doctor reports `cdn: blocked`** (usual in the Claude app), the CDN libraries
 cannot load in the preview, so a Chart.js / Plotly / gridjs chart cannot be verified
-there. Prefer Muze (vendored), a hand-built table, or raw SVG when they fit. When only
+there. Prefer a hand-built table or raw SVG (or Muze, when `muze: found`) when they fit. When only
 a CDN library fits, write it anyway and tell the user it is **not previewed** — never
 report MATCH on a render that could not load its library.
 
@@ -466,6 +470,7 @@ than an honest question.
 
 | Version | Date | Summary |
 |---|---|---|
+| 3.2.0 | 2026-10-02 | The vendored Muze bundle is removed: there is no license to redistribute it. The preview uses a Muze build only when the user installs one they are licensed to use (`TS_MUZE_DIR`, or `<home>/muze`); the doctor prints a `muze:` line, the diagnostic block says `muze: unavailable` when a chart runs without one, and Library choice no longer defaults to Muze unless it is installed. Muze charts without a build are written, marked not previewed, and verified in ThoughtSpot (Step 9). Non-Muze charts are unaffected |
 | 3.1.0 | 2026-10-02 | Less to read, and checks that fail honestly. `references/system-prompt.md` (the old chat-pipeline prompt, 82 KB, a third of it repeating `hard-rules.md`) is gone: its unique recipes moved into `hard-rules.md`, `muze-api-reference.md`, `byoc-data-modes.md` and `library-starters.md`. Step 1 reads four files on every run and the rest on condition, library before examples. `snap` and `probe` print `status: TIMEOUT` and exit 2 when render-complete never fires instead of a quiet `[pending]`; the probe sweep ignores entrance animation (`sweep: UNSTABLE`) and only counts hover, selection and tooltip changes; `cluster-shot` counts the chart frames that rendered against the custom-chart tiles the Liveboard export puts on each tab and exits 2 when any are missing, on a missing tab, or on failure text (found on a live pilot, where a first shot of a still-loading page had scored zero problems; checked live both ways), takes `--no-scroll` as a flag and a bare host as `--url`. `library-emit` takes `--model` and `--mode`; `sync-core` resolves folders through `env.mjs`; `answer-pack` handles a file ending in a backslash and refuses `--backup` without `--answer`. `helpers/fixtures/smoke/` stays: the thoughtspot-agent-skills smoke test renders it. Both descriptions fit the 1024-character limit |
 | 3.0.0 | 2026-10-01 | Renamed from `ts-custom-charts-builder` to `ts-object-answer-chart-builder` (its name in thoughtspot-agent-skills; the sibling is `ts-object-liveboard-chart-builder`, override `TS_ANSWER_CHART_SKILL`). Synced with thoughtspot-agent-skills PR 553 after three review rounds and a live run on ps-internal: run folders, deliverables and published charts (`library-emit`, the user's library) live under `~/.cache/ts-charts`, never in a repo; an answer update merges into the export (formulas, parameters, column formats, table settings, tables kept; `kept` and `replaced` reported), needs a checked `--backup` that is a full, current export (`helpers/backup-check.mjs`), and its round trip proves formulas, parameters and settings survived (fields ThoughtSpot adds on re-export, and rewritten formula ids, are allowed); `answer-pack` refuses flags without values and all-zero guids; `cluster-shot` keeps one sign-in profile per cluster (0700), `--logout` stays inside `cluster-profiles`; `serve.mjs` answers a malformed URL with 400 |
 | 2.2.0 | 2026-09-29 | First end-to-end run of the answer route (a Muze scatter on (Sample) Retail - Apparel): saved, round-trip proven, screenshotted in ps-internal. `--commit` now validates and commits in one paste. Step 0a carries the MCP lookup (search models by name, cluster name from `/api/rest/2.0/system`); Step 9 says where the cluster host comes from; Step 6 warns that zsh does not split loop arguments and that the empty-HTML PNG is cropped. `hard-rules.md`: Muze point marks sit in a half-opacity group. `cluster-shot` waits a few seconds before asking for a sign-in |
