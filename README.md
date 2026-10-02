@@ -40,7 +40,7 @@ A run goes:
 | Preview | A Chromium window you watch; it reloads on every edit | Headless; each attempt comes back as a PNG |
 | First run | Installs Playwright + Chromium (~2 min, asked once) | Installs `playwright-core` (~30 s), uses the sandbox's Chromium |
 | Deliverables | `~/.cache/ts-charts/output/<chart-name>/` | `<chart-name>/` in the chat's outputs folder |
-| Chart libraries | All | Muze, HTML tables and raw SVG are fully previewed; CDN libraries (Chart.js, Plotly, gridjs) are usually blocked, so those charts are written but marked *not previewed* |
+| Chart libraries | All (Muze only with your own Muze build, see below) | HTML tables and raw SVG are fully previewed; CDN libraries (Chart.js, Plotly, gridjs) are usually blocked, so those charts are written but marked *not previewed* |
 
 If a window cannot open in Claude Code either — no display, or Chromium fails to start
 headed — it falls back to headless on its own and says so.
@@ -193,7 +193,7 @@ skills/ts-object-answer-chart-builder/
                       answer-pack, answer-patch.js and backup-check (save a chart as an answer) ·
                       cluster-shot (screenshot an answer or a Liveboard, logged in),
                       plus the smoke-test fixture the library's smoke test renders
-  scaffold/           the preview page, including a vendored Muze bundle
+  scaffold/           the preview page (no Muze build ships; see "Muze" below)
 skills/ts-object-liveboard-chart-builder/
   SKILL.md            intake, profile the model, plan the tabs, build, patch the Liveboard, screenshot
   references/         story-and-layout · pipeline · tile-brief
@@ -269,8 +269,14 @@ scripts/export-to-library.sh /path/to/thoughtspot-agent-skills
 That copies both folders as they are. Registering them in the library (README, setup docs,
 runtime coverage, naming family, changelog, smoke tests) is part of the library PR.
 
-Open before that PR: the vendored Muze bundle's license is unconfirmed — see
-`scaffold/vendor/muze/NOTICE.md`.
+## Muze
+
+No Muze build ships with these skills: there is no license to redistribute one. ThoughtSpot supplies Muze to
+a chart on a real tile, so Muze charts work there; only the local preview lacks it. Without a build, the doctor
+reports `muze: not installed` and a Muze chart is written but marked *not previewed*, then checked in
+ThoughtSpot. If you are licensed to use a Muze build, point `TS_MUZE_DIR` at a folder holding `muze.js`,
+`muze.css` and `assets/` (or copy them to `~/.cache/ts-charts/muze/`), and the preview uses it. The other
+chart libraries are unaffected.
 
 ## Status
 
