@@ -292,3 +292,7 @@ Verified on macOS (2026-09-29):
 
 Not yet run inside the Claude app itself; the doctor output from a first run there is
 the thing to check.
+
+## License
+
+[MIT](LICENSE). Muze itself is not covered: it is ThoughtSpot's and does not ship here (see [Muze](#muze)).
