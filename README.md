@@ -244,9 +244,9 @@ inside a tile, `<script src>` from a CDN is not), and the import-side ones in th
 ## Examples
 
 `skills/ts-object-answer-chart-builder/examples/` carries charts that already render
-correctly in ThoughtSpot, grouped by library: Muze (bubble, diverging axis, funnel,
-invoice), Chart.js over CDN (bump, sunburst, KPI), hand-built DOM (pivot table, flat
-table, waffle, funnel), raw SVG (hex cartogram, KPI), and self-contained HTML.
+correctly in ThoughtSpot, grouped by library: Muze (bubble, diverging axis, funnel),
+Chart.js over CDN (bump, sunburst, KPI), hand-built DOM (pivot table, flat table,
+waffle, funnel), raw SVG (hex cartogram, KPI), and self-contained HTML.
 
 `references/examples.md` indexes them by shape and says what each is worth opening for —
 mostly the workarounds for bugs that are expensive to rediscover: Muze's point-size
