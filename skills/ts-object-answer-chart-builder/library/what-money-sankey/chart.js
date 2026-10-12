@@ -234,131 +234,23 @@ const AZ = (function () {
 })();
 /* ==== end amuzing core ==== */
 
-
 // Search: [sales] [region] [item type]
-// Sankey Region > Family > Item type. Family is an editorial grouping (AZ.familyOf), not a model column.
-// Interactions: hover a node or flow (adjacency), click a node to isolate its flows, click the background to clear.
-let sel = null;
-const ECH = ['https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js', 'https://unpkg.com/echarts@5/dist/echarts.min.js'];
-const FAMS = ['Outerwear', 'Tops and dresses', 'Bottoms', 'Swim and basics', 'Accessories'];
-
-AZ.boot({
-  need: 'sales by region and item type, e.g. [sales] [region] [item type]',
-  render: async ({ el, rows, schema, w, h, redraw }) => {
-    const rK = AZ.col(schema, /region/i), iK = AZ.col(schema, /item/i), sK = AZ.col(schema, /sales/i);
-    const R = rows.map((r) => ({ reg: String(r[rK]), item: String(r[iK]), v: AZ.num(r[sK]) })).filter((r) => r.v > 0);
-    const total = R.reduce((a, r) => a + r.v, 0);
-    if (!R.length || R.length < 2) { AZ.paint(el, '<div class="az-empty"><b>Not enough flows to draw</b><span>The current filter leaves ' + R.length + ' region and item type pair. Widen the filters, or the search needs: [sales] [region] [item type].</span></div>'); return; }
-    await AZ.loadScript(ECH, () => !!window.echarts, 8000);
-
-    const sum = (m, k, v) => m.set(k, (m.get(k) || 0) + v);
-    const regT = new Map(), itT = new Map(), famT = new Map(), rf = new Map(), fi = new Map(), ri = new Map();
-    R.forEach((r) => {
-      const f = AZ.familyOf(r.item);
-      sum(regT, r.reg, r.v); sum(itT, r.item, r.v); sum(famT, f, r.v);
-      sum(rf, r.reg + '>' + f, r.v); sum(fi, f + '>' + r.item, r.v); sum(ri, r.reg + '>' + r.item, r.v);
-    });
-    let best = null; ri.forEach((v, k) => { if (!best || v > best.v) best = { k, v }; });
-    const bp = best.k.split('>'), bf = AZ.familyOf(bp[1]);
-    const regs = Array.from(regT.keys()).sort((a, b) => regT.get(b) - regT.get(a));
-    const slate = AZ.T.slate;
-    const regColor = {}; regs.forEach((r, i) => { regColor[r] = slate[Math.min(7, 7 - i)]; });
-    regs.forEach((r) => { if (regColor[r] === slate[3] || regColor[r] === slate[2]) regColor[r] = slate[4]; });
-
-    el.innerHTML = '<div class="sk-head"><p class="sk-lead"></p><p class="sk-sub"></p></div><div class="sk-plot" id="sk-plot"></div>';
-    const lead = el.querySelector('.sk-lead'), sub = el.querySelector('.sk-sub'), plot = el.querySelector('#sk-plot');
-    lead.textContent = 'Largest flow: ' + bp[0] + ' to ' + bf + ' to ' + bp[1] + ', ' + AZ.money(best.v, 1) + ', ' + AZ.pct(best.v / total, 1) + ' of sales';
-
-    sub.textContent = 'x';
-    const plotH = Math.max(120, plot.clientHeight), gap = Math.max(2, Math.min(8, Math.round(plotH / 45))), usable = plotH * 0.98 - 14 * gap;
-    let hidden = 0;
-    const nodeDefs = [];
-    const addNode = (name, val, color, depth, side) => {
-      const px = val / total * usable, show = px >= 11;
-      if (!show) hidden++;
-      nodeDefs.push({ name, depth, val, color, show, side });
-    };
-    regs.forEach((r) => addNode(r, regT.get(r), regColor[r], 0, 'left'));
-    FAMS.filter((f) => famT.has(f)).forEach((f) => addNode(f, famT.get(f), AZ.T.family[f], 1, 'right'));
-    Array.from(itT.keys()).forEach((i) => addNode(i, itT.get(i), AZ.familyColor(i), 2, 'right'));
-    const links = [];
-    rf.forEach((v, k) => { const p = k.split('>'); links.push({ source: p[0], target: p[1], value: v, col: AZ.T.family[p[1]] }); });
-    fi.forEach((v, k) => { const p = k.split('>'); links.push({ source: p[0], target: p[1], value: v, col: AZ.T.family[p[0]] }); });
-
-    function focusSets() {
-      if (!sel) return null;
-      const nodes = new Set([sel]), lk = new Set();
-      const isReg = regT.has(sel), isFam = famT.has(sel);
-      const addL = (a, b) => lk.add(a + '>' + b);
-      if (isReg) {
-        R.filter((r) => r.reg === sel).forEach((r) => { const f = AZ.familyOf(r.item); nodes.add(f); nodes.add(r.item); addL(sel, f); addL(f, r.item); });
-      } else if (isFam) {
-        R.filter((r) => AZ.familyOf(r.item) === sel).forEach((r) => { nodes.add(r.reg); nodes.add(r.item); addL(r.reg, sel); addL(sel, r.item); });
-      } else {
-        const f = AZ.familyOf(sel); nodes.add(f); addL(f, sel);
-        R.filter((r) => r.item === sel).forEach((r) => { nodes.add(r.reg); addL(r.reg, f); });
-      }
-      return { nodes, lk };
-    }
-    const fs = focusSets();
-    const fmtName = (n) => n;
-    const chart = echarts.init(plot, null, { renderer: 'svg', width: Math.max(200, plot.clientWidth), height: plotH });
-    const font = AZ.T.font;
-    chart.setOption({
-      animation: false,
-      textStyle: { fontFamily: font },
-      series: [{
-        type: 'sankey', left: 112, right: 132, top: 4, bottom: 4, nodeWidth: 12, nodeGap: gap, layoutIterations: 0,
-        draggable: false, nodeAlign: 'justify',
-        emphasis: { focus: 'adjacency' },
-        labelLayout: { hideOverlap: true },
-        lineStyle: { curveness: 0.5 },
-        data: nodeDefs.map((n) => {
-          const dim = fs && !fs.nodes.has(n.name);
-          return {
-            name: n.name, depth: n.depth,
-            itemStyle: { color: n.color, borderWidth: 0, opacity: dim ? 0.25 : 1 },
-            label: {
-              show: n.show, position: n.side, color: dim ? AZ.T.muted : AZ.T.ink, fontSize: 11, fontFamily: font,
-              formatter: () => (n.depth === 1 ? n.name : n.name + '  ' + AZ.money(n.val, 0)), textBorderColor: '#fff', textBorderWidth: 3
-            },
-            emphasis: { label: { show: true, fontWeight: 600 } }
-          };
-        }),
-        links: links.map((l) => {
-          const on = !fs || fs.lk.has(l.source + '>' + l.target);
-          return { source: l.source, target: l.target, value: l.value, lineStyle: { color: l.col, opacity: on ? 0.42 : 0.06 } };
-        })
-      }]
-    });
-
-    const tip = AZ.tip(plot);
-    let cur = null, pos = [0, 0];
-    const html = (p) => {
-      if (p.dataType === 'edge') {
-        const a = p.data.source, b = p.data.target;
-        return '<b>' + AZ.esc(a + ' to ' + b) + '</b>' + AZ.row('Sales', AZ.money(p.data.value, 1), AZ.T.family[AZ.familyOf(b)] || AZ.T.family[b] || AZ.T.ink) + AZ.row('Share of all sales', AZ.pct(p.data.value / total, 1))
-          + (regT.has(a) ? AZ.row('Share of ' + a, AZ.pct(p.data.value / regT.get(a), 1)) : AZ.row('Share of ' + a, AZ.pct(p.data.value / famT.get(a), 1)));
-      }
-      const n = nodeDefs.find((x) => x.name === p.name), isItem = itT.has(p.name);
-      return '<b>' + AZ.esc(p.name) + '</b>' + (isItem ? AZ.row('Family', AZ.familyOf(p.name), n.color) : '') + AZ.row('Sales', AZ.money(n.val, 1)) + AZ.row('Share of all sales', AZ.pct(n.val / total, 1));
-    };
-    chart.on('mouseover', (p) => { cur = p; tip.show(html(p), pos[0], pos[1]); });
-    chart.on('mouseout', () => { cur = null; tip.hide(); });
-    chart.getZr().on('mousemove', (e) => { pos = [e.offsetX, e.offsetY]; if (cur) tip.show(html(cur), pos[0], pos[1]); });
-    chart.on('click', (p) => { if (p.dataType !== 'node') return; sel = sel === p.name ? null : p.name; tip.hide(); redraw(); });
-    chart.getZr().on('click', (e) => { if (!e.target && sel) { sel = null; redraw(); } });
-
-    if (sel) {
-      const tot = regT.get(sel) || famT.get(sel) || itT.get(sel) || 0;
-      lead.textContent = sel + ': ' + AZ.money(tot, 1) + ', ' + AZ.pct(tot / total, 1) + ' of sales';
-      sub.innerHTML = 'Other flows are dimmed. <button type="button" class="sk-clear">Show all</button>';
-      sub.querySelector('.sk-clear').addEventListener('click', () => { sel = null; redraw(); });
-    } else {
-      sub.textContent = 'Click a node to isolate its flows.' + (hidden ? ' ' + hidden + ' thin nodes are unlabelled; hover them for the name.' : '');
-    }
-    const nh = plot.clientHeight;
-    if (nh > 60 && Math.abs(nh - plotH) > 1) chart.resize({ width: Math.max(200, plot.clientWidth), height: nh });
-    return () => { try { chart.dispose(); } catch (e) {} };
-  }
-});
+const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.15.0/dist/maya.global.js';
+const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+const done = () => viz?.events?.emitRenderCompletedEvent();
+if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const RG = AZ.col(schema, /region/i, { optional: true }) ?? 'Region', IT = AZ.col(schema, /item/i, { optional: true }) ?? 'Item Type', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Total Sales';
+// Family is editorial (AZ.familyOf). Families take colour slots in first-seen order, so sort rows by family to pin the hues.
+const FAMS = Object.keys(AZ.T.family), rank = (f) => FAMS.indexOf(f) + 1 || 99;
+const data = rows.map((r) => Object.assign({ Family: AZ.familyOf(r[IT]) }, r)).sort((a, b) => rank(a.Family) - rank(b.Family));
+['maya-render', 'maya-error'].forEach((t) => el.addEventListener(t, done, { once: true }));
+el.spec = {
+  type: 'sankey', path: [RG, 'Family', IT], y: V, drill: true,
+  colors: FAMS.filter((f) => data.some((r) => r.Family === f)).map((f) => AZ.T.family[f]),
+  titles: { [RG]: 'Region', [IT]: 'Item type', [V]: 'Sales' },
+  format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
+  text: { noData: 'No rows yet: bind [sales] [region] [item type]' },
+  theme: { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: '#1E1E24', fgMuted: '#8A8A94', bg: '#FFFFFF' },
+  data
+};

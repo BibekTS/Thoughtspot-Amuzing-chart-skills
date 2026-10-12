@@ -26,9 +26,9 @@ library and search). Use the `examples/` files further down only for shapes the 
 | Pattern | Copy | Library | Why this one |
 |---|---|---|---|
 | Any standard business shape (bar, line, KPI, waterfall, treemap ...) | `examples/maya-was-bars` | MayaCharts | 15 lines, no shared core: the fixed tile plumbing plus one spec with a ghost of last year, and the pivot the spec cannot do yet. The starter for a standalone MayaCharts tile (preview-verified, not yet on a cluster) |
-| Hierarchy with animated zoom | `library/what-sunburst` | Plotly | Native `sunburstclick` zoom, crumbs wired to `Plotly.restyle` |
-| Hierarchy as rectangles, drill by click | `library/what-treemap-drill` | hand SVG | Three-level drill with crumbs and a way back |
-| Flow between two or three dimensions | `library/what-money-sankey`, `library/what-chord` | ECharts / D3 | Click a node to isolate its flows; chord drills a family |
+| Hierarchy with animated zoom | `library/what-sunburst` | MayaCharts | `type: 'sunburst'` with `drill: true`: rings, centre total, shares, animated zoom and crumbs from one spec; family hues by array order (preview only) |
+| Hierarchy as rectangles, drill by click | `library/what-treemap-drill` | MayaCharts | `type: 'treemap'` with `drill: true`: three-level drill with crumbs and a way back (preview only) |
+| Flow between two or three dimensions | `library/what-money-sankey`, `library/what-chord` | MayaCharts / D3 | Sankey: `type: 'sankey'`, click a region node to drill into its flows (preview only). Chord (D3) drills a family, which MayaCharts' chord cannot yet |
 | Map, bubble per state, zoom to stores | `library/where-state-bubbles` | inline SVG map | Inline US paths (`_shared/us-states.js`), because `fetch()` is blocked in tiles |
 | Hex cartogram | `library/where-hex-cartogram` | hand SVG | Supersedes `examples/State-hex-cartogram` |
 | KPI tile | `library/kpi-ring`, `kpi-flip`, `kpi-odometer`, `kpi-bullet`, `kpi-sparkbars`, `kpi-dotstrip`, `kpi-quarter-pairs` | hand SVG | Seven readings of one number, with measure toggles and same-period YoY; supersede `examples/kpi-chart` |
@@ -60,17 +60,16 @@ pinned to `chart.js@4`, and read the Chart.js section of `references/library-sta
 
 ## Plotly (CDN)
 
-Sunburst, treemap and icicle. Plotly is the only library here with a real
-`type: 'sunburst'` — hierarchy, `branchvalues: 'total'`, click-to-zoom and
-`plotly_sunburstclick` all come for free.
+A sunburst or treemap with a zoom drill is MayaCharts now: `{ type: 'sunburst', path: [...], y, drill: true }` gives the
+rings, centre total, shares in the tooltip and an animated zoom with a breadcrumb in one spec (`library/what-sunburst`).
+The Plotly examples below are kept for icicles and as the record of the hand-built technique.
 
 | Path | What it is | Worth reading for |
 |---|---|---|
-| `examples/retail-apparel-sunburst/` | Sunburst, ~470 lines | *Superseded by `library/what-sunburst`.* Still the fullest write-up of the four sunburst defects below. Hierarchy build, `flatten()` into Plotly's parallel `ids/labels/parents/values` arrays, breadcrumb wired to `plotly_sunburstclick`, plus the four fixes below |
+| `examples/retail-apparel-sunburst/` | Sunburst, ~470 lines | *Superseded by `library/what-sunburst` (MayaCharts, a few lines).* Still the fullest write-up of the four sunburst defects below. Hierarchy build, `flatten()` into Plotly's parallel `ids/labels/parents/values` arrays, breadcrumb wired to `plotly_sunburstclick`, plus the four fixes below |
 | `examples/Sunburst-chart/result/` and `examples/NWP-sunburst/result/` | Sunburst, ~330 lines each | The same hierarchy technique, older. Carry the defects below — read them for shape, not for correctness |
 
-These two were filed under Chart.js until this commit and are **not** Chart.js. If
-a library table sent you to Chart.js for a sunburst, it was wrong; use Plotly.
+These two are Plotly, not Chart.js. For a new sunburst use MayaCharts.
 
 Four defects in `examples/Sunburst-chart/result/` that a copier inherits silently,
 all fixed in `examples/retail-apparel-sunburst/`:

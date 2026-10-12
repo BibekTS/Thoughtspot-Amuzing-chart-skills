@@ -292,7 +292,7 @@ chart with no svg or canvas (an HTML table); read its PNG instead.
 node "<SKILL>/helpers/probe.mjs" "<SLUG>" --tile 620x400 --sweep                 # >= 3 of 5 points must change the DOM
 node "<SKILL>/helpers/probe.mjs" "<SLUG>" --tile 620x400 --hover 0.6,0.5 --out 97   # then Read attempts/97.hover.png
 node "<SKILL>/helpers/probe.mjs" "<SLUG>" --tile 620x400 --click 0.9,0.1 --out 98   # a toggle or a mark
-node "<SKILL>/helpers/probe.mjs" "<SLUG>" --tile 620x400 --click-sel ".wedge" --wait 900 --after "document.querySelector(\".crumbs\").innerText" --out 99   # read what a drill changed
+node "<SKILL>/helpers/probe.mjs" "<SLUG>" --tile 620x400 --click-sel "path[data-x]" --wait 1500 --after "document.getElementById('chart').shadowRoot.querySelector('.maya-crumbs').textContent" --out 99   # read what a drill changed
 ```
 
 `--eval "js"` inspects the DOM after the interaction. A chart whose sweep reports `NOT INTERACTIVE` is not done. `sweep: UNSTABLE` means an animation was still running when the sweep started, so nothing was proved: let the entrance finish (`AZ.settle()`) or shorten it, then probe again. Click-only charts (toggles, expanders) report 0 on the sweep by design: verify those with `--click`.
@@ -426,20 +426,21 @@ marks, tooltip, keyboard focus, selection, drill, empty state and resize, so a w
 measure, a pivot). **Always pin the MayaCharts version the doctor's `mayacharts:` line names** (the latest release
 at build time; it ships often): never an unpinned URL, which would change a saved tile under the user, and never a
 version from memory. Reach past it only when the shape needs what a spec cannot say: a bespoke layout, annotations
-computed from the data, a diagonal reference line, a log scale, an animated zoom. Pick by shape — `references/examples.md`
+computed from the data, a diagonal reference line, a log scale, a ratio measure that must roll up as sum over sum
+(BbekShr/mayacharts#69), or drill on a table or heatmap (#70). Pick by shape — `references/examples.md`
 has a working file for each of these rows:
 
 - **MayaCharts** (CDN, `maya.global.js`) — the shapes above, plus bars with a ghost of last period (`was`),
-  target colouring (`colorBy`), reference lines (`rules`), playback (`frame`) and drill on a `path`. Starter and
+  target colouring (`colorBy`), reference lines (`rules`), playback (`frame`), and **animated drill-down** on treemap,
+  sunburst, sankey, and on bar, line, area and dumbbell with a `path` (breadcrumb, Back, Escape built in). Starter and
   traps: the MayaCharts section of `references/library-starters.md`; the smallest complete tile is in
   `references/byoc-data-modes.md` (Mode B with MayaCharts).
 - **Chart.js** (CDN) — radar, polar, doughnut, sankey, gauges, bespoke smoothing,
   conditional bar coloring, background bands.
 - **D3** (CDN) — stream graphs, force layouts (beeswarm), parallel coordinates, chord; anything with a bespoke layout.
-- **ECharts** (CDN) — sankey and dense flow diagrams.
-- **Plotly** (CDN) — **sunburst**, treemap, icicle. Anything hierarchical where a
-  parent's arc must equal the sum of its children (`branchvalues: 'total'`) and
-  clicking a wedge should zoom. Do not hand-roll this on Chart.js doughnuts.
+- **ECharts** (CDN) — dense flow diagrams MayaCharts' `sankey` cannot lay out; a plain sankey is MayaCharts.
+- **Plotly** (CDN) — icicle, and hierarchies MayaCharts cannot draw. Sunburst and treemap with a zoom drill are
+  MayaCharts now (`type: 'sunburst'` / `'treemap'`, `drill: true`); do not hand-roll either.
 - **gridjs** (CDN) — sortable tables. Unwrap object cells first or its Preact renderer
   dies with an opaque error.
 - **Hand-built HTML table** — pivots and crosstabs, print-oriented output.
@@ -476,6 +477,7 @@ than an honest question.
 
 | Version | Date | Summary |
 |---|---|---|
+| 4.2.0 | 2026-10-12 | Drill-down is MayaCharts' too: `what-sunburst` (was Plotly), `what-treemap-drill` (was D3) and `what-money-sankey` (was ECharts) are MayaCharts specs with `drill: true`, 19 to 23 body lines each, preview only. Library choice sends sunburst, treemap and sankey to MayaCharts; `library-starters.md` has a drill section (which types drill, `el.view.drill`, `maya-view`, no `select` with `drill`, ratio measures, positional colours on hierarchy and flow types and the array workaround). Gaps filed upstream: BbekShr/mayacharts#69 (ratio aggregate), #70 (drill with select, leaf event, table and heatmap drill), #71 (colours by name and through drill, nested treemap, sankey drill depth) |
 | 4.1.0 | 2026-10-12 | The ThoughtSpot data read is one fixed line in every MayaCharts tile, a plain loop over the column names that unwraps object cells: about 3x faster than building each row with `Object.fromEntries` (100k wrapped rows: 10 ms against 27 ms; 1M: 106 ms against 256 ms), and a standalone tile is now 7 lines. Library charts read with the core's `AZ.liveData()` instead of re-implementing it (bodies 17 to 21 lines). Both render-complete listeners are one line |
 | 4.0.0 | 2026-10-12 | Muze is removed. The preview no longer loads a Muze build (no `TS_MUZE_DIR`, no `/vendor/muze`, no `viz.muze` shim; `viz` is the plain search-result stub), the doctor has no `muze:` line, `references/muze-api-reference.md` and the Muze examples (`examples/Examples/`, `funnel-chart`, `model-connections-bump`) are deleted, and the Muze rules are gone from `hard-rules.md`, `byoc-data-modes.md`, `library-starters.md`, `library-contract.md` and `emit-checklist.md`. The three Muze library charts (`pulse-monthly-line`, `state-sales-units`, `what-premium-diverging`) are rebuilt on MayaCharts (preview only, synthetic data). MayaCharts tiles are lean: plumbing plus one spec, about ten lines of `chart.js` for a whole tile, verified on every data mode, an empty HTML tab and a CDN that fails to load. `MUZE_STUDIO` stays in the answer and Liveboard TML: it is ThoughtSpot's type name for every custom chart, not the library |
 | 3.3.0 | 2026-10-12 | MayaCharts (MIT, `maya.global.js` from jsDelivr) is the default library for standard business shapes, ahead of Muze unless a Muze build is installed. The doctor prints a `mayacharts:` line with the latest release and the pinned URLs; every chart pins that release. `references/library-starters.md` has a MayaCharts starter and its traps; `examples/maya-was-bars/` is the first chart (preview-verified on synthetic data, not yet on a cluster). `probe.mjs` (sweep, marks, `--click-sel`, `--hover-sel`) and `capture.mjs` (`svg-fit`) now look inside open shadow roots, where web-component libraries draw: before this a working MayaCharts chart read `NOT INTERACTIVE` and `svg-fit: n/a` |
