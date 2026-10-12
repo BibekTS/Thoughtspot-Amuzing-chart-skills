@@ -1,8 +1,9 @@
 # Starters and traps by library (learned building the Amuzing chart samples Liveboard)
 
-Every chart starts from the shared core (`library/_shared/core.js`): `AZ.boot`, `AZ.col`, `AZ.tip`,
-`AZ.loadScript`, formatters, the family theme. What follows is what each library needs on top of it in a
-real ThoughtSpot tile. All of it was verified in a cluster screenshot unless marked otherwise.
+Library and Liveboard charts start from the shared core (`library/_shared/core.js`): `AZ.boot`, `AZ.col`, `AZ.tip`,
+`AZ.loadScript`, `AZ.liveData`, formatters, the family theme. A standalone MayaCharts tile needs none of it (see its
+section). What follows is what each library needs in a real ThoughtSpot tile. All of it was verified in a cluster
+screenshot unless marked otherwise.
 
 ## Any library
 
