@@ -235,25 +235,19 @@ const AZ = (function () {
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [item type] [product]
-// Family > Item type > Product, top 6 products per item type, the rest as "Other (n)". Family is editorial (AZ.familyOf). Click a wedge to zoom; Escape, Back or empty space goes up.
-const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.15.0/dist/maya.global.js';
+// Family > Item type > Product. Family is editorial (AZ.familyOf) and keys the colours, so hues hold through drill.
+// Thin wedges fold into MayaCharts' grey "Other (n)" at the zoom shown; drilling in unfolds them.
+const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js';
 const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
-const done = () => viz?.events?.emitRenderCompletedEvent();
+const done = () => viz?.events?.emitRenderCompletedEvent?.();
 if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, I = c(/item/i, 'Item Type'), P = c(/product/i, 'Product'), V = c(/sales/i, 'Total Sales');
-const F = Object.keys(AZ.T.family), by = {};
-rows.filter((r) => AZ.num(r[V]) > 0).forEach((r) => (by[r[I]] ??= []).push(r));
-const data = Object.values(by).flatMap((g) => {
-  const rest = g.sort((a, b) => AZ.num(b[V]) - AZ.num(a[V])).slice(6), top = g.slice(0, 6);
-  if (rest.length) top.push({ [I]: g[0][I], [P]: 'Other (' + rest.length + ')', [V]: rest.reduce((s, r) => s + AZ.num(r[V]), 0) });
-  return top.map((r) => ({ Family: AZ.familyOf(r[I]), [I]: r[I], [P]: r[P], [V]: AZ.num(r[V]) }));
-}).sort((a, b) => (F.indexOf(a.Family) + 1 || 99) - (F.indexOf(b.Family) + 1 || 99)); // colours go by slot in first-seen order
-['maya-render', 'maya-error'].forEach((t) => el.addEventListener(t, done, { once: true }));
+el.addEventListener('maya-settled', done, { once: true });
 el.spec = {
-  type: 'sunburst', path: ['Family', I, P], y: V, drill: true, colors: Object.values(AZ.T.family),
+  type: 'sunburst', path: ['Family', I, P], y: V, drill: true, colors: AZ.T.family, minAngle: 5,
   format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
   titles: { [I]: 'Item type', [V]: 'Sales' }, text: { noData: 'No rows yet: bind [sales] [item type] [product]' },
   theme: { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: '#1E1E24', fgMuted: '#8A8A94', bg: '#FFFFFF' },
-  data
+  data: rows.filter((r) => AZ.num(r[V]) > 0).map((r) => ({ Family: AZ.familyOf(r[I]), [I]: r[I], [P]: r[P], [V]: AZ.num(r[V]) }))
 };

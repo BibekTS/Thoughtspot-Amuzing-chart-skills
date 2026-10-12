@@ -235,20 +235,26 @@ const AZ = (function () {
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [quantity purchased] [state]   (columns arrive as "state", "Total sales", "Total quantity purchased")
-// Interactions: hover a dot for state, sales and units; click dots to select several; drag to zoom (double-click resets); dashed line is the average.
-const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.15.0/dist/maya.global.js';
+// Interactions: hover a dot for state, sales, units and sales per unit; click dots to select several; drag to zoom (double-click resets); the dashed diagonal is the average price.
+const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js';
 const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
-const done = () => viz?.events?.emitRenderCompletedEvent();
+const done = () => viz?.events?.emitRenderCompletedEvent?.();
 if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const col = (re, d) => (schema.find((c) => re.test(c.name)) ?? { name: d }).name;
-const S = col(/state/i, 'state'), V = col(/sales/i, 'Total sales'), U = col(/quantity|units/i, 'Total quantity purchased');
-['maya-render', 'maya-error'].forEach((t) => el.addEventListener(t, done, { once: true }));
+const S = AZ.col(schema, /state/i, { optional: true }) ?? 'state', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Total sales', U = AZ.col(schema, /quantity|units/i, { optional: true }) ?? 'Total quantity purchased';
+// Sales per unit for the tooltip; the three largest states by sales get their name on the chart.
+const data = rows.map((r) => ({ ...r, Price: AZ.num(r[U]) ? AZ.num(r[V]) / AZ.num(r[U]) : null }));
+const P = data.map((r) => r.Price).filter((p) => p != null), usd = (n) => '$' + n.toFixed(2), avg = AZ.num(rows.reduce((a, r) => a + AZ.num(r[V]), 0) / rows.reduce((a, r) => a + AZ.num(r[U]), 0));
+const top = [...data].sort((a, b) => AZ.num(b[V]) - AZ.num(a[V])).slice(0, 3).map((r) => ({ x: r[U], text: String(r[S]).slice(0, 40) }));
+el.addEventListener('maya-settled', done, { once: true });
 el.spec = {
-  type: 'scatter', x: U, y: V, name: S, select: 'multi', zoom: true, rules: ['mean'],
-  titles: { [S]: 'State', [V]: 'Sales', [U]: 'Units' },
-  format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, [U]: { notation: 'compact', maximumFractionDigits: 1 } },
+  type: 'scatter', x: U, y: V, name: S, select: 'multi', zoom: true, xScale: 'log', yScale: 'log', tooltip: { fields: ['Price'] }, annotate: top.length ? top : ['max'],
+  rules: [{ slope: 'mean', label: 'Average price' }],
+  title: P.length ? 'Sales per unit runs ' + usd(Math.min(...P)) + ' to ' + usd(Math.max(...P)) + ' across ' + rows.length + ' states' : '',
+  subtitle: P.length ? 'Dashed: the ' + usd(avg) + ' average; log scales' : '',
+  titles: { [S]: 'State', [V]: 'Sales', [U]: 'Units', Price: 'Sales per unit' },
+  format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, [U]: { notation: 'compact', maximumFractionDigits: 1 }, Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 2 } },
   text: { noData: 'No rows yet: bind [sales] [quantity purchased] [state]' },
-  theme: { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: '#1E1E24', fgMuted: '#8A8A94', accent: '#1E1E24', series1: '#1E1E24', series2: '#B4BDC9', radius: '2px', bg: '#FFFFFF' },
-  data: rows
+  theme: { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: '#1E1E24', fgMuted: '#8A8A94', accent: '#1E1E24', series1: '#1E1E24', series2: '#B4BDC9', radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' },
+  data
 };

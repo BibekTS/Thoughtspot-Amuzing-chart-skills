@@ -234,23 +234,20 @@ const AZ = (function () {
 })();
 /* ==== end amuzing core ==== */
 
-// Search: [sales] [region] [item type]
-const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.15.0/dist/maya.global.js';
+// Search: [sales] [region] [item type]   (Family is an editorial grouping of Item Type, derived here)
+// Interactions: hover a node or flow for sales; click a region, then a family, to drill one column at a time; Back, Escape or a click on empty space goes up.
+const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js';
 const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
-const done = () => viz?.events?.emitRenderCompletedEvent();
+const done = () => viz?.events?.emitRenderCompletedEvent?.();
 if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const RG = AZ.col(schema, /region/i, { optional: true }) ?? 'Region', IT = AZ.col(schema, /item/i, { optional: true }) ?? 'Item Type', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Total Sales';
-// Family is editorial (AZ.familyOf). Families take colour slots in first-seen order, so sort rows by family to pin the hues.
-const FAMS = Object.keys(AZ.T.family), rank = (f) => FAMS.indexOf(f) + 1 || 99;
-const data = rows.map((r) => Object.assign({ Family: AZ.familyOf(r[IT]) }, r)).sort((a, b) => rank(a.Family) - rank(b.Family));
-['maya-render', 'maya-error'].forEach((t) => el.addEventListener(t, done, { once: true }));
+const opt = { optional: true }, RG = AZ.col(schema, /region/i, opt) ?? 'Region', IT = AZ.col(schema, /item/i, opt) ?? 'Item Type', V = AZ.col(schema, /sales/i, opt) ?? 'Total Sales';
+el.addEventListener('maya-settled', done, { once: true });
 el.spec = {
-  type: 'sankey', path: [RG, 'Family', IT], y: V, drill: true,
-  colors: FAMS.filter((f) => data.some((r) => r.Family === f)).map((f) => AZ.T.family[f]),
+  type: 'sankey', path: [RG, 'Family', IT], y: V, drill: true, colors: AZ.T.family, // regions are not in the map, so they stay neutral
   titles: { [RG]: 'Region', [IT]: 'Item type', [V]: 'Sales' },
   format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
   text: { noData: 'No rows yet: bind [sales] [region] [item type]' },
   theme: { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: '#1E1E24', fgMuted: '#8A8A94', bg: '#FFFFFF' },
-  data
+  data: rows.filter((r) => AZ.num(r[V]) > 0).map((r) => ({ ...r, Family: AZ.familyOf(r[IT]) }))
 };

@@ -235,21 +235,19 @@ const AZ = (function () {
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [item type] [product]   (Family is an editorial grouping of Item Type, derived here)
-// Interactions: hover a rectangle for sales; click to zoom into a family, then an item type; Back, Escape or a click on empty space goes up.
-const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.15.0/dist/maya.global.js';
+// Interactions: hover a rectangle for sales; click a family or item type to zoom in; Back, Escape or a click on empty space goes up.
+const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js';
 const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
-const done = () => viz?.events?.emitRenderCompletedEvent();
+const done = () => viz?.events?.emitRenderCompletedEvent?.();
 if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const opt = { optional: true }, I = AZ.col(schema, /item/i, opt) ?? 'Item Type', P = AZ.col(schema, /product/i, opt) ?? 'Product', V = AZ.col(schema, /sales/i, opt) ?? 'Total Sales';
-const data = rows.filter((r) => AZ.num(r[V]) > 0).map((r) => ({ ...r, Family: AZ.familyOf(r[I]) }));
-['maya-render', 'maya-error'].forEach((t) => el.addEventListener(t, done, { once: true }));
+el.addEventListener('maya-settled', done, { once: true });
 el.spec = {
-  type: 'treemap', path: ['Family', I, P], y: V, drill: true,
-  colors: [...new Set(data.map((d) => d.Family))].map((f) => AZ.T.family[f] ?? AZ.T.muted), // slots follow first appearance
+  type: 'treemap', path: ['Family', I, P], y: V, drill: true, depth: 2, colors: AZ.T.family,
   titles: { [I]: 'Item type', [V]: 'Sales' },
   format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
   text: { noData: 'No rows yet: bind [sales] [item type] [product]' },
   theme: { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: '#1E1E24', fgMuted: '#8A8A94', bg: '#FFFFFF' },
-  data
+  data: rows.filter((r) => AZ.num(r[V]) > 0).map((r) => ({ ...r, Family: AZ.familyOf(r[I]) }))
 };

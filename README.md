@@ -8,7 +8,7 @@ Two skills:
 - **ts-object-answer-chart-builder** writes the three files a BYOC tile takes (`chart.html`,
   `chart.css`, `chart.js`) and iterates them in a real browser until the render is right,
   instead of handing you code it has never run. Charts are built on [MayaCharts](https://bbekshr.github.io/mayacharts/)
-  by default, where a whole tile is 7 lines of `chart.js`. It carries a library of 58 charts, and can save a
+  by default, where a whole tile is 3 lines of `chart.js`. It carries a library of 58 charts, and can save a
   finished chart as a ThoughtSpot answer through the MCP.
 - **ts-object-liveboard-chart-builder** builds a whole storytelling Liveboard of those charts on a
   real model through the ThoughtSpot MCP: plans the tabs, has each tile built by the chart
@@ -51,33 +51,31 @@ headed — it falls back to headless on its own and says so.
 [MayaCharts](https://bbekshr.github.io/mayacharts/) (MIT, no dependencies) is the default for standard business
 shapes: bar, line, area, scatter, KPI, waterfall, heatmap, table, treemap, sunburst, sankey, funnel, box plot and
 gauge. One JSON spec gives the marks, tooltip, keyboard focus, selection, drill, empty state and resize, so a complete
-tile is 7 lines of `chart.js`: 6 fixed lines that never change and one spec.
+tile is 3 lines of `chart.js`.
 
 ```js
-const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.15.0/dist/maya.global.js';
-const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
-const done = () => viz?.events?.emitRenderCompletedEvent();
-if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
-const rows = ((r) => { const k = r.schema.map((c) => c.name); return r.data.map((d) => { const o = {}; k.forEach((n, i) => { const v = d[i]; o[n] = v !== null && typeof v === 'object' ? (typeof v.value === 'function' ? v.value() : v.value) : v; }); return o; }); })(viz?.getDataFromSearchQuery?.()?.getData() ?? { schema: [], data: [] });
-['maya-render', 'maya-error'].forEach((t) => el.addEventListener(t, done, { once: true }));
-el.spec = { type: 'bar', x: 'Item Type', y: 'Total Sales', data: rows };
+const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js';
+const go = () => maya.host.thoughtspot(viz, { type: 'bar', x: /item/i, y: /sales/i, title: '{max.x} leads with {max.y}' });
+if (window.maya?.host) go(); else { const s = document.querySelector('script[src="' + MAYA + '"]') ?? document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA })); s.addEventListener('load', go); s.addEventListener('error', () => { (document.getElementById('chart') ?? document.body).textContent = 'MayaCharts could not load from ' + MAYA; viz?.events?.emitRenderCompletedEvent?.(); }); }
 ```
 
-The fixed lines load the library, mount the chart (even when the HTML tab is pasted empty), turn ThoughtSpot's
-search result into rows (unwrapping object cells, about 3x faster than building each row with `Object.fromEntries`),
-and tell ThoughtSpot the tile is done, on errors too. The tile was checked in the preview on live, missing, wrapped and
-empty data, 280 to 1400 px tiles, a renamed column and a CDN that fails to load.
+MayaCharts' ThoughtSpot adapter, `maya.host.thoughtspot`, reads the search, unwraps object cells, matches the fields
+(written as a RegExp, so `Total Sales` and `Total sales` both match) against the columns ThoughtSpot returns, mounts
+the chart (even when the HTML tab is pasted empty), and tells ThoughtSpot the tile is done once it has finished
+drawing, errors included. The last line loads the library if the HTML tab has not. The tile was checked in the
+preview on live, missing, wrapped and empty data, 130 to 1400 px tiles, a missing column and a CDN that fails to load.
 
 MayaCharts ships often. The doctor asks jsDelivr (then npm) for the latest release on every run and prints it as
 `mayacharts:`; each chart pins that exact release, so a saved tile never changes under you.
 
-Drill-down is built in too: a sunburst, treemap or sankey, or a bar, line, area or dumbbell with a `path`, zooms
-into what you click with an animated transition, a breadcrumb and a way back, all from `drill: true`.
+Drill-down is built in too: a sunburst, treemap, sankey or chord, or a bar, line, area, dumbbell, table, heatmap or
+marimekko with a `path`, zooms into what you click with an animated transition, a breadcrumb and a way back, all from
+`drill: true`; with `select` as well, a click cross-filters and a double-click drills.
 
-The skill reaches for something else only when a spec cannot say it: D3 for force layouts and bespoke shapes,
-Plotly for an icicle, hand-built HTML and SVG for pivots, KPI cards and annotations computed from the data. Things MayaCharts cannot do yet (a diagonal reference line, a dashed series,
-extra tooltip fields, a log scale, ratio measures that roll up as sum over sum, drill on a table), and the fixes
-suggested for it, are filed upstream as [BbekShr/mayacharts#59 to #71](https://github.com/BbekShr/mayacharts/issues).
+Headlines that quote the data, reference lines, bands and diagonals, annotations, dashed series, extra tooltip fields,
+log scales, ratio measures that roll up correctly, and drill together with cross-filter are all spec options (0.16.0;
+the skill's requests are BbekShr/mayacharts#59 to #72, all shipped; what 0.16.0 still gets wrong is #76). The skill reaches for something else only for a
+layout or interaction no spec can say: D3 for force layouts, hand-built SVG for a what-if slider or a race.
 
 Muze is not used: ThoughtSpot's own chart library has no license to redistribute, so a Muze chart could never be
 previewed here. (`MUZE_STUDIO` still appears in the answer and Liveboard TML: it is ThoughtSpot's type name for every
@@ -321,12 +319,12 @@ Verified on macOS (2026-09-29):
   captures every data mode plus `--tile 620x400` and `1400x500`.
 - **Fallback:** a Chromium that cannot open a window drops to headless on its own.
 
-Verified on macOS (2026-10-12), after the switch to MayaCharts:
+Verified on macOS (2026-10-12), on MayaCharts 0.16.0:
 
-- The doctor reports the latest MayaCharts release (0.15.0).
-- The 7-line tile, `examples/maya-was-bars` and the three MayaCharts library charts pass every data mode,
-  280x300 and 1400x500 tiles and the hover sweep; the smoke fixture, a hand-built SVG KPI and the Plotly
-  sunburst still pass after the Muze code left the preview.
+- The doctor reports the latest MayaCharts release (0.16.0) and the core and full build URLs.
+- The 3-line adapter tile, `examples/maya-was-bars` and the six MayaCharts library charts pass every data mode,
+  280x300 and 1400x500 tiles and the hover sweep; the adapter tile also passes an empty HTML tab, a missing column, a
+  failing CDN and a 130 px tall tile. The smoke fixture and the hand-built SVG KPI still pass.
 - Not yet checked: the rebuilt charts on a real cluster tile.
 
 Not yet run inside the Claude app itself; the doctor output from a first run there is
