@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // library-emit.mjs <slug> --title "..." --search "[sales] [date].monthly" --question "..." \
-//                  --lib "Muze" --tile "8x6" --interactions "hover tooltip; click key to hide series" \
+//                  --lib "MayaCharts" --tile "8x6" --interactions "hover tooltip; click key to hide series" \
 //                  [--notes "..."] [--png attempts/NN.WxH.png] [--tab Pulse] [--into-skill]
 //                  [--model "(Sample) Retail - Apparel"] [--mode A|B|C]
 //   --tile is the Liveboard footprint in grid units, WxH (e.g. 8x6); it is written to the README as given.

@@ -234,157 +234,24 @@ const AZ = (function () {
 })();
 /* ==== end amuzing core ==== */
 
-// Search: [sales] [date].monthly     (columns arrive as "Total sales" and "Month(date)")
-// Interactions: hover crosshair with tooltip, click the key to hide or show the last-year line.
-const INK = AZ.T.ink, GHOST = AZ.T.slate[3];
-let showGhost = true;
-
-AZ.boot({
-  need: 'sales by date at monthly grain, e.g. [sales] [date].monthly',
-  render: async ({ el, rows, schema }) => {
-    const { muze } = AZ.host();
-    const { DataModel } = muze;
-    const dKey = AZ.col(schema, /date|month/i), sKey = AZ.col(schema, /sales/i);
-
-    const m = rows.map((r) => ({ t: AZ.ms(r[dKey]), v: AZ.num(r[sKey]) }))
-      .filter((r) => isFinite(r.t)).sort((a, b) => a.t - b.t);
-    if (m.length < 3) throw new Error('Need at least 3 months of data, got ' + m.length);
-    const byT = new Map(m.map((r) => [r.t, r.v]));
-    const back12 = (t) => { const d = new Date(t); d.setUTCFullYear(d.getUTCFullYear() - 1); return d.getTime(); };
-    const prevOf = (t) => byT.get(back12(t));
-
-    // Biggest single-month step up and down, from the data itself.
-    let up = null, dn = null;
-    for (let i = 1; i < m.length; i++) {
-      const g = m[i - 1].v ? m[i].v / m[i - 1].v - 1 : 0;
-      if (!up || g > up.g) up = { i, g };
-      if (!dn || g < dn.g) dn = { i, g };
-    }
-    const y = AZ.ytd(m);
-
-    const lead = 'Largest step up: ' + AZ.monthLabel(m[up.i].t) + ' (' + AZ.pct(up.g, 0, true) + ' on the month). '
-      + 'Largest step down: ' + AZ.monthLabel(m[dn.i].t) + ' (' + AZ.pct(dn.g, 0, true) + ').';
-    const sub = y && y.pct != null
-      ? 'Year to date through ' + y.through + ': ' + AZ.money(y.cur) + ' against ' + AZ.money(y.prev) + ' a year earlier (' + AZ.pct(y.pct, 1, true) + ').'
-      : 'Year to date needs a full prior year of months in the current filter.';
-    const hasGhost = m.some((r) => prevOf(r.t) != null);
-    el.innerHTML =
-      '<div class="pl-head"><p class="pl-lead">' + AZ.esc(m.length > 12 ? lead : 'Monthly sales') + '</p><p class="pl-sub">' + AZ.esc(sub) + '</p>'
-      + '<div class="pl-key"><button type="button" class="pl-k on" data-k="sales" disabled><i style="border-color:' + INK + '"></i>Sales</button>'
-      + (hasGhost ? '<button type="button" class="pl-k' + (showGhost ? ' on' : '') + '" data-k="ghost"><i style="border-color:' + GHOST + ';border-top-style:dashed"></i>Same month last year</button>' : '')
-      + '</div></div><div class="pl-plot" id="pl-plot"></div>';
-
-    const data = [];
-    m.forEach((r) => {
-      data.push({ Month: r.t, Series: 'Sales', Value: r.v });
-      const p = prevOf(r.t);
-      if (p != null) data.push({ Month: r.t, Series: 'Last year', Value: p });
-    });
-    const dm = new DataModel(DataModel.loadDataSync(data, [
-      { name: 'Month', type: 'dimension', subtype: 'temporal' },
-      { name: 'Series', type: 'dimension' },
-      { name: 'Value', type: 'measure', defAggFn: 'sum' }
-    ]));
-
-    const plot = document.getElementById('pl-plot');
-    const pr = plot.getBoundingClientRect();
-    const canvas = muze.canvas()
-      .data(dm)
-      .width(Math.max(240, Math.round(pr.width))).height(Math.max(140, Math.round(pr.height)))
-      .rows(['Value']).columns(['Month'])
-      .color({ field: 'Series', range: [GHOST, INK] })
-      .layers([{ mark: 'line' }])
-      .config({
-        legend: { show: false },
-        gridLines: { x: { show: false }, y: { show: true }, color: AZ.T.grid },
-        axes: {
-          x: { showAxisName: false, name: '', fields: { Month: { showAxisName: false, tickFormat: (d) => {
-            const n = new Date(d && typeof d === 'object' ? d.rawValue : d);
-            return isNaN(n) ? String(d) : (n.getUTCMonth() === 0 ? String(n.getUTCFullYear()) : AZ.monthShort(n.getTime()));
-          } } } },
-          y: { showAxisName: false, numberOfTicks: 4, tickFormat: (d) => AZ.money(d && typeof d === 'object' ? d.rawValue : d, 0) }
-        }
-      })
-      .mount(plot);
-
-    // Muze ignores the colour range on line marks and can leave strokes at width 0:
-    // set them explicitly. Layer order is alphabetical ('Last year' before 'Sales').
-    const lines = () => [...plot.querySelectorAll('.muze-layer-line path')];
-    const style = () => {
-      const ps = lines();
-      if (ps.length < (hasGhost ? 2 : 1) || !ps.every((p) => p.getAttribute('d'))) return false;
-      const ink = ps[ps.length - 1], ghost = hasGhost ? ps[0] : null;
-      ink.style.stroke = INK; ink.style.strokeWidth = '2.25px'; ink.style.fill = 'none';
-      if (ghost) {
-        ghost.style.stroke = GHOST; ghost.style.strokeWidth = '1.5px'; ghost.style.fill = 'none';
-        ghost.style.strokeDasharray = '4 3'; ghost.style.display = showGhost ? '' : 'none';
-      }
-      // ThoughtSpot's Muze build keeps the axis titles the class-based CSS cannot reach: drop them by text.
-      plot.querySelectorAll('svg text').forEach((n) => { if (['Month', 'Value', 'Series'].indexOf((n.textContent || '').trim()) >= 0) n.style.display = 'none'; });
-      // The field-name titles are HTML header cells in the Muze layout, not svg text.
-      plot.querySelectorAll('[class*="muze-columnHeader"], [class*="muze-rowHeader"]').forEach((n) => { n.style.display = 'none'; });
-      return true;
-    };
-    await new Promise((res) => {
-      let n = 0; const tick = () => { if (style() || n++ > 40) return res(); setTimeout(tick, 100); };
-      canvas.once('afterRendered', tick); setTimeout(tick, 400);
-    });
-
-    // Geometry of the ink line in tile pixels; everything interactive hangs off it.
-    const ink = lines().pop();
-    const xy = [];
-    if (ink) {
-      const nums = (ink.getAttribute('d').match(/-?\d+(\.\d+)?/g) || []).map(Number);
-      for (let i = 0; i + 1 < nums.length; i += 2) xy.push([nums[i], nums[i + 1]]);
-    }
-    if (ink && xy.length === m.length) {
-      const NS = 'http://www.w3.org/2000/svg', g = document.createElementNS(NS, 'g');
-      g.setAttribute('pointer-events', 'none');
-      [[up, 'up'], [dn, 'down']].forEach(([s, k]) => {
-        const [cx, cy] = xy[s.i];
-        const c = document.createElementNS(NS, 'circle');
-        c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', 4.5);
-        c.setAttribute('fill', '#fff'); c.setAttribute('stroke', INK); c.setAttribute('stroke-width', 2);
-        g.appendChild(c);
-        const tx = document.createElementNS(NS, 'text');
-        tx.textContent = AZ.monthLabel(m[s.i].t);
-        tx.setAttribute('x', cx + (k === 'up' ? -8 : 8)); tx.setAttribute('y', cy - 10);
-        tx.setAttribute('text-anchor', k === 'up' ? 'end' : 'start');
-        tx.setAttribute('font-size', 11); tx.setAttribute('fill', INK);
-        tx.setAttribute('style', 'stroke:none;font-weight:600;letter-spacing:0;font-family:' + AZ.T.font + ';paint-order:normal');
-        g.appendChild(tx);
-      });
-      ink.parentNode.appendChild(g);
-
-      // Hover: Muze draws the crosshair; we add the tooltip. Geometry is read live on each move
-      // because Muze animates the layer in, so a transform captured at first paint goes stale.
-      const tip = AZ.tip(plot);
-      const cross = document.createElement('div'); cross.className = 'pl-cross';
-      const dot = document.createElement('div'); dot.className = 'pl-dot';
-      plot.appendChild(cross); plot.appendChild(dot);
-      const off = () => { cross.style.opacity = dot.style.opacity = 0; tip.hide(); };
-      plot.addEventListener('mousemove', (e) => {
-        const ctm = ink.getScreenCTM(); if (!ctm) return;
-        const r = plot.getBoundingClientRect();
-        let best = 0, bd = 1e9, bp = null;
-        xy.forEach(([x, yy], i) => { const p = new DOMPoint(x, yy).matrixTransform(ctm); const d = Math.abs(p.x - e.clientX); if (d < bd) { bd = d; best = i; bp = p; } });
-        if (bd > 30) return off();
-        const r0 = m[best], p0 = prevOf(r0.t);
-        let h = '<b>' + AZ.monthLabel(r0.t) + '</b>' + AZ.row('Sales', AZ.money(r0.v, 2), '#FFFFFF');
-        if (p0 != null && showGhost) h += AZ.row('Same month last year', AZ.money(p0, 2), GHOST) + AZ.row('Change', AZ.pct(p0 ? r0.v / p0 - 1 : 0, 1, true));
-        cross.style.left = (bp.x - r.left) + 'px'; cross.style.opacity = 1;
-        dot.style.left = (bp.x - r.left) + 'px'; dot.style.top = (bp.y - r.top) + 'px'; dot.style.opacity = 1;
-        tip.show(h, bp.x - r.left, bp.y - r.top);
-      });
-      plot.addEventListener('mouseleave', off);
-    }
-
-    // Key toggles the ghost line without a re-render.
-    el.querySelectorAll('.pl-k[data-k="ghost"]').forEach((b) => b.addEventListener('click', () => {
-      showGhost = !showGhost; b.classList.toggle('on', showGhost);
-      const ps = lines(); if (ps.length > 1) ps[0].style.display = showGhost ? '' : 'none';
-    }));
-
-    return () => { try { canvas.dispose && canvas.dispose(); } catch (e) {} };
-  }
-});
+// Search: [sales] [date].monthly
+// Interactions: hover crosshair and tooltip, click a legend key to hide a line, drag to zoom (double-click or Escape resets), arrow keys step through months.
+const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.15.0/dist/maya.global.js';
+const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+const done = () => viz?.events?.emitRenderCompletedEvent();
+if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const D = AZ.col(schema, /date|month/i, { optional: true }), V = AZ.col(schema, /sales/i, { optional: true });
+// Pair each month with the same month a year earlier, so last year runs as a second line.
+const byT = new Map(rows.map((r) => [AZ.ms(r[D]), r[V]]));
+const ago = (t) => { const d = new Date(t); d.setUTCFullYear(d.getUTCFullYear() - 1); return d.getTime(); };
+const pts = [...byT].flatMap(([t, v]) => [{ Month: t, Series: 'Sales', Sales: v }].concat(byT.has(ago(t)) ? [{ Month: t, Series: 'Last year', Sales: byT.get(ago(t)) }] : []));
+['maya-render', 'maya-error'].forEach((t) => el.addEventListener(t, done, { once: true }));
+el.spec = {
+  type: 'line', x: 'Month', y: 'Sales', series: 'Series', xType: 'time', zoom: true,
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Month: { month: 'short', year: 'numeric', timeZone: 'UTC' } },
+  colors: { 'Sales': '#1E1E24', 'Last year': '#B4BDC9' },
+  text: { noData: 'No rows yet. Bind the search [sales] [date].monthly' },
+  theme: { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: '#1E1E24', fgMuted: '#8A8A94', accent: '#1E1E24', series1: '#1E1E24', series2: '#B4BDC9', radius: '2px', bg: '#FFFFFF' },
+  data: pts
+};

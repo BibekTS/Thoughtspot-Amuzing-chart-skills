@@ -46,7 +46,7 @@ Nothing else is created in ThoughtSpot. An earlier version stored every chart as
 `zz-amuzing-store-<slug>` Liveboard and assembled from those: 56 objects in the user's library that they
 never asked for. Do not bring that back.
 
-A custom chart tile in TML is `answer.chart.type: MUZE_STUDIO`, with the three files base64 in
+A custom chart tile in TML is `answer.chart.type: MUZE_STUDIO` (ThoughtSpot's type name for every custom chart, whatever library draws it), with the three files base64 in
 `custom_visual_props` (a JSON string) > `clientState` (another JSON string) > `playground.code`
 `.{jsCodeBase64, cssCodeBase64, htmlCodeBase64}`.
 

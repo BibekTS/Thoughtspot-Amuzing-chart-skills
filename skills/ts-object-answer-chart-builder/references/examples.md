@@ -21,18 +21,18 @@ Two rules for using them:
 `library/` holds 58 charts built on real data. Each was iterated in the preview and is interactive; all but the four
 marked *preview only* in `references/library.md` were also checked in a real cluster. They share one core (`library/_shared/core.js`: theme, column lookup, tooltip, CDN loader, motion,
 crumbs, boot). **Look for your shape in this table first**, then in `references/library.md` (every chart by tab,
-library and search). Use the `examples/` files further down only for shapes the library lacks, or for the
-Muze workarounds they document.
+library and search). Use the `examples/` files further down only for shapes the library lacks.
 
 | Pattern | Copy | Library | Why this one |
 |---|---|---|---|
+| Any standard business shape (bar, line, KPI, waterfall, treemap ...) | `examples/maya-was-bars` | MayaCharts | One JSON spec gives marks, tooltip, selection and resize; the starter for every MayaCharts chart (preview-verified, not yet on a cluster) |
 | Hierarchy with animated zoom | `library/what-sunburst` | Plotly | Native `sunburstclick` zoom, crumbs wired to `Plotly.restyle` |
 | Hierarchy as rectangles, drill by click | `library/what-treemap-drill` | hand SVG | Three-level drill with crumbs and a way back |
 | Flow between two or three dimensions | `library/what-money-sankey`, `library/what-chord` | ECharts / D3 | Click a node to isolate its flows; chord drills a family |
 | Map, bubble per state, zoom to stores | `library/where-state-bubbles` | inline SVG map | Inline US paths (`_shared/us-states.js`), because `fetch()` is blocked in tiles |
 | Hex cartogram | `library/where-hex-cartogram` | hand SVG | Supersedes `examples/State-hex-cartogram` |
 | KPI tile | `library/kpi-ring`, `kpi-flip`, `kpi-odometer`, `kpi-bullet`, `kpi-sparkbars`, `kpi-dotstrip`, `kpi-quarter-pairs` | hand SVG | Seven readings of one number, with measure toggles and same-period YoY; supersede `examples/kpi-chart` |
-| Line over time with a prior-year ghost | `library/pulse-monthly-line` | Muze | Muze line stroke fix and own crosshair |
+| Line over time with a prior-year ghost | `library/pulse-monthly-line` | MayaCharts | Lean MayaCharts line: the spec carries the series, tooltip and resize (preview only) |
 | Calendar heatmap, click a year to drill | `library/when-calendar-heatmap` | hand SVG | Partial-period cells, measure toggle |
 | Stream or stacked area with drill | `library/when-family-stream` | D3 | Stream / stacked / 100% toggle, family to item-type drill |
 | Animated scatter over time | `library/when-bubble-motion` | hand SVG | Play and scrub control driving tweens |
@@ -43,8 +43,8 @@ Muze workarounds they document.
 | Beeswarm | `library/who-product-beeswarm` | D3 force | Collision layout that fits the tile |
 | Pivot table with subtotals | `library/where-region-pivot` | hand HTML | Rows and columns expand both ways; ratio totals computed as sum over sum at every level, so they match ThoughtSpot. Supersedes `examples/table-pivot/pivot-table` |
 | League table with movement and form | `library/who-store-league` | hand HTML | Rank change against the same window last year, a five-month form strip, partial-month detection. Supersedes `examples/League Table` and `examples/Scoreboard-chart` |
-| Diverging bar, drill to members | `library/what-premium-diverging` | Muze | Muze bars coloured per point, own axis and labels; the workarounds for Muze's band-height floor and remount-on-update. Supersedes `examples/Examples/Example 2 diverging axis` |
-| Growth split into volume and price | `library/pulse-family-growth` | hand HTML and SVG | Small-multiple cards with an exact units/price decomposition and like-for-like windows derived from the rows. Supersedes `examples/Examples/Example 4 growth comp` |
+| Diverging bar, drill to members | `library/what-premium-diverging` | MayaCharts | Lean MayaCharts diverging bar with sign colouring and drill (preview only) |
+| Growth split into volume and price | `library/pulse-family-growth` | hand HTML and SVG | Small-multiple cards with an exact units/price decomposition and like-for-like windows derived from the rows |
 
 The narrative tiles (tab banners, About) are one template in the `ts-object-liveboard-chart-builder` skill (`narratives/`), driven by a config per tab.
 
@@ -52,25 +52,10 @@ The narrative tiles (tab banners, About) are one template in the `ts-object-live
 
 These predate the preview loop and the shared core. Entries marked *superseded* have a better library chart above.
 
-## Muze
-
-| Path | What it is | Worth reading for |
-|---|---|---|
-| `examples/Examples/Example 1 bubble chart/` | Bubble chart, ~490 lines | `encodingTransform` plus an SVG overlay group. Muze's point-size range clamps around 50px, so the native marks are kept invisible and the bubbles are drawn into a cleared overlay — the only way to get large bubbles without leaking nodes across re-mounts |
-| `examples/Examples/Department bubble chart/` | Same shape, smaller | The same overlay pattern with a `ResizeObserver`, and a shorter read |
-| `examples/Examples/Example 2 diverging axis/` | Diverging bar, ~300 lines | *Superseded by `library/what-premium-diverging`.* Axis domain control and `encodingTransform` for a two-sided scale |
-| `examples/funnel-chart/result/` | Funnel | Muze canvas underneath, polygons hand-drawn in SVG on top. Also the domain-mutation workaround: Muze reverses categorical domain arrays on re-mount, so pass `.slice()` and re-config every mount |
-
-Every Muze example here is a `viz.muze` chart, not a Muze Studio script — the canvas is
-built and mounted inside the BYOC file.
-
 ## Chart.js (CDN)
 
-| Path | What it is | Worth reading for |
-|---|---|---|
-| `examples/model-connections-bump/result/` | Bump chart, ~420 lines | The CDN load done right: `createElement('script')` + `await new Promise`, jsdelivr pinned to `chart.js@4` |
-| `examples/Examples/Example 3 linechart with kpi/` | Line + KPI header | Chart.js beside hand-built DOM in one tile |
-| `examples/Examples/Example 5 KPI/` | KPI tile, ~130 lines | The smallest complete example in the repo. Good first read |
+None left in `examples/`; `library/` has the Chart.js charts. Load the library the way `AZ.loadScript` does: a
+`<script src>` plus a bounded promise, jsdelivr pinned to `chart.js@4`.
 
 ## Plotly (CDN)
 
@@ -106,7 +91,6 @@ all fixed in `examples/retail-apparel-sunburst/`:
 | `examples/table-pivot/table-chart/newused-summary/` | Flat table, ~210 lines | *Superseded by `library/who-product-table`.* The same CONFIG idea without the pivot machinery |
 | `examples/waffle_chart/result/` | Waffle grid, ~230 lines | Cards built with `createElement`, no library |
 | `examples/progression-funnel/progression-funnel.js` | Funnel, ~280 lines | Pure DOM funnel; `_progression_funnel_demo.html` beside it is a standalone preview |
-| `examples/Examples/Example 4 growth comp/` | Growth comparison | *Superseded by `library/pulse-family-growth`.* DOM plus `ResizeObserver`, no charting library at all |
 
 ## Raw SVG
 
@@ -133,6 +117,5 @@ both assume it.
 
 ## Screenshots
 
-`examples/Examples/*/result.png`, `examples/Scoreboard-chart/result/result.png` and
-`examples/model-connections-bump/result/rendered.png` show what those files actually
-render. Read one with vision when matching a target image to a technique.
+`examples/Scoreboard-chart/result/result.png` and `examples/maya-was-bars/preview.png` show what those files
+actually render. Read one with vision when matching a target image to a technique.

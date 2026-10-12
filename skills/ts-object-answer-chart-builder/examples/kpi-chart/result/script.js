@@ -1,7 +1,7 @@
 /**
  * OPPORTUNITY RATE — KPI CARD
  *
- * A KPI card rendered as plain DOM (no Muze canvas — a single-number card
+ * A KPI card rendered as plain DOM (a single-number card
  * doesn't need a plot). Shows a headline rate, a red/green change-vs-prior
  * indicator, and a sentence comparing this period's count to last year's.
  * All numbers come from the ThoughtSpot search; sample data is used only

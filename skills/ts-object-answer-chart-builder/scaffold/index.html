@@ -30,24 +30,12 @@
       .preview-error { color: #d93025; white-space: pre-wrap; padding: 12px;
         font: 12px/1.5 ui-monospace, Menlo, monospace; margin: 0; }
 
-      /* The CDN Muze build ships without these; the real host supplies its own theme.
-         Preview-only — never copy into chart.css. */
-      .muze-tracker, .muze-tracker-group { fill: transparent !important; }
-      .muze-grid-lines line, .muze-grid-lines path { stroke: #ececec; stroke-width: 1px; fill: none; }
-      .muze-axis line, .muze-axis path.domain { stroke: #b0b0b0; fill: none; }
-      .muze-axis text, .muze-axis-name text { fill: #555; }
-      .muze-layer-group { fill: none; }
-      .muze-title text, .muze-subtitle text { fill: #222; }
-      .muze-legend text { fill: #444; }
     </style>
   </head>
   <body>
     <div id="tile"><div id="chart-host"></div></div>
     <div id="status">initializing…</div>
 
-    <!-- No Muze build ships with the skill. preview.js imports the user's own build from /vendor/muze/ when
-         there is one (TS_MUZE_DIR) and links its CSS. The CDN build (@chartshq/muze 2.x) is the ASYNC API,
-         which is not what BYOC exposes, so it is never used as a stand-in. -->
     <script type="module" src="/src/preview.js"></script>
   </body>
 </html>

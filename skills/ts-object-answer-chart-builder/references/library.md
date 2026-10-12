@@ -25,9 +25,9 @@ Charts marked *(preview only)* were built on real search output and passed the l
 | `pulse-kpi-best` Best month | Pulse | 3x4 grid units | HTML and inline SVG (no chart library) | `[sales] [quantity purchased] [date].monthly` |
 | `pulse-kpi-sales` Sales, year to date | Pulse | 3x4 grid units | HTML and inline SVG (no chart library) | `[sales] [quantity purchased] [date].monthly` |
 | `pulse-kpi-units` Units sold, year to date | Pulse | 3x4 grid units | HTML and inline SVG (no chart library) | `[sales] [quantity purchased] [date].monthly` |
-| `pulse-monthly-line` Monthly sales against last year | Pulse | 8x6 grid units | Muze (line), with an HTML header and legend | `[sales] [date].monthly` |
+| `pulse-monthly-line` Monthly sales against last year *(preview only)* | Pulse | 8x6 grid units | MayaCharts 0.15.0 (maya.global.js from jsDelivr) | `[sales] [date].monthly` |
 | `banner-where` Where banner | 03 Where | 12x4 grid units | HTML (no chart library) | `[sales] [region] [state]` |
-| `state-sales-units` Sales against units by state | 03 Where | 6x6 grid units | Muze point layer, with an SVG overlay | `[sales] [quantity purchased] [state]` |
+| `state-sales-units` Sales against units by state *(preview only)* | 03 Where | 6x6 grid units | MayaCharts 0.15.0 (maya.global.js from jsDelivr) | `[sales] [quantity purchased] [state]` |
 | `where-hex-cartogram` US state hex map of sales | 03 Where | 5x7 grid units | none (inline SVG) | `[sales] [state]` |
 | `where-region-item-heatmap` Region by item type heatmap | 03 Where | 6x6 grid units | none (HTML grid) | `[sales] [region] [item type]` |
 | `where-region-pivot` Region by family pivot *(preview only)* | 03 Where | 12x7 grid units | Plain HTML table (no CDN) | `[sales] [quantity purchased] [region] [state] [item type]` |
@@ -39,7 +39,7 @@ Charts marked *(preview only)* were built on real search output and passed the l
 | `what-marimekko` Region by family Marimekko | 04 What | 6x7 grid units | pure SVG, no library | `[sales] [region] [item type]` |
 | `what-money-sankey` Where the money flows: region to family to item type | 04 What | 12x7 grid units | echarts@5 via cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js (fallback unpkg.com/echarts@5/dist/echarts.min.js) | `[sales] [region] [item type]` |
 | `what-pareto` Products that make 80% of sales | 04 What | 6x7 grid units | echarts@5 via cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js (fallback unpkg.com/echarts@5/dist/echarts.min.js) | `[product] [item type] [sales] [quantity purchased]` |
-| `what-premium-diverging` Premium or volume, by item type *(preview only)* | 04 What | 8x7 grid units | Muze | `[sales] [quantity purchased] [item type] [product]` |
+| `what-premium-diverging` Premium or volume, by item type *(preview only)* | 04 What | 8x7 grid units | MayaCharts 0.15.0 (maya.global.js from jsDelivr) | `[sales] [quantity purchased] [item type] [product]` |
 | `what-price-volume` Price against volume by item type | 04 What | 8x6 grid units | Hand-built inline SVG, no external library | `[sales] [quantity purchased] [item type]` |
 | `what-quadrant-guide` How to read price against volume | 04 What | 4x6 grid units | Plain HTML and CSS, no external library | `[sales] [quantity purchased] [item type]` |
 | `what-radial-bars` Item types as radial bars | 04 What | 6x6 grid units | d3@7 (d3-hierarchy, d3-shape, d3-chord) from https://cdn.jsdelivr.net/npm/d3@7 (fallback https://unpkg.com/d3@7) | `[sales] [item type] [product]` |
@@ -86,9 +86,9 @@ Charts marked *(preview only)* were built on real search output and passed the l
 - **pulse-kpi-best**: YTD and All toggle. Hover the sparkline for the month, its value and the change on the same month a year earlier.
 - **pulse-kpi-sales**: YTD and All toggle. Hover the sparkline for the month, its value and the change on the same month a year earlier.
 - **pulse-kpi-units**: YTD and All toggle. Hover the sparkline for the month, its value and the change on the same month a year earlier.
-- **pulse-monthly-line**: Hover for month, sales, same month last year and the change. Click the key to hide or show the last-year line. The two largest month-on-month steps are marked from the data.
+- **pulse-monthly-line**: Hover for the crosshair and a tooltip with the month, sales and the same month last year. Click a legend key (shown on narrow tiles; wider tiles name each line at its right end) to hide or show a line. Drag across the plot to zoom into a span of months; double-click or Escape resets. The chart is keyboard navigable: arrow keys step through months and between the two lines.
 - **banner-where**: Hover a number for how it is calculated. Click a prompt to copy it, then paste it into Spotter.
-- **state-sales-units**: Hover a dot for sales, units, sales per unit and its gap to average; click a dot to pin it (others dim); click again or the background to clear
+- **state-sales-units**: Hover or arrow-key to a dot for its state, sales and units (other dots dim); click dots to select several, Escape clears; drag to zoom, double-click or Escape resets. The dashed line marks average sales per state.
 - **where-hex-cartogram**: Sales / Share of total toggle (header line, tooltip, readout, hex figures when wide); hover a hex; click a hex to pin it with a readout; Unpin clears
 - **where-region-item-heatmap**: Sales / Share of region toggle; hover a cell for sales, shares and rank; click a row or column header to isolate it
 - **where-region-pivot**: Sales / Units / Price per unit toggle (share bars tween); click a region row to show its states and a family header to show its item types (height and column-width tweens); Expand all / Collapse all (one Expand/Collapse button below 360px); hover a cell to highlight its row and column with a tooltip giving sales, units, share of row, share of column and price per unit against the region
@@ -100,7 +100,7 @@ Charts marked *(preview only)* were built on real search output and passed the l
 - **what-marimekko**: Hover a segment for sales and shares; click a column to widen it to the full tile and split families into item types; crumbs, Back, Escape.
 - **what-money-sankey**: Hover a node or flow to highlight adjacent flows; click a node to isolate its flows and dim the rest; click background or Show all to clear
 - **what-pareto**: Item type chips (top 6 plus All) re-rank and re-animate the Pareto; hover for rank, product, sales and cumulative share; click a bar to open a detail card (sales, units, price against the item type average, rank in the item type) with an animated highlight along the cumulative line; Top 50 / All toggle; Escape or Close dismisses
-- **what-premium-diverging**: Hover a row for share of sales, share of units, the gap, and price per unit against the average; the hovered bar stays, others dim, and a ruler reads the scale. Click a bar (or arrow keys and Enter) to see that item type's products, measured the same way inside the item type (top 12 by gap); the crumb or Escape goes back. Toggle between gap in pts and price index; the bars morph between the two.
+- **what-premium-diverging**: Hover or focus a bar for its tooltip (share of sales minus share of units, in points, and whether it is premium or volume); the other bars dim. Click a bar, or focus it and press Enter, to drill into that item type's products; the breadcrumb, Back, Escape or a click on empty space goes back up. Arrow keys move between bars. All of this is built into MayaCharts.
 - **what-price-volume**: Hover a bubble for details; click a bubble or a family in the key to isolate that family; click background to clear
 - **what-quadrant-guide**: Click a quadrant to expand its members with units, price and sales; hovering dims the other quadrants
 - **what-radial-bars**: Hover a bar; click a bar to swap to that item type's top 12 products (bars retract then grow); crumbs, Back, Escape.

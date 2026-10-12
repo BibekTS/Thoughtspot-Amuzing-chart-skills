@@ -5,8 +5,8 @@ file is that most are invisible in a screenshot, so the iterate loop will happil
 converge on a chart that is broken. Each rule below says how to *detect* it, not just
 what to avoid.
 
-Section 0 of `references/muze-api-reference.md` (Recipes) has the worked alternative for
-most of the Muze ones. Read it when a rule bites and the fix is not obvious.
+The MayaCharts section of `references/library-starters.md` has the worked starter for the
+MayaCharts ones. Read it when a rule bites and the fix is not obvious.
 
 ---
 
@@ -17,17 +17,15 @@ by reading the code, not the screenshot. Check these before emitting final files
 
 | Rule | Why |
 |---|---|
-| `const { muze, getDataFromSearchQuery } = viz;` at the top — **bare `viz`, never `globalThis.viz`** | See the entry below; this one has shipped a broken tile. |
-| `viz.muze` is **synchronous** — `muze.canvas()`, `DataModel.loadDataSync(...)` | No `await muze()`, no `DataModel.onReady()`. Those are the standalone-CDN shapes. |
+| `viz?.getDataFromSearchQuery?.()` — **bare `viz`, never `globalThis.viz`** | See the entry below; this one has shipped a broken tile. |
 | `viz.events.emitRenderCompletedEvent()` on **both** the success and `catch` paths | Liveboard PDF export blocks until every tile reports in. One silent tile means no PDF for the whole Liveboard. The preview's status line warns when it never fires. |
 | Wrap the render in `try/catch` and paint `err.stack` into `#chart` | The BYOC sandbox replaces real errors with "Something went wrong". |
 | Never a literal `</script>` — not even inside a comment | Breaks the host's HTML parser. |
 | No `<!DOCTYPE>` / `<html>` / `<head>` / `<body>` in chart.html | The host wraps it. |
 | Do not wrap chart.js in an async IIFE | The host already does. Top-level `await` and `return` work as-is. |
-| No `mark: 'text'` as a top-level layer; no `tooltip.mode: 'consolidated'` | Both break ThoughtSpot's interaction propagation. Inject SVG in `afterRendered` instead. |
-| Two same-named columns in one search collide in the DataModel | Fix the search to give unique names — not the chart code. |
+| Two same-named columns in one search collide (one overwrites the other in every row object) | Fix the search to give unique names — not the chart code. |
 | `vs. Last Month` / `vs. Last Year` columns arrive empty unless the search selects the prior period | Nothing the chart can do about it; say so in the run README. |
-| Table-mode column format (currency, percent) does **not** reach the chart | Emit an explicit `tickFormat`. |
+| Table-mode column format (currency, percent) does **not** reach the chart | Format in the chart (MayaCharts: `format`, with Intl options for compact money). |
 | Non-ASCII `·` or `—` in titles render as `Â·` | ASCII only. |
 | No literal U+00A0 anywhere in the three files — write ` ` | The files are pasted through a browser textarea, which is exactly where a literal non-breaking space gets normalised to a plain space. Ironic failure mode: the character silently disappears from the guard written to handle it. Sweep with `LC_ALL=C grep -n '[^ -~]' chart.*`. |
 | A CDN load must be **bounded** and must list a fallback host | `onerror` covers a blocked host. A request that *hangs* fires neither `onload` nor `onerror`, so the promise never settles, top-level `await` never returns, `emitRenderCompletedEvent()` never fires, and the host shows a bare "Chart did not render" over an empty tile. Wrap the injection in a `setTimeout` reject and try a second CDN. |
@@ -42,11 +40,7 @@ Found by screenshotting a Liveboard in a logged-in browser with `helpers/cluster
 | Rule | Why |
 |---|---|
 | **`fetch()` to any external URL is blocked** ("Network requests are blocked for security. Charts cannot make ...") | Tiles run in a sandboxed iframe. Inline every data file, GeoJSON and topology in `chart.js` (see `library/_shared/us-states.js`). The preview happily fetches, so a chart that fetches passes locally and paints an error on the tile. |
-| `<script src>` from cdn.jsdelivr.net and unpkg **does** load (d3@7, echarts@5, topojson-client@3 verified) | Use it for libraries; keep the bounded `AZ.loadScript` fallback. |
-| Muze's axis-title text (for example "Month") survives class-based CSS in ThoughtSpot's Muze build | Remove the `svg text` nodes whose text equals the field name after `afterRendered`, as `library/pulse-monthly-line` does. |
-| Muze draws each **point** mark inside a `g.muze-layer-point` at `opacity: 0.5` | Ink dots render light grey whatever fill you set. Reset it in CSS (`[class*="muze-layer-point"] { opacity: 1 !important; }`) and do your own dimming. Point marks are `<path>` circles with no data attached; match them to rows by rank on a unique measure. |
-| Muze ignores `.color({ range })` on **line** marks and leaves stroke-width at 0 | Set `stroke`, `stroke-width` and `fill: none` yourself once every path has a `d` attribute. Layer order is alphabetical by series value. |
-| Muze's native tooltip totals series ("Total (2)") and its crosshair snaps half a step off the pointer | Hide `[class*="muze-tooltip"]` and `.muze-crossline-group`; draw your own from `path.getScreenCTM()` **read on every mouse move** (the layer animates in, so a value captured at first paint goes stale). |
+| `<script src>` from cdn.jsdelivr.net and unpkg **does** load (d3@7, echarts@5, topojson-client@3 verified; mayacharts uses the same host) | Use it for libraries; keep the bounded `AZ.loadScript` fallback. |
 | Tile size is decided by the Liveboard, not the window | Observe `#chart` with a `ResizeObserver` (the shared core does), never `document.body`. |
 | A validate-only TML import is still a "write" to the MCP tool | Pass `confirm_write_operations: true`; `VALIDATE_ONLY` changes nothing. |
 | The MCP sandbox has no network except the cluster and no memory between calls | Do not send a whole Liveboard's base64 in one call. Patch the Liveboard in sha256-checked blocks that export, replace and re-import it server side: `ts-object-liveboard-chart-builder` (`liveboard-pack.mjs`, `patch.js`). Create no helper objects. |
@@ -134,47 +128,21 @@ the global. A chart reading `globalThis.viz` shows the sample-data badge in
 
 | Rule | How it shows |
 |---|---|
-| `point` `size` above `0.05` | Dots fill the whole row — obvious once you know it is a size bug and not a data bug. Area-based scale. The only exception is a bubble chart where the user asks for large bubbles. |
-| `tick` `size` is a band-fraction | Use `0.02` for hairlines; larger reads as a fat block. |
-| `p.update.x` in `encodingTransform` is **pixels**, not data | Marks pile up at the left edge, or 120,000px off-screen. Convert via `layer.measurement().width` and the axis max. `x: { value: () => CONST }` is taken as pixels too. Small nudges (`+= 6`) are fine, they already are pixels. |
-| Guarding that assignment with `if (p.update.x != null)` | The guard skips when it is null (common on text-only KPI layers) and the label lands at (0,0) or off-canvas. Assign absolute positions unconditionally. A guard is acceptable only around a relative nudge (`+=`), where skipping a cross-panel null point is harmless. |
-| `share()` across measures with different scales | Everything pins near zero. Use the dual-axis tuple pattern. |
-| `domain` inside `.color({...})` | Silently kills `range` too — palette reverts to default blue/orange. Pass `range` only, ordered alphabetically by category value. |
-| `domain: [...]` on an axis | Silently ignored; the axis keeps its computed range. |
-| A temporal field typed `type: 'measure'` on a line chart | The chart collapses. |
-| Root `axes.x.tickFormat` on a temporal field | Ignored. Use `axes.x.fields[FIELD].tickFormat` with `d.rawValue` as an ms timestamp. Not visible in the preview, where the field is a plain string: ThoughtSpot types any dimension named with `quarter`, `month`, `year`, `date`, `week` or `day` as temporal and feeds ms values (recipe 0.11). |
+| MayaCharts: `<maya-chart>` keeps a `min-height: 200px` from its own `:host` | In a short tile the axis spills past the plot onto whatever sits under it. Set `min-height: 0` on the element. |
+| MayaCharts: render-complete from `customElements.whenDefined` | Fires before the first draw when the JS runs before the library has loaded (measured: 0 marks drawn). Signal on `maya-render`, and on `maya-error` so a bad spec still reports in. |
+| MayaCharts: a field the search renamed (`Total Sales`, not `Sales`) | The element paints its own error naming the fields it found (`unknown-field`). Use the names the search returns. |
+| MayaCharts: marks live in the element's shadow root | `document.querySelector` from a probe `--eval` finds nothing; go through `.shadowRoot`. `probe.mjs` and `svg-fit` already look inside. |
+| A temporal field typed `type: 'measure'` | Dates are summed or plotted as numbers. Keep dates dimensions. |
 
 ## Crashes — the preview shows the stack, so these are cheap
 
-- `p.text.*` in `encodingTransform` — undefined.
-- Text inside a bar or point layer's `encodingTransform` — those layers do not render text; a bar layer's transform only moves geometry or adds styles. Labels go in via SVG in `afterRendered` (recipe 0.6).
-- Constructing a new `DataModel` inside `source` — `e.getDomain is not a function`.
-- Repositioning `mark: 'line'` via `encodingTransform` — ignored; use `mark: 'point'` (recipe 0.8).
-- A temporal field typed `measure` on a line chart — scatter points, an x-axis of `0-2200`, a collapsed y-scale. Keep it a dimension; for a smooth line, one row per year.
-- `muze.Operators.html` in `.title()` / `.subtitle()` — renders the markup verbatim.
-- Passing an object-wrapped cell into gridjs or a formatter — opaque "Script error." Run `--data wrapped` to catch it.
-- Invented methods. `DataModel.onReady()`, `canvas.scrollConfig()`, `canvas.onready()`, `canvas.tooltip()`, `loadScript()`, `waitForLib()` do not exist.
-
-## The canvas-shadowing bug — worth its own entry
-
-```js
-function renderChart(rows) {
-  const canvas = muze.canvas();   // WRONG
-}
-```
-
-Shadows the module-scope `let canvas`. The first mount works, so the preview looks
-perfect. Then `applySize()` reads the still-`null` outer binding on the next
-ResizeObserver tick, hits `if (!canvas) return`, and the tile goes blank — later,
-and only once someone resizes. Use plain assignment: `canvas = muze.canvas();`.
-
-**Detect it:** resize the chart's **container** and re-snap. A chart that renders
-once and blanks on resize has this bug.
+- Passing an object-wrapped cell into gridjs, MayaCharts or a formatter — an opaque error or `non-numeric-y`. Unwrap cells (`AZ.cellVal`) and run `--data wrapped` to catch it.
+- Invented methods. `canvas.onready()`, `waitForLib()` and friends do not exist; read the library's own reference.
 
 ## The CDN-library sibling: `responsive: true` is not enough
 
-Same family as canvas shadowing, different library, and easier to miss because it
-does not blank the tile — it clips it.
+A chart that does not follow its container does not blank the tile, it clips it, so it
+is easy to miss.
 
 Plotly's `responsive: true` and the Chart.js equivalent listen to **`window.resize`
 only**. A Liveboard tile changes size while the window does not: drag-resize,
@@ -205,15 +173,12 @@ step 6 in `SKILL.md` for why that test lies.
 
 ## Defaults first
 
-Muze renders a complete chart from `rows`, `columns`, `data`, and `mount`: axis names
-from field names, horizontal gridlines, a default blue, no legend without a colour or
-size encoding, raw numeric ticks. Before emitting any config block, ask whether deleting
-it changes the render. If not, delete it.
+MayaCharts renders a complete chart from `type`, `x`, `y` and `data`: axis names from field names (or `titles`),
+gridlines, a tooltip, keyboard focus. Before adding any spec key, ask whether deleting it changes the render. If
+not, delete it.
 
-- `tickFormat` only when the target shows formatted ticks (`$11M`, not `11000000`).
-- A `color.value` override only when the target colour clearly differs from the default.
-- `axes.x/y.name` plus `showAxisName` only for a label that differs from the field name.
-- `gridLines`, `legend.show: false`, `axes.*.show: false` only when the default is wrong.
-- Do not call `.title()` / `.subtitle()` unless the target visibly has one inside the
-  chart frame — Liveboard tiles draw their own title, so a chart-internal one is a
-  duplicate header. Plain ASCII strings only when you do.
+- `format` only when the default reads badly (`$1,000,000` on an axis wants compact money).
+- `colors` / `theme` only to match the house style (ink, slate, the family hues), not to decorate.
+- `grid: false`, `legend: false`, `xAxis: false` only when the default is wrong.
+- No `title` unless the target visibly has one inside the chart frame — Liveboard tiles draw their own title, so
+  a chart-internal one is a duplicate header. Plain ASCII strings only when you do.

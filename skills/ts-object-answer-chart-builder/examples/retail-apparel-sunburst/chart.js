@@ -110,7 +110,7 @@ function cellVal(v) {
 // -- Reaching the host ------------------------------------------------------
 // `viz` is whatever the host puts in scope. Do NOT read it as `globalThis.viz`
 // alone: ThoughtSpot's documented entry point is the bare identifier
-// (`const { muze, getDataFromSearchQuery } = viz;`), and a host that hands the
+// (`const { getDataFromSearchQuery } = viz;`), and a host that hands the
 // JS tab its `viz` as a function parameter rather than a global leaves
 // `globalThis.viz` undefined. That failure is silent and doubly bad - the chart
 // quietly falls back to sample rows AND emitRenderCompletedEvent() throws into

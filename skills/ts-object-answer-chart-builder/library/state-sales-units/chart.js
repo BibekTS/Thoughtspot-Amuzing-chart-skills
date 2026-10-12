@@ -235,113 +235,20 @@ const AZ = (function () {
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [quantity purchased] [state]   (columns arrive as "state", "Total sales", "Total quantity purchased")
-// Interactions: hover a dot for its tooltip; click a dot to pin it (the others dim); click the background to clear.
-let pinned = null;
-
-AZ.boot({
-  need: 'sales and units by state, e.g. [sales] [quantity purchased] [state]',
-  render: async ({ el, rows, schema }) => {
-    const { muze } = AZ.host();
-    const { DataModel } = muze;
-    const kState = AZ.col(schema, /state/i), kSales = AZ.col(schema, /sales/i), kUnits = AZ.col(schema, /quantity|units/i);
-
-    const pts = rows.map((r) => ({ s: String(r[kState]), v: AZ.num(r[kSales]), u: AZ.num(r[kUnits]) }))
-      .filter((p) => p.u > 0);
-    if (pts.length < 2) throw new Error('Need at least 2 states with units, got ' + pts.length);
-    const totV = pts.reduce((a, p) => a + p.v, 0), totU = pts.reduce((a, p) => a + p.u, 0);
-    const avg = totV / totU;
-    pts.forEach((p) => { p.ppu = p.v / p.u; });
-    const byU = pts.slice().sort((a, b) => b.u - a.u);
-    const top2 = byU.slice(0, 2), top2Share = (top2[0].u + top2[1].u) / totU;
-    const lo = pts.reduce((a, p) => (p.ppu < a.ppu ? p : a)), hi = pts.reduce((a, p) => (p.ppu > a.ppu ? p : a));
-    if (pinned && !pts.some((p) => p.s === pinned)) pinned = null;
-
-    const lead = top2[0].s + ' and ' + top2[1].s + ' sell ' + AZ.pct(top2Share, 0) + ' of all units across ' + pts.length + ' states.';
-    const sub = 'Sales per unit only runs from ' + AZ.money(lo.ppu, 2) + ' (' + lo.s + ') to ' + AZ.money(hi.ppu, 2) + ' (' + hi.s + '), so volume decides sales. Dashed line: the ' + AZ.money(avg, 2) + ' average.';
-    el.innerHTML = '<div class="sc-head"><p class="sc-lead">' + AZ.esc(lead) + '</p><p class="sc-sub">' + AZ.esc(sub) + '</p></div><div class="sc-plot" id="sc-plot"></div>';
-    await AZ.settle();
-
-    const dm = new DataModel(DataModel.loadDataSync(pts.map((p) => ({ State: p.s, Units: p.u, Sales: p.v })), [
-      { name: 'State', type: 'dimension' },
-      { name: 'Units', type: 'measure', defAggFn: 'sum' },
-      { name: 'Sales', type: 'measure', defAggFn: 'sum' }
-    ]));
-    const plot = document.getElementById('sc-plot');
-    const pr = plot.getBoundingClientRect();
-    const fmtAxis = (f) => (d) => f(d && typeof d === 'object' ? d.rawValue : d);
-    const canvas = muze.canvas()
-      .data(dm)
-      .width(Math.max(240, Math.round(pr.width))).height(Math.max(160, Math.round(pr.height)))
-      .rows(['Sales']).columns(['Units'])
-      .detail(['State'])
-      .layers([{ mark: 'point', encoding: { color: { value: () => AZ.T.ink }, size: { value: () => 0.05 } } }])
-      .config({
-        legend: { show: false },
-        gridLines: { x: { show: false }, y: { show: true }, color: AZ.T.grid },
-        axes: {
-          x: { showAxisName: false, numberOfTicks: 5, tickFormat: fmtAxis((n) => AZ.int(n)) },
-          y: { showAxisName: false, numberOfTicks: 4, tickFormat: fmtAxis((n) => AZ.money(n, 0)) }
-        }
-      })
-      .mount(plot);
-
-    // Wait until Muze has drawn every dot, then read their centres.
-    const dots = () => [...plot.querySelectorAll('[class*="muze-layer-point"] path, [class*="muze-layer-point"] circle')];
-    await new Promise((res) => {
-      let n = 0; const tick = () => { if (dots().length >= pts.length || n++ > 40) return res(); setTimeout(tick, 100); };
-      canvas.once('afterRendered', tick); setTimeout(tick, 400);
-    });
-
-    // Match dots to states by rank on x: x is units, and units differ between states.
-    const pb = () => plot.getBoundingClientRect();
-    const centre = (d) => { const r = d.getBoundingClientRect(), b = pb(); return [r.x + r.width / 2 - b.x, r.y + r.height / 2 - b.y]; };
-    const ds = dots().map((d) => ({ d, c: centre(d) })).sort((a, b) => a.c[0] - b.c[0]);
-    const byUAsc = pts.slice().sort((a, b) => a.u - b.u);
-    ds.forEach((o, i) => { if (byUAsc[i]) byUAsc[i].dot = o.d; });
-    ds.forEach((o) => { o.d.style.fill = AZ.T.ink; o.d.style.fillOpacity = '0.85'; o.d.style.stroke = '#fff'; o.d.style.strokeWidth = '1'; });
-
-    // Linear pixel scales from the two extreme dots, to draw the average line in data terms.
-    const a0 = byUAsc[0], a1 = byUAsc[byUAsc.length - 1];
-    const c0 = centre(a0.dot), c1 = centre(a1.dot);
-    const sx = (u) => c0[0] + (u - a0.u) * (c1[0] - c0[0]) / (a1.u - a0.u);
-    const sy = (v) => c0[1] + (v - a0.v) * (c1[1] - c0[1]) / (a1.v - a0.v);
-
-    const NS = 'http://www.w3.org/2000/svg';
-    const over = document.createElementNS(NS, 'svg'); over.setAttribute('class', 'sc-over');
-    plot.appendChild(over);
-    const mk = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); Object.keys(attrs).forEach((k) => n.setAttribute(k, attrs[k])); (parent || over).appendChild(n); return n; };
-    const uA = a0.u * 0.92, uB = a1.u * 1.02;
-    mk('line', { class: 'sc-avg', x1: sx(uA), y1: sy(avg * uA), x2: sx(uB), y2: sy(avg * uB) });
-    const labels = mk('g', {}), ring = mk('circle', { class: 'sc-ring', r: 7, opacity: 0 });
-
-    const draw = () => {
-      labels.innerHTML = '';
-      const show = pinned ? [pts.find((p) => p.s === pinned)] : byU.slice(0, 2);
-      show.forEach((p, i) => {
-        const [x, y] = centre(p.dot), right = x > plot.clientWidth * 0.6;
-        const t = mk('text', { x: x + (right ? -10 : 10), y: y + (i === 1 && !pinned ? 14 : -8), 'text-anchor': right ? 'end' : 'start' }, labels);
-        t.textContent = p.s;
-      });
-      pts.forEach((p) => { p.dot.style.fillOpacity = !pinned || p.s === pinned ? '0.85' : '0.25'; });
-    };
-    draw();
-
-    const tip = AZ.tip(plot);
-    const nearest = (e) => {
-      const b = pb(), mx = e.clientX - b.x, my = e.clientY - b.y;
-      let best = null, bd = 24 * 24;
-      pts.forEach((p) => { const [x, y] = centre(p.dot), d = (x - mx) * (x - mx) + (y - my) * (y - my); if (d < bd) { bd = d; best = p; } });
-      return best;
-    };
-    plot.addEventListener('mousemove', (e) => {
-      const p = nearest(e);
-      if (!p) { tip.hide(); ring.setAttribute('opacity', 0); plot.style.cursor = ''; return; }
-      const [x, y] = centre(p.dot);
-      ring.setAttribute('cx', x); ring.setAttribute('cy', y); ring.setAttribute('opacity', 1); plot.style.cursor = 'pointer';
-      tip.show('<b>' + AZ.esc(p.s) + '</b>' + AZ.row('Sales', AZ.money(p.v, 1)) + AZ.row('Units', AZ.int(p.u)) + AZ.row('Sales per unit', AZ.money(p.ppu, 2)) + AZ.row('Against average', AZ.pct(p.ppu / avg - 1, 1, true)), x, y);
-    });
-    plot.addEventListener('mouseleave', () => { tip.hide(); ring.setAttribute('opacity', 0); });
-    plot.addEventListener('click', (e) => { const p = nearest(e); pinned = p && p.s !== pinned ? p.s : null; draw(); });
-    return () => { try { canvas.dispose && canvas.dispose(); } catch (e) {} };
-  }
-});
+// Interactions: hover a dot for state, sales and units; click dots to select several; drag to zoom (double-click resets); dashed line is the average.
+const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.15.0/dist/maya.global.js';
+const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+const done = () => viz?.events?.emitRenderCompletedEvent();
+if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const col = (re, d) => (schema.find((c) => re.test(c.name)) ?? { name: d }).name;
+const S = col(/state/i, 'state'), V = col(/sales/i, 'Total sales'), U = col(/quantity|units/i, 'Total quantity purchased');
+['maya-render', 'maya-error'].forEach((t) => el.addEventListener(t, done, { once: true }));
+el.spec = {
+  type: 'scatter', x: U, y: V, name: S, select: 'multi', zoom: true, rules: ['mean'],
+  titles: { [S]: 'State', [V]: 'Sales', [U]: 'Units' },
+  format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, [U]: { notation: 'compact', maximumFractionDigits: 1 } },
+  text: { noData: 'No rows yet: bind [sales] [quantity purchased] [state]' },
+  theme: { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: '#1E1E24', fgMuted: '#8A8A94', accent: '#1E1E24', series1: '#1E1E24', series2: '#B4BDC9', radius: '2px', bg: '#FFFFFF' },
+  data: rows
+};

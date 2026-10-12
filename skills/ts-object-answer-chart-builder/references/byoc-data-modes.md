@@ -16,9 +16,6 @@ The data mode decides which of the three the file survives. Pick one deliberatel
 Paste-and-run with **no data source attached**. The rows live in the file.
 
 ```js
-const { muze } = viz;
-const { DataModel } = muze;          // viz.muze is the SYNC DataModel in BYOC
-
 const SAMPLE_SCHEMA = [
   { name: 'Type of Sale', type: 'dimension' },
   { name: 'Retail Sales', type: 'measure', defAggFn: 'sum' },
@@ -32,7 +29,6 @@ const SAMPLE_DATA = [
 ];
 
 const rows = SAMPLE_DATA;
-const dm = new DataModel(DataModel.loadDataSync(SAMPLE_DATA, SAMPLE_SCHEMA));
 ```
 
 Use it for: demos, design iteration, handing a chart to someone with no model,
@@ -47,11 +43,7 @@ Cost: the chart never shows real numbers until someone edits the file.
 The shape every production tile ends up in.
 
 ```js
-const { muze, getDataFromSearchQuery } = viz;
-const { DataModel } = muze;
-
-const liveDM = getDataFromSearchQuery();
-const raw = liveDM.getData();        // { schema: [{name, type}], data: [[…], …] }
+const raw = viz.getDataFromSearchQuery().getData();   // { schema: [{name, type}], data: [[…], …] }
 ```
 
 `getData()` returns **array rows**, not objects. Normalise them immediately so the
@@ -69,8 +61,8 @@ Requirements and gotchas:
 
 - The search must select **every** column the chart names. A column the chart asks
   for and the search omits is simply absent — not an error, just missing.
-- Two columns with the same display name collide in the DataModel; one silently
-  overwrites the other. Fix the search, not the chart.
+- Two columns with the same display name collide; one silently
+  overwrites the other in every row object. Fix the search, not the chart.
 - `vs. Last Month` / `vs. Last Year` style columns arrive **empty** unless the search
   also selects the prior period.
 - Date dimensions arrive as **epoch milliseconds**.
@@ -89,6 +81,22 @@ const cellVal = v => {
     return v._value ?? null;
   }
 };
+```
+
+### Mode B with MayaCharts: the whole tile
+
+MayaCharts takes the row objects directly, paints its own empty state and error, and follows its box, so a
+complete live-only tile is 6 fixed lines plus one spec, 7 lines in all (verified in the preview on every data mode).
+The `rows` line is the reshaping above, written as one fast loop; it never changes between charts:
+
+```js
+const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@<doctor version>/dist/maya.global.js';
+const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+const done = () => viz?.events?.emitRenderCompletedEvent();
+if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
+const rows = ((r) => { const k = r.schema.map((c) => c.name); return r.data.map((d) => { const o = {}; k.forEach((n, i) => { const v = d[i]; o[n] = v !== null && typeof v === 'object' ? (typeof v.value === 'function' ? v.value() : v.value) : v; }); return o; }); })(viz?.getDataFromSearchQuery?.()?.getData() ?? { schema: [], data: [] });
+['maya-render', 'maya-error'].forEach((t) => el.addEventListener(t, done, { once: true }));
+el.spec = { type: 'bar', x: 'Item Type', y: 'Total Sales', data: rows };
 ```
 
 ---
@@ -118,8 +126,6 @@ function getViz() {
 }
 
 const viz_ = getViz() || {};
-const muze = viz_.muze;                 // undefined in a plain browser — see below
-const DataModel = muze && muze.DataModel;
 
 const SAMPLE_SCHEMA = [ /* … */ ];
 const SAMPLE_DATA   = [ /* … */ ];
@@ -152,10 +158,7 @@ function loadRows() {
 }
 
 const { source, schema, rows } = loadRows();
-
-// Only Muze charts need the DataModel. A gridjs / HTML-table / raw-SVG chart works
-// off `rows` alone, which is what lets it render in a plain browser with no `viz`.
-const dm = DataModel && new DataModel(DataModel.loadDataSync(rows, schema));
+// Every chart works off `rows` alone, which is what lets it render in a plain browser with no `viz`.
 ```
 
 Then say so on screen. Silent fallback is the failure mode worth avoiding — a tile
@@ -226,17 +229,13 @@ Full detail, and how the snap diagnostic detects it, in `hard-rules.md`.
 
 ## Previewing locally, with no `viz` at all
 
-Mode C already handles a missing `viz` for non-Muze charts (HTML tables, gridjs, raw
-SVG) — open the HTML file and it renders the sample rows.
-
-A Muze chart still needs `viz.muze`, so a local preview harness stubs it. Keep the
-stub in the preview HTML, never in the shipped JS:
+Mode C already handles a missing `viz` — open the HTML file and it renders the sample rows.
+To exercise live mode outside the skill's preview, stub `viz` in the preview HTML, never in the shipped JS:
 
 ```html
 <div id="chart"></div>
 <script>
   globalThis.viz = {
-    muze: /* Muze from a CDN or a local build */,
     getDataFromSearchQuery: () => ({
       getData: () => ({ schema: [ /* … */ ], data: [ /* array rows */ ] }),
     }),
