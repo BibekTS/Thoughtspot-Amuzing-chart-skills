@@ -128,8 +128,7 @@ the global. A chart reading `globalThis.viz` shows the sample-data badge in
 
 | Rule | How it shows |
 |---|---|
-| MayaCharts: `<maya-chart>` keeps a `min-height: 200px` from its own `:host` | In a short tile the axis spills past the plot onto whatever sits under it. Set `min-height: 0` on the element. |
-| MayaCharts: render-complete from `customElements.whenDefined` | Fires before the first draw when the JS runs before the library has loaded (measured: 0 marks drawn). Signal on `maya-render`, and on `maya-error` so a bad spec still reports in. |
+| MayaCharts: render-complete from `maya-render` or `customElements.whenDefined` | Both fire before the chart has finished drawing: `whenDefined` before the first draw when the JS runs before the library has loaded (measured: 0 marks), `maya-render` while the entrance animation still has up to 1.5 s to run. A PDF export or screenshot taken then catches a half-drawn tile. Use `maya.host.thoughtspot` (it waits), or signal on `maya-settled`. |
 | MayaCharts: a field the search renamed (`Total Sales`, not `Sales`) | The element paints its own error naming the fields it found (`unknown-field`). Use the names the search returns. |
 | MayaCharts: marks live in the element's shadow root | `document.querySelector` from a probe `--eval` finds nothing; go through `.shadowRoot`. `probe.mjs` and `svg-fit` already look inside. |
 | A temporal field typed `type: 'measure'` | Dates are summed or plotted as numbers. Keep dates dimensions. |

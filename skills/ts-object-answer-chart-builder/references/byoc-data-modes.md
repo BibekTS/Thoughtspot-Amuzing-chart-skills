@@ -85,18 +85,14 @@ const cellVal = v => {
 
 ### Mode B with MayaCharts: the whole tile
 
-MayaCharts takes the row objects directly, paints its own empty state and error, and follows its box, so a
-complete live-only tile is 6 fixed lines plus one spec, 7 lines in all (verified in the preview on every data mode).
-The `rows` line is the reshaping above, written as one fast loop; it never changes between charts:
+MayaCharts' ThoughtSpot adapter does the reshaping above, the cell unwrapping, the mount and render-complete (once the
+chart has settled, errors included), so a complete live-only tile is 3 lines (verified in the preview on every data
+mode, an empty HTML tab, a failing CDN and a missing column):
 
 ```js
-const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@<doctor version>/dist/maya.global.js';
-const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
-const done = () => viz?.events?.emitRenderCompletedEvent();
-if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
-const rows = ((r) => { const k = r.schema.map((c) => c.name); return r.data.map((d) => { const o = {}; k.forEach((n, i) => { const v = d[i]; o[n] = v !== null && typeof v === 'object' ? (typeof v.value === 'function' ? v.value() : v.value) : v; }); return o; }); })(viz?.getDataFromSearchQuery?.()?.getData() ?? { schema: [], data: [] });
-['maya-render', 'maya-error'].forEach((t) => el.addEventListener(t, done, { once: true }));
-el.spec = { type: 'bar', x: 'Item Type', y: 'Total Sales', data: rows };
+const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@<doctor version>/dist/maya.core.global.js';
+const go = () => maya.host.thoughtspot(viz, { type: 'bar', x: /item/i, y: /sales/i });
+if (window.maya?.host) go(); else { const s = document.querySelector('script[src="' + MAYA + '"]') ?? document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA })); s.addEventListener('load', go); s.addEventListener('error', () => { (document.getElementById('chart') ?? document.body).textContent = 'MayaCharts could not load from ' + MAYA; viz?.events?.emitRenderCompletedEvent?.(); }); }
 ```
 
 ---

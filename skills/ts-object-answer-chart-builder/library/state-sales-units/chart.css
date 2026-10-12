@@ -32,4 +32,4 @@ body { background: var(--az-surface); color: var(--az-ink); font-family: var(--a
 .az-sep { color: var(--az-muted); }
 /* ==== end amuzing core css ==== */
 
-#chart { display: block; height: 100%; min-height: 0; color-scheme: light; }
+#chart { display: block; height: 100%; color-scheme: light; }

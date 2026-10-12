@@ -293,7 +293,7 @@ async function mayaLatest() {
     try {
       const r = await fetch(url, { signal: AbortSignal.timeout(4000) });
       const v = r.ok ? pick(await r.json()) : null;
-      if (/^\d+\.\d+\.\d+$/.test(v || "")) return `${v} (pin https://cdn.jsdelivr.net/npm/mayacharts@${v}/dist/maya.global.js, fallback https://unpkg.com/mayacharts@${v}/dist/maya.global.js)`;
+      if (/^\d+\.\d+\.\d+$/.test(v || "")) return `${v} (pin it: core types https://cdn.jsdelivr.net/npm/mayacharts@${v}/dist/maya.core.global.js, every type https://cdn.jsdelivr.net/npm/mayacharts@${v}/dist/maya.global.js)`;
     } catch {}
   }
   return "unknown - could not reach jsDelivr or npm; ask before pinning a version from memory";

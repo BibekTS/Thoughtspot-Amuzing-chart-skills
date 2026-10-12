@@ -2,7 +2,7 @@
 
 Library and Liveboard charts start from the shared core (`library/_shared/core.js`): `AZ.boot`, `AZ.col`, `AZ.tip`,
 `AZ.loadScript`, `AZ.liveData`, formatters, the family theme. A standalone MayaCharts tile needs none of it (see its
-section). What follows is what each library needs in a real ThoughtSpot tile. All of it was verified in a cluster
+section: 3 lines through `maya.host.thoughtspot`). What follows is what each library needs in a real ThoughtSpot tile. All of it was verified in a cluster
 screenshot unless marked otherwise.
 
 ## Any library
@@ -15,96 +15,96 @@ screenshot unless marked otherwise.
   transit). Use `String.fromCharCode(8595)` for an arrow if you must; a `\\u0001` escape in source is fine.
 - Test at 280px wide as well as the nominal size.
 
-## MayaCharts (mayacharts, `maya.global.js`)
+## MayaCharts (mayacharts, `maya.core.global.js` / `maya.global.js`)
 
-Verified in the preview (headless Chromium, 0.15.0) on the starter below, `examples/maya-was-bars/` and the three
-MayaCharts library charts: render, every data mode, 280px to 1400px tiles, hover, click, sweep. Not yet screenshotted on a cluster: say "verified in preview" until it has been.
+Verified in the preview (headless Chromium, 0.16.0) on the starter below, `examples/maya-was-bars/` and the six
+MayaCharts library charts: render, every data mode, 130 to 1400 px tiles, hover, click, drill, sweep. Not yet
+screenshotted on a cluster: say "verified in preview" until it has been.
 
 - **Version: the latest release, pinned.** Take it from the doctor's `mayacharts:` line (it asks jsDelivr, then npm)
-  and write it into the one `MAYA` URL constant. Never `mayacharts/dist/...` without a version: a saved tile would change under the
-  user on the next release. Never a version from memory: the library ships often. If the line says `unknown`, ask.
-- **The whole tile is 6 fixed lines plus one spec.** No `AZ.boot`, no `AZ.tip`, no header or readout unless the user asks
-  for one: the element paints its own empty state (`text.noData`) and errors, follows its box, and carries the
-  tooltip, selection and keyboard focus. Verified in the preview on live, absent, wrapped, empty and no-host data,
-  280 to 1400px tiles, an empty HTML tab and a CDN that fails to load:
+  and write it into the one `MAYA` URL constant. Never an unpinned URL: a saved tile would change under the user on
+  the next release. Never a version from memory: the library ships often. If the line says `unknown`, ask.
+- **Which file.** `maya.core.global.js` holds the element, the 12 core types (bar line area scatter heatmap
+  waterfall kpi dumbbell ridgeline beeswarm parallel table) and `maya.host`. A module type (treemap, sunburst,
+  marimekko, waffle, sankey, chord, radial, gauge, hexmap, boxplot, funnel, weave, units, orbit, constellation)
+  needs `maya.global.js`, which has everything in one file; one script keeps the loader to one line.
+- **The whole tile is 3 lines: the URL, the adapter call, the loader.** `maya.host.thoughtspot(viz, spec)` reads the
+  search, unwraps object cells, matches fields written as a RegExp or a case-insensitive name against the columns
+  ThoughtSpot returns, finds or creates `#chart`, renders, and calls `emitRenderCompletedEvent` once the chart has
+  settled, errors included. Verified on live, absent, wrapped, empty and no-host data, an empty HTML tab, a CDN that
+  fails, a column that is not there (MayaCharts paints the error, listing the columns it found) and 130 to 1400 px:
   ```js
-  // Search: [sales] [item type]
-  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.15.0/dist/maya.global.js';
-  const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
-  const done = () => viz?.events?.emitRenderCompletedEvent();
-  if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
-  const rows = ((r) => { const k = r.schema.map((c) => c.name); return r.data.map((d) => { const o = {}; k.forEach((n, i) => { const v = d[i]; o[n] = v !== null && typeof v === 'object' ? (typeof v.value === 'function' ? v.value() : v.value) : v; }); return o; }); })(viz?.getDataFromSearchQuery?.()?.getData() ?? { schema: [], data: [] });
-  ['maya-render', 'maya-error'].forEach((t) => el.addEventListener(t, done, { once: true }));
-  el.spec = { type: 'bar', x: 'Item Type', y: 'Total Sales', theme: THEME, data: rows };
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js';
+  const go = () => maya.host.thoughtspot(viz, { type: 'bar', x: /item/i, y: /sales/i, theme: THEME });
+  if (window.maya?.host) go(); else { const s = document.querySelector('script[src="' + MAYA + '"]') ?? document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA })); s.addEventListener('load', go); s.addEventListener('error', () => { (document.getElementById('chart') ?? document.body).textContent = 'MayaCharts could not load from ' + MAYA; viz?.events?.emitRenderCompletedEvent?.(); }); }
   ```
   `chart.html` is `<maya-chart id="chart"></maya-chart>` (plus the Geist link); `chart.css` is
-  `html, body { height: 100%; margin: 0; background: #fff; } #chart { display: block; height: 100%; min-height: 0; color-scheme: light; }`.
-  The JS injects the global build itself (all 27 types; the ESM files need `import`, which a JS tab cannot do), so
-  an HTML tab pasted empty still works. Signal render-complete on `maya-render` and on `maya-error`, never on
-  `customElements.whenDefined`, which fires before the first draw when the JS runs before the library has loaded
-  (measured; BbekShr/mayacharts#59). The `rows` line is the same in every tile: never edit it, only the spec changes.
-  It is a plain loop over the column names, about 3x faster than `Object.fromEntries` per row (100k wrapped rows:
-  10 ms against 27 ms; 1M: 106 ms against 256 ms). In a library chart (core block present) read with
-  `const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };` instead, and use `AZ.col(schema, /sales/i)`
-  where a cluster may case a column differently.
-- **`min-height: 0` on the element is required**: its `:host` sets `min-height: 200px`, so in a short tile the axis
-  spills past the box.
-- **Fit the bar count to the tile**: bars squeeze to slivers rather than drop. Set `limit` from the tile height
-  (about 22px a bar) and the rest roll into Other.
-- **Theme to the house style** with tokens, not CSS overrides: `{ font: 'Geist, system-ui, sans-serif', fontSize:
-  '12px', fg: AZ.T.ink, fgMuted: AZ.T.muted, accent: AZ.T.ink, series1: AZ.T.ink, radius: '2px', bg: '#FFFFFF' }`.
-  Family hues go in `colors` as a map keyed by series value (`{ Outerwear: AZ.T.family.Outerwear, ... }`). Pin
-  `color-scheme: light` on the element: ThoughtSpot tiles are light whatever the OS is.
-- **Spec is JSON only**: no callbacks, no formatters. Money on an axis: `format: { sales: { style: 'currency',
-  currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } }` (the `currency` preset prints `$1,000,000`).
-  Display names: `titles`. Dates: epoch ms work with `xType: 'time'`.
-- **`was` (ghost of last period) needs wide rows** (`{ item, sales, before }`). A search such as
-  `[sales] [item type] [date].yearly` returns long rows, one per item and year, so pivot the latest two years first
-  (about 10 lines; BbekShr/mayacharts#60 asks for a period field instead). `was` does not combine with `stack` or a
-  `y` array.
-- **Interactivity is built in**: hover tooltip and dimming, keyboard focus, `legend` toggles, `select: true` (listen
-  for `maya-select`, `e.detail.selected[0].x`), `drill` on a `path`, `zoom`. That meets the contract's interaction
-  bar without `AZ.tip`. Restore a selection after a redraw with `chart.selected = [{ x: picked }]`.
+  `html, body { height: 100%; margin: 0; background: #fff; } #chart { display: block; height: 100%; color-scheme: light; }`.
+  The adapter's spec takes every option except `data`; field options (`x`, `y`, `series`, `path`, `size`, `name`,
+  `frame`, `y2`, `was.by`, `tooltip.fields`) take a RegExp, so a cluster that names the column `Total sales` or
+  `Total Sales` both match.
+- **When the spec needs a field the search does not return** (a family derived from item type, a per-row price, a
+  top-N roll-up), read the rows yourself and signal on settle. In a library chart (core block present):
+  ```js
+  const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+  const done = () => viz?.events?.emitRenderCompletedEvent?.();
+  if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
+  const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+  el.addEventListener('maya-settled', done, { once: true });
+  el.spec = { ..., data: rows.map((r) => ({ ...r, Family: AZ.familyOf(r[I]) })) };
+  ```
+  Signal on `maya-settled` (after the entrance animation, and after an error), never on `maya-render`, which fires
+  while the animation still runs, or `customElements.whenDefined`. `AZ.col(schema, /re/i, { optional: true }) ?? 'Name'`
+  reads a column without throwing on absent data.
+- **Theme to the house style** with tokens: `{ font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: AZ.T.ink,
+  fgMuted: AZ.T.muted, accent: AZ.T.ink, series1: AZ.T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px' }`.
+  Pin `color-scheme: light` on the element: ThoughtSpot tiles are light whatever the OS is.
+- **Colours by meaning.** `colors` takes a map: by series value, by `path[0]` on treemap and sunburst, by node name on
+  sankey and chord (links and inner levels inherit), by category on waffle. Slots are fixed from all rows, so hues
+  hold through drill. Family hues: `colors: AZ.T.family`. Region is never a hue.
+- **Spec is JSON only.** Number formats: `format: { 'Total Sales': { style: 'currency', currency: 'USD', notation:
+  'compact', maximumFractionDigits: 1 } }`; Intl options must be keyed by field, and take `prefix` / `suffix`.
+  Display names: `titles`. Epoch-ms dates work with `xType: 'time'`; a `[date].yearly` column formats with `'year'`.
+- **Customisation that needs no code:**
+  - `title` and `subtitle` with data tokens: `'{max.x} leads with {max.y}'` ({max.x} {max.y} {min.x} {min.y}
+    {first.x} {first.y} {last.x} {last.y} {total} {mean}), formatted by `format`. With no rows the raw tokens show
+    above the empty state (0.16.0 bug), so keep the empty-state text self-explanatory.
+  - `rules`: a value line (`100`, `'mean'`, `{ y, label }`), a category line (`{ x, label }`), a band
+    (`{ band: [lo, hi] }`), and on scatter a diagonal (`{ slope: 'mean' }` is sum(y) / sum(x), through the origin).
+  - `annotate: ['max', 'last', { x: 'CA', text: 'Largest store' }]` labels marks picked from the data.
+  - `dash: ['2024']` draws that series dashed (line, area). `tooltip: { fields: [...] }` adds rows.
+  - `yScale: 'log'` (line, scatter), `xScale: 'log'` (scatter). `legend: 'top' | 'bottom' | 'right'`.
+  - `was: { by: /year/i }`: a ghost of the previous period straight from long rows (one per item and period).
+  - `aggregate: { ratio: ['Total Sales', 'Total Quantity Purchased'] }` with `y: 'Price'` rolls a ratio up as sum over
+    sum in every category, drill level, Other bucket and `'mean'` rule. Never `mean` of a ratio column.
 - **Drill-down is built in.** `path: [outer, ..., inner]` replaces `x`, and `drill: true` turns a click or Enter into an
-  animated zoom with a breadcrumb (Back > West > CA); Escape, Back or a click on empty space go up (`drillOut: false`
-  keeps empty clicks inert). Verified in the preview on 0.15.0:
-  | Type | Drill |
-  |---|---|
-  | `sunburst`, `treemap` | yes: click a wedge or rectangle |
-  | `sankey` | yes: click a **node** (`rect[data-x]`); a link (`path[data-x]`, "West -> CA") does not drill |
-  | `bar` (also horizontal, with `was`), `line`, `area` (stacked too), `dumbbell` | yes, with `path` |
-  | `table`, `heatmap`, `marimekko`, `chord` | no: `path` or `drill` is rejected (BbekShr/mayacharts#70) |
-  - A date path (`path: ['year', 'month']` with ISO months) drills onto a real time axis.
-  - The deepest level ignores clicks and emits nothing; there is no drill-through event yet (#70).
-  - `select` cannot be combined with `drill` (the spec is rejected, #70): pick one per chart.
-  - `el.view = { drill: ['West'] }` restores a level after a redraw; `maya-view` reports every change in
-    `e.detail.drill`. A data update keeps the level; a filter that removes the branch falls back to the root, so no
-    re-resolving code is needed.
-  - Every level rolls rows up with `aggregate`. Sums are right at every level; a ratio measure (price = sales /
-    units) is not: `mean` averages the row ratios (8.71 where sum over sum is 7.86 in our test). Drill a sum, or
-    use a measure that adds up (a share gap), until a ratio aggregate exists (#69).
-  - The drill needs every level in the search (`[sales] [region] [state] [item type]`): it only filters rows the
-    tile already has.
-  - **Colours on sunburst, treemap and sankey are positional.** A `colors` map keyed by name is ignored there
-    (BbekShr/mayacharts#71). Pass an array and sort the rows so each family first appears in the array's order:
-    `rows.sort((a, b) => FAM.indexOf(a.Family) - FAM.indexOf(b.Family))` with
-    `colors: FAM.filter((f) => present.has(f)).map((f) => AZ.T.family[f])`. Slots are recomputed per view, so a
-    drilled branch that lacks a family shifts the hues; until #71 is fixed, keep drill on sankeys to the region
-    stage (regions are neutral grey anyway). Sankey nodes with several parents (a family under every region) are
-    drawn grey.
-  - A drilled treemap draws one level at a time, not parents with children inside (#71); the root shows only the
-    top level. A sankey drills only from its first column (#71). A sunburst folds thin wedges into its own grey
-    "Other (n)", more of them on a small tile.
-  - Hierarchy and flow types reject zero or negative values (`non-positive-value`): filter `y > 0` first.
-  - Probe a drill with `--click-sel` on `path[data-x]` (sunburst, treemap) or `rect[data-x]` (bars, sankey nodes)
-    and read `shadowRoot.querySelector('.maya-crumbs').textContent` with `--after`.
-- **Shadow DOM**: the marks live in the element's open shadow root. `probe.mjs` and `snap.mjs`'s `svg-fit` look
-  inside it, and so do `--click-sel` / `--hover-sel` (marks carry `data-x`, e.g. `--click-sel "rect[data-x]"`); your
-  own `--eval` / `--after` expressions must reach in themselves (`document.querySelector('maya-chart').shadowRoot`).
+  animated zoom with a breadcrumb (Back > West > CA); Escape, Back or a click on empty space go up.
+  - Types: treemap, sunburst, sankey, chord; bar, line, area, dumbbell, table and marimekko with `path`; heatmap with
+    `path` on its rows. Sankey starts at the first column and continues one column at a time.
+  - `depth: 2` on a treemap draws parents with their children inside; a click drills into the parent under the
+    pointer. `minAngle` (sunburst) controls folding thin slices into a grey "Other (n)" (`0` folds nothing).
+  - With `select` too, a click selects (cross-filter) and double-click, Shift+Enter or the pinned tooltip's
+    "Drill into" drills. At the deepest level the drill gesture fires `maya-drill-leaf { path }`, for drill-through.
+  - `el.view = { drill: ['West'] }` restores a level; `maya-view` reports every change. A data update keeps the
+    level; a filter that removes the branch falls back to the root.
+  - A date path (`path: ['year', 'month']` with ISO months) drills onto a real time axis. The drill only filters rows
+    the tile has, so the search needs every level.
+- **Known 0.16.0 traps** (BbekShr/mayacharts#76): with no rows, `title` / `subtitle` tokens print raw, so set them
+  only when there are rows (`subtitle: data.length ? '...' : ''`, or skip tokens in an adapter tile); tokens are not
+  filled on scatter; `{total}` sums every series while `{max.y}` and `{last.y}` take one, so on a this-year /
+  last-year line quote `{x}` tokens or compute the headline; `annotate: []` throws (omit the key); in a tile under
+  ~200 x 130 a title plus subtitle crowd the plot; a slope rule shows its label but not its value; after a sankey
+  drill every node takes one colour (the map holds at the root); `aggregate: { ratio }` cannot be combined with a
+  `y` array.
+- **Small tiles.** The chart fills its container's height and draws a compact frame under about 160 px; dense bars
+  roll into Other on their own; no `min-height` or `limit` arithmetic is needed.
+- **Shadow DOM**: the marks live in the element's open shadow root (`data-maya="mark"`, `data-x`). `probe.mjs` and
+  `snap.mjs`'s `svg-fit` look inside it, and so do `--click-sel` / `--hover-sel`; your own `--eval` / `--after`
+  expressions reach in themselves (`document.getElementById('chart').shadowRoot`, `.maya-crumbs` for the breadcrumb).
 - Too many marks: bars roll up into "Other" past 10,000 marks and say so; waterfall, dumbbell and the module charts
-  throw `too-many-marks` instead. Keep searches aggregated, or set `limit`.
+  throw `too-many-marks`. Keep searches aggregated, or set `limit`. Hierarchy and flow types reject `y <= 0`.
 - Errors carry a code and a link (`https://bbekshr.github.io/mayacharts/errors.html#<code>`): read that page before
-  guessing.
+  guessing. The ceilings MayaCharts keeps on purpose are in its NON-FEATURES.md.
 
 ## ECharts (echarts@5)
 

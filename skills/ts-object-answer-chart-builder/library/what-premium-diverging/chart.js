@@ -235,19 +235,23 @@ const AZ = (function () {
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [quantity purchased] [item type] [product]
-// Premium or volume: each row's share of sales minus its share of units, in points. Shares are of the
-// whole search, so products add up to their item type and the drill keeps the default sum.
-const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.15.0/dist/maya.global.js';
+// Premium or volume: each row's share of sales minus its share of units, in points. Shares are of the whole
+// search, so they and the gap add up from product to item type, and the default sum is right at both levels.
+const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js';
 const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
-const done = () => viz?.events?.emitRenderCompletedEvent();
+const done = () => viz?.events?.emitRenderCompletedEvent?.();
 if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const tot = (k) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0), S = tot('Total Sales'), U = tot('Total Quantity Purchased');
-rows.forEach((r) => { r.Gap = S && U ? 100 * (r['Total Sales'] / S - r['Total Quantity Purchased'] / U) : 0; });
-['maya-render', 'maya-error'].forEach((t) => el.addEventListener(t, done, { once: true }));
+const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, I = c(/item/i, 'Item Type'), P = c(/product/i, 'Product'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
+const tot = (k) => rows.reduce((a, r) => a + AZ.num(r[k]), 0), S = tot(V), U = tot(Q), pct = { style: 'percent', maximumFractionDigits: 1 };
+const data = rows.map((r) => ({ [I]: r[I], [P]: r[P], Sales: S ? AZ.num(r[V]) / S : 0, Units: U ? AZ.num(r[Q]) / U : 0 })).map((r) => ({ ...r, Gap: 100 * (r.Sales - r.Units) }));
+el.addEventListener('maya-settled', done, { once: true });
 el.spec = {
-  type: 'bar', horizontal: true, path: ['Item Type', 'Product'], drill: true, y: 'Gap', sort: 'desc', labels: true, colorBy: 'sign',
-  title: 'Premium or volume', format: { Gap: { maximumFractionDigits: 2, signDisplay: 'exceptZero', suffix: ' pts' } }, text: { positive: 'Premium', negative: 'Volume', noData: 'No rows. The search needs [sales] [quantity purchased] [item type] [product].' }, titles: { Gap: 'Share of sales minus share of units' },
+  type: 'bar', horizontal: true, path: [I, P], drill: true, y: 'Gap', sort: 'desc', labels: true, colorBy: 'sign', tooltip: { fields: ['Sales', 'Units'] },
+  title: 'Premium or volume', subtitle: data.length ? 'Share of sales minus share of units. {max.x} leads at {max.y}.' : '', // tokens print raw with no rows
+  format: { Gap: { maximumFractionDigits: 2, signDisplay: 'exceptZero', suffix: ' pts' }, Sales: pct, Units: pct },
+  titles: { Gap: 'Share of sales minus share of units', Sales: 'Share of sales', Units: 'Share of units', [I]: 'Item type' },
+  text: { positive: 'Premium', negative: 'Volume', noData: 'No rows. The search needs [sales] [quantity purchased] [item type] [product].' },
   theme: { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: '#1E1E24', fgMuted: '#8A8A94', accent: '#1E1E24', series1: '#1E1E24', good: '#1F7A4D', bad: '#B3261E', radius: '2px', bg: '#FFFFFF' },
-  data: rows
+  data
 };

@@ -417,22 +417,26 @@ Without that skill or the MCP, hand the user the three files and the search to b
 Start from a library chart: the "Start here" table at the top of `references/examples.md`
 maps shapes (animated drill, map zoom, flow, KPI variants, what-if, beeswarm ...) to a
 proven chart under `library/`. Copy its technique. Keep the shared core in a chart bound for the library or a
-Liveboard (the Liveboard tooling needs it); a standalone MayaCharts tile needs no core and starts from the 7-line
+Liveboard (the Liveboard tooling needs it); a standalone MayaCharts tile needs no core and starts from the 3-line
 tile in the MayaCharts section of `references/library-starters.md`. Otherwise,
 pick by what the chart is. **MayaCharts is the default for standard business shapes** (bar, line, area,
 scatter, KPI, waterfall, heatmap, table, treemap, sunburst, sankey, funnel, box plot, gauge): one JSON spec gives the
-marks, tooltip, keyboard focus, selection, drill, empty state and resize, so a whole tile is 7 lines of
-`chart.js`: 6 fixed lines (load, mount, read rows, signal render-complete) that never change, plus one spec. Keep it that lean, and code only for what the spec cannot express (a derived
-measure, a pivot). **Always pin the MayaCharts version the doctor's `mayacharts:` line names** (the latest release
+marks, tooltip, keyboard focus, selection, drill, empty state and resize, and its ThoughtSpot adapter
+(`maya.host.thoughtspot(viz, spec)`) reads the search, matches columns by RegExp, mounts the chart and signals
+render-complete once it has settled, so a whole tile is 3 lines of `chart.js`: the URL, the adapter call holding the
+spec, and the loader. Keep it that lean, and code only for a field the search does not return (a derived family, a
+per-row ratio, a top-N roll-up). **Always pin the MayaCharts version the doctor's `mayacharts:` line names** (the latest release
 at build time; it ships often): never an unpinned URL, which would change a saved tile under the user, and never a
-version from memory. Reach past it only when the shape needs what a spec cannot say: a bespoke layout, annotations
-computed from the data, a diagonal reference line, a log scale, a ratio measure that must roll up as sum over sum
-(BbekShr/mayacharts#69), or drill on a table or heatmap (#70). Pick by shape — `references/examples.md`
+version from memory. Headlines with data tokens, reference lines, bands and diagonals, annotations, dashed series,
+tooltip fields, log scales, ratio measures and drill with cross-filter are all spec options now (0.16.0). Reach past it
+only for a bespoke layout or interaction a spec cannot say (a what-if slider, a force layout, a map projection, a
+race). Pick by shape — `references/examples.md`
 has a working file for each of these rows:
 
 - **MayaCharts** (CDN, `maya.global.js`) — the shapes above, plus bars with a ghost of last period (`was`),
-  target colouring (`colorBy`), reference lines (`rules`), playback (`frame`), and **animated drill-down** on treemap,
-  sunburst, sankey, and on bar, line, area and dumbbell with a `path` (breadcrumb, Back, Escape built in). Starter and
+  target colouring (`colorBy`), reference lines (`rules`), annotations, playback (`frame`), and **animated
+  drill-down** on treemap, sunburst, sankey, chord, and on bar, line, area, dumbbell, table, heatmap and marimekko
+  with a `path` (breadcrumb, Back, Escape, cross-filter with `select`, a leaf event for drill-through). Starter and
   traps: the MayaCharts section of `references/library-starters.md`; the smallest complete tile is in
   `references/byoc-data-modes.md` (Mode B with MayaCharts).
 - **Chart.js** (CDN) — radar, polar, doughnut, sankey, gauges, bespoke smoothing,
@@ -477,6 +481,7 @@ than an honest question.
 
 | Version | Date | Summary |
 |---|---|---|
+| 4.3.0 | 2026-10-12 | MayaCharts 0.16.0, which shipped every fix the skill asked for (BbekShr/mayacharts#59 to #72). A standalone tile is 3 lines through `maya.host.thoughtspot(viz, spec)` (reads the search, unwraps cells, matches columns by RegExp, mounts, render-complete once settled); `maya.core.global.js` for core types, `maya.global.js` for module types; the doctor prints both URLs. Library charts that derive a field read `AZ.liveData()` and signal on `maya-settled`. The six MayaCharts library charts are on 0.16.0 and get back what 0.15.0 dropped: last year dashed and the peak annotated, the average-price diagonal, price in the tooltip and labelled states on log scales, shares in the diverging tooltip, colour maps by family, a nested treemap (`depth: 2`), sankey drill into families, `minAngle` on the sunburst. `examples/maya-was-bars` is 7 lines (`was: { by }` replaces the pivot). The preview waits up to 6 s for a render-complete that comes after the entrance animation instead of warning at 1.2 s. 0.16.0 issues found and filed: #76 |
 | 4.2.0 | 2026-10-12 | Drill-down is MayaCharts' too: `what-sunburst` (was Plotly), `what-treemap-drill` (was D3) and `what-money-sankey` (was ECharts) are MayaCharts specs with `drill: true`, 19 to 23 body lines each, preview only. Library choice sends sunburst, treemap and sankey to MayaCharts; `library-starters.md` has a drill section (which types drill, `el.view.drill`, `maya-view`, no `select` with `drill`, ratio measures, positional colours on hierarchy and flow types and the array workaround). Gaps filed upstream: BbekShr/mayacharts#69 (ratio aggregate), #70 (drill with select, leaf event, table and heatmap drill), #71 (colours by name and through drill, nested treemap, sankey drill depth) |
 | 4.1.0 | 2026-10-12 | The ThoughtSpot data read is one fixed line in every MayaCharts tile, a plain loop over the column names that unwraps object cells: about 3x faster than building each row with `Object.fromEntries` (100k wrapped rows: 10 ms against 27 ms; 1M: 106 ms against 256 ms), and a standalone tile is now 7 lines. Library charts read with the core's `AZ.liveData()` instead of re-implementing it (bodies 17 to 21 lines). Both render-complete listeners are one line |
 | 4.0.0 | 2026-10-12 | Muze is removed. The preview no longer loads a Muze build (no `TS_MUZE_DIR`, no `/vendor/muze`, no `viz.muze` shim; `viz` is the plain search-result stub), the doctor has no `muze:` line, `references/muze-api-reference.md` and the Muze examples (`examples/Examples/`, `funnel-chart`, `model-connections-bump`) are deleted, and the Muze rules are gone from `hard-rules.md`, `byoc-data-modes.md`, `library-starters.md`, `library-contract.md` and `emit-checklist.md`. The three Muze library charts (`pulse-monthly-line`, `state-sales-units`, `what-premium-diverging`) are rebuilt on MayaCharts (preview only, synthetic data). MayaCharts tiles are lean: plumbing plus one spec, about ten lines of `chart.js` for a whole tile, verified on every data mode, an empty HTML tab and a CDN that fails to load. `MUZE_STUDIO` stays in the answer and Liveboard TML: it is ThoughtSpot's type name for every custom chart, not the library |

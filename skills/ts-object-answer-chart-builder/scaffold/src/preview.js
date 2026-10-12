@@ -145,9 +145,10 @@ async function main() {
   style.textContent = css;
   document.head.appendChild(style);
 
-  let completed = false;
+  let completed = false, onLateComplete = null;
   globalThis.addEventListener("preview:render-completed", () => {
     completed = true;
+    if (onLateComplete) onLateComplete();
   });
 
   try {
@@ -175,10 +176,21 @@ async function main() {
       return;
     }
     if (!completed) {
-      setStatus(
-        `rendered, but emitRenderCompletedEvent() was never called · data=${dataMode}`,
-        "warn"
-      );
+      // A chart that signals once its entrance animation has settled (MayaCharts' host adapter, `maya-settled`)
+      // reports later than this first check, more so on a cold CDN load. Leave the status pending, so a capture
+      // keeps waiting, and only warn if nothing arrives within the grace period.
+      const t0 = performance.now();
+      onLateComplete = () => {
+        clearTimeout(grace);
+        setStatus(`rendered · data=${dataMode} (render-complete after ${Math.round(1200 + performance.now() - t0)} ms)`, "ok");
+      };
+      const grace = setTimeout(() => {
+        onLateComplete = null;
+        setStatus(
+          `rendered, but emitRenderCompletedEvent() was never called · data=${dataMode}`,
+          "warn"
+        );
+      }, 6000);
       return;
     }
     setStatus(`rendered · data=${dataMode}`, "ok");

@@ -236,22 +236,26 @@ const AZ = (function () {
 
 // Search: [sales] [date].monthly
 // Interactions: hover crosshair and tooltip, click a legend key to hide a line, drag to zoom (double-click or Escape resets), arrow keys step through months.
-const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.15.0/dist/maya.global.js';
+const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js';
 const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
-const done = () => viz?.events?.emitRenderCompletedEvent();
+const done = () => viz?.events?.emitRenderCompletedEvent?.();
 if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const D = AZ.col(schema, /date|month/i, { optional: true }), V = AZ.col(schema, /sales/i, { optional: true });
-// Pair each month with the same month a year earlier, so last year runs as a second line.
-const byT = new Map(rows.map((r) => [AZ.ms(r[D]), r[V]]));
+const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Sales';
+// Pair each month with the same month a year earlier, so last year runs as a second, dashed line.
+const byT = new Map(rows.map((r) => [AZ.ms(r[D]), AZ.num(r[V])]));
 const ago = (t) => { const d = new Date(t); d.setUTCFullYear(d.getUTCFullYear() - 1); return d.getTime(); };
 const pts = [...byT].flatMap(([t, v]) => [{ Month: t, Series: 'Sales', Sales: v }].concat(byT.has(ago(t)) ? [{ Month: t, Series: 'Last year', Sales: byT.get(ago(t)) }] : []));
-['maya-render', 'maya-error'].forEach((t) => el.addEventListener(t, done, { once: true }));
+// Headline: the same months of the latest year against the year before, so it stays right under a date filter.
+const y = AZ.ytd([...byT].map(([t, v]) => ({ t, v }))), peak = [...byT].reduce((a, b) => (b[1] > a[1] ? b : a), [0, -Infinity]);
+el.addEventListener('maya-settled', done, { once: true });
 el.spec = {
-  type: 'line', x: 'Month', y: 'Sales', series: 'Series', xType: 'time', zoom: true,
+  type: 'line', x: 'Month', y: 'Sales', series: 'Series', xType: 'time', zoom: true, dash: ['Last year'], annotate: ['last'].concat(rows.length ? [{ x: peak[0], text: 'Peak ' + AZ.money(peak[1]) }] : []),
+  title: y && y.comparable ? AZ.money(y.cur) + ' year to date, ' + AZ.pct(y.pct, 1, true) + ' on ' + (y.year - 1) : '',
+  subtitle: rows.length ? 'Monthly sales through {last.x}, last year dashed' : '',
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Month: { month: 'short', year: 'numeric', timeZone: 'UTC' } },
   colors: { 'Sales': '#1E1E24', 'Last year': '#B4BDC9' },
   text: { noData: 'No rows yet. Bind the search [sales] [date].monthly' },
-  theme: { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: '#1E1E24', fgMuted: '#8A8A94', accent: '#1E1E24', series1: '#1E1E24', series2: '#B4BDC9', radius: '2px', bg: '#FFFFFF' },
+  theme: { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: '#1E1E24', fgMuted: '#8A8A94', accent: '#1E1E24', series1: '#1E1E24', series2: '#B4BDC9', radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' },
   data: pts
 };

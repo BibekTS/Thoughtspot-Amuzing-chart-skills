@@ -6,28 +6,28 @@ How did each item type do this year, against the year before?
 |---|---|
 | Model | (Sample) Retail - Apparel (column names as that model's search returns them) |
 | Search | `[sales] [item type] [date].yearly` |
-| Library | MayaCharts 0.15.0 (`maya.global.js` from jsDelivr, fallback unpkg). Pin the release the doctor's `mayacharts:` line names when you copy this |
+| Library | MayaCharts 0.16.0 (`maya.core.global.js` from jsDelivr), through its ThoughtSpot adapter `maya.host.thoughtspot`. Pin the release the doctor's `mayacharts:` line names when you copy this |
 | Tile | 8x6 grid units (about 620x400) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search |
 | Verified | In the preview only: render, absent / wrapped / empty data, 280x300 to 1400x500 tiles, a 400x220 tile, hover sweep. `sample-data.json` is synthetic, shaped like the search's output. Not yet seen on a cluster tile |
 
 ## What MayaCharts does here
-One spec draws the horizontal bars, the dashed ghost of last year (`was`), the legend, the axis, the tooltip, the
-hover dimming, keyboard focus, click selection (`select: true`), the empty state and the resize. There is no shared
-core, header or readout: `chart.js` is 18 lines, and four of them are the pivot below.
+`chart.js` is 7 lines: the comment, the pinned URL, one adapter call holding the spec (4 lines), and the line that loads the
+library. `maya.host.thoughtspot(viz, spec)` reads the search, unwraps cells, matches `/item/i`, `/sales/i` and
+`/year|date/i` against the columns ThoughtSpot returns, mounts `#chart`, and signals render-complete once the chart
+has settled, errors included. `was: { by: /year|date/i }` takes the search's one row per item type and year as it is:
+the latest year is the bar, the year before is the dashed ghost. `title` quotes the data with tokens
+(`{max.x} leads with {max.y}`). Bars, ghosts, legend, axis, tooltip, hover dimming, keyboard focus, selection,
+the empty state, the roll-up into Other on a short tile and the resize all come from the spec.
 
 ## Interactions
-Hover a bar for its value (the others dim). Click a bar, or focus it and press Enter, to select it; Escape clears it.
+Hover a bar for its value and last year's (the others dim). Click a bar, or focus it and press Enter, to select it;
+Escape clears it.
 
 ## Notes
-- The search returns one row per item type and year, and `was` wants last year in its own column, so the chart
-  pivots the latest two years first (BbekShr/mayacharts#60 asks for this to be built in).
-- Render-complete fires on `maya-render` and on `maya-error` (BbekShr/mayacharts#59 has why
-  `customElements.whenDefined` is too early). If the CDN fails, the tile says so and still reports in.
-- `min-height: 0` on `maya-chart`: the element's own floor is 200px, which spills past a short tile.
-- `limit` keeps as many bars as fit the tile when it loads (about 22px each) and rolls the rest into Other; it is
-  not recomputed on a later resize.
-- `was` is set only when there are rows, or the legend shows a ghost key over the empty state.
+- If the HTML tab already loaded the script, the adapter runs at once; otherwise the JS injects it and runs on load.
+  A CDN that fails paints a message into the tile and still reports render-complete.
+- With no rows the title shows its raw tokens above the empty state (a MayaCharts 0.16.0 bug, reported upstream).
 
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.
