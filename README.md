@@ -71,11 +71,13 @@ empty data, 280 to 1400 px tiles, a renamed column and a CDN that fails to load.
 MayaCharts ships often. The doctor asks jsDelivr (then npm) for the latest release on every run and prints it as
 `mayacharts:`; each chart pins that exact release, so a saved tile never changes under you.
 
-The skill reaches for something else only when a spec cannot say it: Plotly for an animated sunburst zoom, D3 for
-force layouts and bespoke shapes, ECharts for dense flows, hand-built HTML and SVG for pivots, KPI cards and
-annotations computed from the data. Things MayaCharts cannot do yet (a diagonal reference line, a dashed series,
-extra tooltip fields, a log scale), and the fixes suggested for it, are filed upstream as
-[BbekShr/mayacharts#59 to #68](https://github.com/BbekShr/mayacharts/issues).
+Drill-down is built in too: a sunburst, treemap or sankey, or a bar, line, area or dumbbell with a `path`, zooms
+into what you click with an animated transition, a breadcrumb and a way back, all from `drill: true`.
+
+The skill reaches for something else only when a spec cannot say it: D3 for force layouts and bespoke shapes,
+Plotly for an icicle, hand-built HTML and SVG for pivots, KPI cards and annotations computed from the data. Things MayaCharts cannot do yet (a diagonal reference line, a dashed series,
+extra tooltip fields, a log scale, ratio measures that roll up as sum over sum, drill on a table), and the fixes
+suggested for it, are filed upstream as [BbekShr/mayacharts#59 to #71](https://github.com/BbekShr/mayacharts/issues).
 
 Muze is not used: ThoughtSpot's own chart library has no license to redistribute, so a Muze chart could never be
 previewed here. (`MUZE_STUDIO` still appears in the answer and Liveboard TML: it is ThoughtSpot's type name for every
@@ -252,10 +254,11 @@ skill as a sibling folder (or through `TS_ANSWER_CHART_SKILL`), so install both 
 **(Sample) Retail - Apparel**, and 50 of them are arranged as the Liveboard **Amuzing chart samples**:
 seven numbered tabs (About, Pulse, Where, What, When, Who, Next), each answering one question, custom
 charts only, three Liveboard filters (date, region, item type). Every chart reads only what its search
-returns, is interactive, survives a filtered view, and was checked in a real cluster, except six that are marked
+returns, is interactive, survives a filtered view, and was checked in a real cluster, except nine that are marked
 *preview only* until they have been on a tile: a pivot table, a store league table and a volume-and-price growth split
-(rebuilt from the older `examples/`), and the three MayaCharts charts (monthly line against last year, sales against
-units by state, premium or volume by item type), which were rebuilt on synthetic data.
+(rebuilt from the older `examples/`), and six MayaCharts charts rebuilt on synthetic data (monthly line against last
+year, sales against units by state, premium or volume by item type, and the drill-down sunburst, treemap and
+sankey).
 `references/library.md` indexes them by tab, library and search; the "Start here" table in
 `references/examples.md` maps chart shapes to the one to copy. The library is one worked Liveboard on
 that model rather than 58 model-agnostic templates: the shared core knows the apparel item families and

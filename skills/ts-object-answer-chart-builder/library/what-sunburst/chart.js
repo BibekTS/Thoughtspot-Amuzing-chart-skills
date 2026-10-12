@@ -235,105 +235,25 @@ const AZ = (function () {
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [item type] [product]
-// Sunburst Family > Item type > Product (top 6 products per item type, the rest as "Other").
-// Plotly's own sunburst, because its drill is an animated zoom: click a wedge to fly in, click the centre or
-// a crumb to fly back out. Family is an editorial grouping (AZ.familyOf), not a model column.
-const PLOTLY = ['https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js', 'https://cdn.plot.ly/plotly-2.35.2.min.js'];
-const TOPN = 6;
-let level = ''; // id of the node the chart is zoomed into ('' = the whole thing)
-
-function mixWhite(hex, k) {
-  const n = parseInt(hex.slice(1), 16), r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
-  const m = (c) => Math.round(c + (255 - c) * k);
-  return 'rgb(' + m(r) + ',' + m(g) + ',' + m(b) + ')';
-}
-
-AZ.boot({
-  need: 'sales by item type and product, e.g. [sales] [item type] [product]',
-  render: async ({ el, rows, schema }) => {
-    const iK = AZ.col(schema, /item/i), pK = AZ.col(schema, /product/i), sK = AZ.col(schema, /sales/i);
-    const R = rows.map((r) => ({ item: String(r[iK]), prod: String(r[pK]), v: AZ.num(r[sK]) })).filter((r) => r.v > 0);
-    const total = R.reduce((a, r) => a + r.v, 0);
-    if (R.length < 2) { AZ.paint(el, '<div class="az-empty"><b>Not enough products to draw</b><span>The current filter leaves ' + R.length + ' product. Widen the filters, or the search needs: [sales] [item type] [product].</span></div>'); return; }
-    await AZ.loadScript(PLOTLY, () => !!window.Plotly, 12000);
-
-    // Flat hierarchy for Plotly: parents must equal the sum of their children (branchvalues: total).
-    const N = new Map(); // id -> { id, name, parent, value, fam, lvl, other }
-    const add = (id, name, parent, fam, lvl, value, other) => { N.set(id, { id, name, parent, fam, lvl, value: value || 0, other: !!other }); return N.get(id); };
-    add('root', 'All sales', '', null, 0, 0);
-    const byItem = new Map();
-    R.forEach((r) => { if (!byItem.has(r.item)) byItem.set(r.item, []); byItem.get(r.item).push(r); });
-    byItem.forEach((ps, item) => {
-      const fam = AZ.familyOf(item), fid = 'f:' + fam, iid = fid + '>' + item;
-      if (!N.has(fid)) add(fid, fam, 'root', fam, 1);
-      add(iid, item, fid, fam, 2);
-      ps.sort((a, b) => b.v - a.v);
-      ps.slice(0, TOPN).forEach((p) => add(iid + '>' + p.prod, p.prod, iid, fam, 3, p.v));
-      const rest = ps.slice(TOPN);
-      if (rest.length) add(iid + '>other', 'Other (' + rest.length + ')', iid, fam, 3, rest.reduce((a, p) => a + p.v, 0), true);
-    });
-    // Roll values up (children first).
-    [...N.values()].filter((n) => n.lvl === 3).forEach((n) => { N.get(n.parent).value += n.value; });
-    [...N.values()].filter((n) => n.lvl === 2).forEach((n) => { N.get(n.parent).value += n.value; });
-    N.get('root').value = [...N.values()].filter((n) => n.lvl === 1).reduce((a, n) => a + n.value, 0);
-    const list = [...N.values()];
-    if (level && !N.has(level)) level = '';
-
-    const fams = list.filter((n) => n.lvl === 1).sort((a, b) => b.value - a.value);
-    const topFam = fams[0];
-    const topIt = list.filter((n) => n.parent === topFam.id).sort((a, b) => b.value - a.value)[0];
-    const lead = topFam.name + ' is ' + AZ.pct(topFam.value / total, 1) + ' of sales' + (topIt && fams.length && list.filter((n) => n.parent === topFam.id).length > 1 ? ', ' + topIt.name + ' ' + AZ.pct(topIt.value / topFam.value, 0) + ' of it' : '');
-
-    el.innerHTML = '<div class="sb-head"><p class="sb-lead"></p><div class="sb-crumbs"></div></div><div class="sb-plot" id="sb-plot"></div><div class="sb-read"><b class="sb-rn"></b><span class="sb-rv"></span><span class="sb-rs"></span></div>';
-    el.querySelector('.sb-lead').textContent = lead;
-    const plot = el.querySelector('#sb-plot'), crumbsEl = el.querySelector('.sb-crumbs');
-    const rn = el.querySelector('.sb-rn'), rv = el.querySelector('.sb-rv'), rs = el.querySelector('.sb-rs');
-
-    const pathOf = (id) => { const out = []; let n = N.get(id || 'root'); while (n) { out.unshift(n); n = n.parent ? N.get(n.parent) : null; } return out; };
-    const drawCrumbs = () => {
-      const p = pathOf(level);
-      crumbsEl.innerHTML = p.length > 1 ? AZ.crumbs(p.map((n) => n.name)) : '<span class="sb-hint">Click a wedge to zoom in, the centre to zoom out</span>';
-      AZ.wireCrumbs(crumbsEl, (i) => { const id = p[i].id === 'root' ? '' : p[i].id; level = id; drawCrumbs(); readout(N.get(id || 'root')); Plotly.restyle(gd, { level: [id] }); });
-    };
-    const readout = (n) => {
-      rn.textContent = n.name; rv.textContent = AZ.money(n.value, 1);
-      const par = n.parent ? N.get(n.parent) : null;
-      rs.textContent = n.id === 'root' ? '100% of sales' : AZ.pct(n.value / total, 1) + ' of all sales' + (par && par.id !== 'root' ? ', ' + AZ.pct(n.value / par.value, 0) + ' of ' + par.name : '');
-    };
-
-    const tint = (n) => (n.id === 'root' ? '#FFFFFF' : n.other ? AZ.T.slate[1] : mixWhite(AZ.T.family[n.fam] || AZ.T.muted, n.lvl === 1 ? 0 : n.lvl === 2 ? 0.28 : 0.55));
-    const plotW = Math.max(200, plot.clientWidth), plotH = Math.max(180, plot.clientHeight);
-    const trace = {
-      type: 'sunburst',
-      ids: list.map((n) => n.id), labels: list.map((n) => n.name), parents: list.map((n) => n.parent), values: list.map((n) => n.value),
-      branchvalues: 'total', maxdepth: 3, sort: false, rotation: 90, level: level || '',
-      marker: { colors: list.map(tint), line: { color: '#FFFFFF', width: 1.5 } },
-      textfont: { family: AZ.T.font, size: 11, color: list.map((n) => (n.lvl === 1 ? '#FFFFFF' : AZ.T.ink)) },
-      insidetextorientation: 'radial',
-      texttemplate: list.map((n) => (n.id === 'root' ? '%{label}<br><b>' + AZ.money(n.value, 1) + '</b>' : '%{label}')),
-      hovertemplate: '<b>%{label}</b><br>Sales %{value:$,.3s}<br>%{percentParent:.1%} of parent, %{percentRoot:.1%} of all<extra></extra>',
-      hoverlabel: { bgcolor: AZ.T.ink, bordercolor: AZ.T.ink, font: { family: AZ.T.font, size: 12, color: '#FFFFFF' }, align: 'left' }
-    };
-    const layout = {
-      width: plotW, height: plotH, margin: { l: 4, r: 4, t: 4, b: 4 }, paper_bgcolor: '#FFFFFF', plot_bgcolor: '#FFFFFF',
-      font: { family: AZ.T.font, color: AZ.T.ink }, showlegend: false,
-      transition: { duration: 520, easing: 'cubic-in-out' }
-    };
-    const gd = await Plotly.newPlot(plot, [trace], layout, { displayModeBar: false, responsive: false });
-    drawCrumbs(); readout(N.get(level || 'root'));
-
-    // Entrance: fan the rings in from a quarter turn, once (skipped for reduced motion and on redraws).
-    if (!AZ.reduced() && !window.__sbSeen) { window.__sbSeen = 1; try { await Plotly.restyle(gd, { rotation: [0] }); Plotly.animate(gd, { data: [{ rotation: 90 }], traces: [0] }, { transition: { duration: 800, easing: 'cubic-out' }, frame: { duration: 800, redraw: true } }); } catch (e) {} }
-
-    gd.on('plotly_sunburstclick', (ev) => {
-      const pt = ev && ev.points && ev.points[0]; if (!pt) return;
-      // Plotly zooms into the clicked wedge; clicking the current centre zooms back out to its parent.
-      level = (pt.id === level) ? (pt.parent === 'root' ? '' : (pt.parent || '')) : pt.id;
-      if (level === 'root') level = '';
-      drawCrumbs(); readout(N.get(level || 'root'));
-    });
-    gd.on('plotly_hover', (ev) => { const pt = ev && ev.points && ev.points[0]; if (pt && N.has(pt.id)) readout(N.get(pt.id)); });
-    gd.on('plotly_unhover', () => readout(N.get(level || 'root')));
-    return () => { try { Plotly.purge(plot); } catch (e) {} };
-  }
-});
+// Family > Item type > Product, top 6 products per item type, the rest as "Other (n)". Family is editorial (AZ.familyOf). Click a wedge to zoom; Escape, Back or empty space goes up.
+const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.15.0/dist/maya.global.js';
+const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+const done = () => viz?.events?.emitRenderCompletedEvent();
+if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, I = c(/item/i, 'Item Type'), P = c(/product/i, 'Product'), V = c(/sales/i, 'Total Sales');
+const F = Object.keys(AZ.T.family), by = {};
+rows.filter((r) => AZ.num(r[V]) > 0).forEach((r) => (by[r[I]] ??= []).push(r));
+const data = Object.values(by).flatMap((g) => {
+  const rest = g.sort((a, b) => AZ.num(b[V]) - AZ.num(a[V])).slice(6), top = g.slice(0, 6);
+  if (rest.length) top.push({ [I]: g[0][I], [P]: 'Other (' + rest.length + ')', [V]: rest.reduce((s, r) => s + AZ.num(r[V]), 0) });
+  return top.map((r) => ({ Family: AZ.familyOf(r[I]), [I]: r[I], [P]: r[P], [V]: AZ.num(r[V]) }));
+}).sort((a, b) => (F.indexOf(a.Family) + 1 || 99) - (F.indexOf(b.Family) + 1 || 99)); // colours go by slot in first-seen order
+['maya-render', 'maya-error'].forEach((t) => el.addEventListener(t, done, { once: true }));
+el.spec = {
+  type: 'sunburst', path: ['Family', I, P], y: V, drill: true, colors: Object.values(AZ.T.family),
+  format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
+  titles: { [I]: 'Item type', [V]: 'Sales' }, text: { noData: 'No rows yet: bind [sales] [item type] [product]' },
+  theme: { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: '#1E1E24', fgMuted: '#8A8A94', bg: '#FFFFFF' },
+  data
+};

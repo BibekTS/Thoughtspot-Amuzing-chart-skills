@@ -65,6 +65,39 @@ MayaCharts library charts: render, every data mode, 280px to 1400px tiles, hover
 - **Interactivity is built in**: hover tooltip and dimming, keyboard focus, `legend` toggles, `select: true` (listen
   for `maya-select`, `e.detail.selected[0].x`), `drill` on a `path`, `zoom`. That meets the contract's interaction
   bar without `AZ.tip`. Restore a selection after a redraw with `chart.selected = [{ x: picked }]`.
+- **Drill-down is built in.** `path: [outer, ..., inner]` replaces `x`, and `drill: true` turns a click or Enter into an
+  animated zoom with a breadcrumb (Back > West > CA); Escape, Back or a click on empty space go up (`drillOut: false`
+  keeps empty clicks inert). Verified in the preview on 0.15.0:
+  | Type | Drill |
+  |---|---|
+  | `sunburst`, `treemap` | yes: click a wedge or rectangle |
+  | `sankey` | yes: click a **node** (`rect[data-x]`); a link (`path[data-x]`, "West -> CA") does not drill |
+  | `bar` (also horizontal, with `was`), `line`, `area` (stacked too), `dumbbell` | yes, with `path` |
+  | `table`, `heatmap`, `marimekko`, `chord` | no: `path` or `drill` is rejected (BbekShr/mayacharts#70) |
+  - A date path (`path: ['year', 'month']` with ISO months) drills onto a real time axis.
+  - The deepest level ignores clicks and emits nothing; there is no drill-through event yet (#70).
+  - `select` cannot be combined with `drill` (the spec is rejected, #70): pick one per chart.
+  - `el.view = { drill: ['West'] }` restores a level after a redraw; `maya-view` reports every change in
+    `e.detail.drill`. A data update keeps the level; a filter that removes the branch falls back to the root, so no
+    re-resolving code is needed.
+  - Every level rolls rows up with `aggregate`. Sums are right at every level; a ratio measure (price = sales /
+    units) is not: `mean` averages the row ratios (8.71 where sum over sum is 7.86 in our test). Drill a sum, or
+    use a measure that adds up (a share gap), until a ratio aggregate exists (#69).
+  - The drill needs every level in the search (`[sales] [region] [state] [item type]`): it only filters rows the
+    tile already has.
+  - **Colours on sunburst, treemap and sankey are positional.** A `colors` map keyed by name is ignored there
+    (BbekShr/mayacharts#71). Pass an array and sort the rows so each family first appears in the array's order:
+    `rows.sort((a, b) => FAM.indexOf(a.Family) - FAM.indexOf(b.Family))` with
+    `colors: FAM.filter((f) => present.has(f)).map((f) => AZ.T.family[f])`. Slots are recomputed per view, so a
+    drilled branch that lacks a family shifts the hues; until #71 is fixed, keep drill on sankeys to the region
+    stage (regions are neutral grey anyway). Sankey nodes with several parents (a family under every region) are
+    drawn grey.
+  - A drilled treemap draws one level at a time, not parents with children inside (#71); the root shows only the
+    top level. A sankey drills only from its first column (#71). A sunburst folds thin wedges into its own grey
+    "Other (n)", more of them on a small tile.
+  - Hierarchy and flow types reject zero or negative values (`non-positive-value`): filter `y > 0` first.
+  - Probe a drill with `--click-sel` on `path[data-x]` (sunburst, treemap) or `rect[data-x]` (bars, sankey nodes)
+    and read `shadowRoot.querySelector('.maya-crumbs').textContent` with `--after`.
 - **Shadow DOM**: the marks live in the element's open shadow root. `probe.mjs` and `snap.mjs`'s `svg-fit` look
   inside it, and so do `--click-sel` / `--hover-sel` (marks carry `data-x`, e.g. `--click-sel "rect[data-x]"`); your
   own `--eval` / `--after` expressions must reach in themselves (`document.querySelector('maya-chart').shadowRoot`).
@@ -210,7 +243,7 @@ function arcPath(cx, cy, r, startAngle, endAngle) {
   rapid toggles never fight), `AZ.countUp`, `AZ.lerp`, `AZ.reduced()` (skip motion when true), `AZ.settle()`.
 - Keep the last drawn state in a module-scope variable and tween from it, so a slider or toggle glides instead of
   jumping (`library/next-what-if`).
-- Drill-down: keep the current level in a module-scope `let`, draw `AZ.crumbs(...)` and wire them with
+- Hand-built drill-down (only where MayaCharts cannot drill): keep the current level in a module-scope `let`, draw `AZ.crumbs(...)` and wire them with
   `AZ.wireCrumbs`, read the new level back after a redraw. Click the centre or a crumb to go up. Every drill needs
   a visible way back and a hint that says what a click does.
 - Order inside `render`: build the header text, `await AZ.settle()`, measure, draw, then run the entrance.
@@ -228,7 +261,7 @@ function arcPath(cx, cy, r, startAngle, endAngle) {
   hidden or off-screen tile frames, so the animation may never end and the chart never takes a click. Record
   the end state first, let a click jump the animation to it, and finish it on a timer (`ms + 400`) as a
   fallback (`library/what-treemap-drill`, `transition`).
-- Where a library drills natively, use it (Plotly `sunburstclick`, `Plotly.restyle` for crumb jumps); do not
-  rebuild the chart per click.
+- Where a library drills natively, use it: MayaCharts `drill: true` on a `path` (see its section), Plotly
+  `sunburstclick` for an icicle. Do not rebuild the chart per click, and do not hand-roll a drill MayaCharts has.
 - KPI variants worth copying: `kpi-ring`, `kpi-bullet`, `kpi-odometer`, `kpi-sparkbars`, `kpi-quarter-pairs`,
   `kpi-flip`, `kpi-dotstrip`. Same data, different reading; offer more than one per Liveboard.

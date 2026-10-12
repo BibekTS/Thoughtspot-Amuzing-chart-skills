@@ -32,12 +32,4 @@ body { background: var(--az-surface); color: var(--az-ink); font-family: var(--a
 .az-sep { color: var(--az-muted); }
 /* ==== end amuzing core css ==== */
 
-#chart { display: flex; flex-direction: column; padding: 14px 18px 10px; gap: 6px; }
-.sb-head { flex: none; display: flex; flex-direction: column; gap: 4px; }
-.sb-lead { margin: 0; font-size: 14px; line-height: 1.35; font-weight: 600; }
-.sb-hint { font-size: 12px; color: var(--az-muted); }
-.sb-crumbs { min-height: 22px; display: flex; align-items: center; }
-.sb-plot { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; }
-.sb-read { flex: none; display: flex; align-items: baseline; gap: 10px; font-size: 12px; color: var(--az-ink2); min-height: 20px; }
-.sb-read b { color: var(--az-ink); font-size: 13px; font-weight: 600; }
-.sb-rv { color: var(--az-ink); font-weight: 600; }
+#chart { display: block; height: 100%; min-height: 0; color-scheme: light; }
