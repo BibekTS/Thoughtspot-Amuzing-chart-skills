@@ -32,22 +32,4 @@ body { background: var(--az-surface); color: var(--az-ink); font-family: var(--a
 .az-sep { color: var(--az-muted); }
 /* ==== end amuzing core css ==== */
 
-#chart { display: flex; flex-direction: column; padding: 14px 18px 10px; gap: 8px; }
-.pl-head { flex: none; display: flex; flex-direction: column; gap: 4px; }
-.pl-lead { margin: 0; font-size: 14px; line-height: 1.35; font-weight: 600; color: var(--az-ink); }
-.pl-sub { margin: 0; font-size: 12px; line-height: 1.4; color: var(--az-ink2); }
-.pl-key { display: flex; gap: 10px; font-size: 12px; color: var(--az-ink2); margin-top: 2px; }
-.pl-key i { display: inline-block; width: 18px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 6px; }
-.pl-plot { flex: 1 1 auto; min-height: 0; position: relative; }
-.pl-plot svg text { font-family: var(--az-font); }
-.pl-key .pl-k { all: unset; cursor: pointer; display: inline-flex; align-items: center; color: var(--az-muted); border-radius: 6px; padding: 2px 6px; margin-left: -6px; }
-.pl-key .pl-k.on { color: var(--az-ink2); }
-.pl-key .pl-k:not([disabled]):hover { background: #F1F2F4; }
-.pl-key .pl-k:focus-visible { outline: 2px solid var(--az-ink); outline-offset: 1px; }
-/* Muze draws its own tooltip box; ours replaces it (the native one totals this year and last year). */
-[class*="muze-tooltip"] { display: none !important; }
-/* Muze's crosshair and hover dots snap half a step off the pointer; ours replace them. */
-.muze-crossline-group, [class*="muze-layer-point"], .muze-layer-line-disconnected-points { display: none !important; }
-.pl-cross { position: absolute; top: 0; bottom: 22px; width: 1px; background: var(--az-ink); opacity: 0; pointer-events: none; }
-.pl-dot { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: #fff; border: 2px solid var(--az-ink); opacity: 0; pointer-events: none; box-sizing: border-box; }
-.muze-axis-name, [class*="muze-axis-name"], [class*="muze-columnHeader"], [class*="muze-rowHeader"] { display: none !important; }
+#chart { display: block; height: 100%; min-height: 0; color-scheme: light; }

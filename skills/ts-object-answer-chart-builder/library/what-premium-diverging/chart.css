@@ -32,43 +32,4 @@ body { background: var(--az-surface); color: var(--az-ink); font-family: var(--a
 .az-sep { color: var(--az-muted); }
 /* ==== end amuzing core css ==== */
 
-
-#chart { display: flex; flex-direction: column; padding: 14px 18px 8px; gap: 6px; }
-.pd-head { flex: none; display: flex; flex-direction: column; gap: 4px; }
-.pd-lead { margin: 0; font-size: 14px; line-height: 1.35; font-weight: 600; color: var(--az-ink); }
-.pd-sub { margin: 0; font-size: 12px; line-height: 1.4; color: var(--az-ink2); }
-.pd-bar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 26px; }
-.pd-crumbs { flex: 1 1 auto; min-width: 0; overflow: hidden; }
-.pd-crumbs .az-crumbs { flex-wrap: nowrap; white-space: nowrap; }
-.pd-tog { flex: none; display: inline-flex; border: 1px solid var(--az-grid); border-radius: 6px; padding: 1px; }
-.pd-t { all: unset; cursor: pointer; font-size: 12px; line-height: 1.4; color: var(--az-ink2); padding: 2px 8px; border-radius: 5px; white-space: nowrap; }
-.pd-t:hover { background: #F1F2F4; color: var(--az-ink); }
-.pd-t.on { background: var(--az-ink); color: #FFFFFF; font-weight: 500; }
-.pd-t:focus-visible, .pd-go:focus-visible { outline: 2px solid var(--az-ink); outline-offset: 1px; }
-.pd-plot { flex: 1 1 auto; min-height: 0; position: relative; }
-.pd-plot:focus { outline: none; }
-.pd-plot:focus-visible { outline: 2px solid var(--az-ink); outline-offset: 2px; border-radius: 6px; }
-.pd-plot svg text { font-family: var(--az-font); }
-.pd-ov text { font-variant-numeric: tabular-nums; }
-.pd-v { font-weight: 500; }
-.pd-plot .muze-layer-bar rect { transition: opacity .15s ease; }
-.pd-tiphint { margin-top: 4px; color: #C9CDD6; font-size: 11px; }
-.pd-msg { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 0 12px; text-align: center; font-size: 13px; line-height: 1.45; color: var(--az-ink2); }
-.pd-msg p { margin: 0; max-width: 360px; }
-.pd-go { all: unset; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--az-ink); border: 1px solid var(--az-grid); border-radius: 6px; padding: 4px 12px; }
-.pd-go:hover { background: #F1F2F4; }
-/* Muze extras we replace: native tooltip, crosshair, axis names, sort menu, row headers */
-[class*="muze-tooltip"] { display: none !important; }
-.muze-crossline-group, .muze-direct-sort-box, .muze-axis-name, [class*="muze-axis-name"], [class*="muze-columnHeader"], [class*="muze-rowHeader"] { display: none !important; }
-/* Muze sizes each category band from a measured tick label; measure a small one so 15 rows fit */
-body > .muze-ticks { font-size: 1px !important; line-height: 1 !important; }
-.pd-plot .muze-ticks { font-size: 11px; fill: var(--az-muted); }
-.pd-muze { position: relative; }
-.pd-axis { position: relative; height: 18px; font-size: 11px; line-height: 18px; color: var(--az-muted); font-variant-numeric: tabular-nums; }
-.pd-axis span { position: absolute; top: 0; white-space: nowrap; transform: translateX(-50%); }
-.pd-crumbs { display: flex; align-items: center; gap: 8px; }
-.pd-crumbs .az-crumbs { flex: none; }
-.pd-hint { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--az-muted); }
-.pd-ruler { position: absolute; top: 0; width: 0; pointer-events: none; opacity: 0; transition: opacity .12s ease; z-index: 5; }
-.pd-ruler i { position: absolute; left: 0; top: 0; bottom: 18px; border-left: 1px dashed var(--az-slate-3); }
-.pd-ruler b { position: absolute; bottom: 0; transform: translateX(-50%); font-size: 11px; line-height: 16px; font-weight: 600; color: #FFFFFF; background: var(--az-ink); border-radius: 6px; padding: 0 5px; white-space: nowrap; }
+#chart { display: block; height: 100%; min-height: 0; color-scheme: light; }

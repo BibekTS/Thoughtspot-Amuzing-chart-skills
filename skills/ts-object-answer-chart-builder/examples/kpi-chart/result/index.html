@@ -11,7 +11,7 @@
 <div id="chart"></div>
 
 <script type="module">
-  // Local preview shim — in ThoughtSpot Muze Studio, `viz` is provided by the host.
+  // Local preview shim — in ThoughtSpot, `viz` is provided by the host.
   window.viz = {
     getDataFromSearchQuery: () => ({ getData: () => ({ schema: [], data: [] }) }),
     events: { emitRenderCompletedEvent: () => {} },

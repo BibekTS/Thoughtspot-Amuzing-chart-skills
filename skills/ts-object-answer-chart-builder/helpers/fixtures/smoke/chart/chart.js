@@ -1,6 +1,6 @@
 // Smoke fixture: a mode-C raw-SVG bar chart. It exercises what the preview
 // checks — live data, sample fallback, wrapped cells, zero rows, a container
-// resize (ResizeObserver) and emitRenderCompletedEvent — with no CDN and no Muze.
+// resize (ResizeObserver) and emitRenderCompletedEvent — with no CDN.
 const REGION = 'REGION';
 const REVENUE = 'REVENUE';
 

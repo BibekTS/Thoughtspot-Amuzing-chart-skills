@@ -40,7 +40,7 @@ A run goes:
 | Preview | A Chromium window you watch; it reloads on every edit | Headless; each attempt comes back as a PNG |
 | First run | Installs Playwright + Chromium (~2 min, asked once) | Installs `playwright-core` (~30 s), uses the sandbox's Chromium |
 | Deliverables | `~/.cache/ts-charts/output/<chart-name>/` | `<chart-name>/` in the chat's outputs folder |
-| Chart libraries | All (Muze only with your own Muze build, see below) | HTML tables and raw SVG are fully previewed; CDN libraries (Chart.js, Plotly, gridjs) are usually blocked, so those charts are written but marked *not previewed* |
+| Chart libraries | All; MayaCharts is the default for standard shapes | HTML tables and raw SVG are fully previewed; CDN libraries (MayaCharts, Chart.js, Plotly, gridjs) are usually blocked, so those charts are written but marked *not previewed* |
 
 If a window cannot open in Claude Code either — no display, or Chromium fails to start
 headed — it falls back to headless on its own and says so.
@@ -183,7 +183,7 @@ node $H/close-preview.mjs my-chart                     # close the window
 skills/ts-object-answer-chart-builder/
   SKILL.md            the procedure: the file Claude reads
   references/         byoc-data-modes · hard-rules · taste-rules · library ·
-                      library-starters · muze-api-reference · examples ·
+                      library-starters · examples ·
                       emit-checklist · library-contract
   library/            58 proven live-data charts on (Sample) Retail - Apparel, and the
                       shared core (_shared/)
@@ -193,7 +193,7 @@ skills/ts-object-answer-chart-builder/
                       answer-pack, answer-patch.js and backup-check (save a chart as an answer) ·
                       cluster-shot (screenshot an answer or a Liveboard, logged in),
                       plus the smoke-test fixture the library's smoke test renders
-  scaffold/           the preview page (no Muze build ships; see "Muze" below)
+  scaffold/           the preview page and the `viz` stub
 skills/ts-object-liveboard-chart-builder/
   SKILL.md            intake, profile the model, plan the tabs, build, patch the Liveboard, screenshot
   references/         story-and-layout · pipeline · tile-brief
@@ -216,7 +216,7 @@ skill as a sibling folder (or through `TS_ANSWER_CHART_SKILL`), so install both 
 seven numbered tabs (About, Pulse, Where, What, When, Who, Next), each answering one question, custom
 charts only, three Liveboard filters (date, region, item type). Every chart reads only what its search
 returns, is interactive, survives a filtered view, and was checked in a real cluster, except four newer ones (a pivot table,
-a store league table, a Muze diverging bar and a volume-and-price growth split, rebuilt from the older
+a store league table, a MayaCharts diverging bar and a volume-and-price growth split, rebuilt from the older
 `examples/`) that are marked *preview only* until they have been on a tile.
 `references/library.md` indexes them by tab, library and search; the "Start here" table in
 `references/examples.md` maps chart shapes to the one to copy. The library is one worked Liveboard on
@@ -244,13 +244,12 @@ inside a tile, `<script src>` from a CDN is not), and the import-side ones in th
 ## Examples
 
 `skills/ts-object-answer-chart-builder/examples/` carries charts that already render
-correctly in ThoughtSpot, grouped by library: Muze (bubble, diverging axis, funnel),
-Chart.js over CDN (bump, sunburst, KPI), hand-built DOM (pivot table, flat table,
+correctly in ThoughtSpot, grouped by library: MayaCharts (`maya-was-bars`, the starter), Plotly over CDN
+(sunburst), hand-built DOM (pivot table, flat table,
 waffle, funnel), raw SVG (hex cartogram, KPI), and self-contained HTML.
 
 `references/examples.md` indexes them by shape and says what each is worth opening for —
-mostly the workarounds for bugs that are expensive to rediscover: Muze's point-size
-clamp, its domain-array mutation on re-mount, object-wrapped cells, TS column names
+mostly the workarounds for bugs that are expensive to rediscover: object-wrapped cells, TS column names
 that carry non-breaking spaces.
 
 They were written before the preview loop existed, so they are correct-in-ThoughtSpot,
@@ -269,22 +268,22 @@ scripts/export-to-library.sh /path/to/thoughtspot-agent-skills
 That copies both folders as they are. Registering them in the library (README, setup docs,
 runtime coverage, naming family, changelog, smoke tests) is part of the library PR.
 
-## Muze
+## MayaCharts
 
-No Muze build ships with these skills: there is no license to redistribute one. ThoughtSpot supplies Muze to
-a chart on a real tile, so Muze charts work there; only the local preview lacks it. Without a build, the doctor
-reports `muze: not installed` and a Muze chart is written but marked *not previewed*, then checked in
-ThoughtSpot. If you are licensed to use a Muze build, point `TS_MUZE_DIR` at a folder holding `muze.js`,
-`muze.css` and `assets/` (or copy them to `~/.cache/ts-charts/muze/`), and the preview uses it. The other
-chart libraries are unaffected.
+[MayaCharts](https://bbekshr.github.io/mayacharts/) (MIT, no dependencies) is the default library for standard
+business shapes: bar, line, area, scatter, KPI, waterfall, heatmap, table, treemap, sunburst, sankey, funnel, box
+plot and gauge. One JSON spec gives the marks, tooltip, keyboard focus, selection, drill and resize, so a tile is a
+fraction of the code of a hand-built or D3 chart. It ships often, so the doctor asks jsDelivr (then npm) for the
+latest release on every run and prints it as `mayacharts:`; each chart pins that exact release, so a saved tile never
+changes under you. A whole tile is about ten lines of `chart.js`: the host plumbing and one spec. `examples/maya-was-bars/` is the starter, and the MayaCharts section of
+`references/library-starters.md` has the traps.
 
 ## Status
 
 Verified on macOS (2026-09-29):
 
 - **Headed:** the window reloads ~0.4 s after an edit; screenshots stay 2496x1340, the
-  same as earlier runs; a Muze example renders the same as under the previous
-  Vite-based preview.
+  same as earlier runs.
 - **Headless:** a read-only copy of the skill with nothing installed, forced into
   Claude-app mode, installs `playwright-core` from the doctor's `fix:` line and
   captures every data mode plus `--tile 620x400` and `1400x500`.
@@ -295,4 +294,4 @@ the thing to check.
 
 ## License
 
-[MIT](LICENSE). Muze itself is not covered: it is ThoughtSpot's and does not ship here (see [Muze](#muze)).
+[MIT](LICENSE).

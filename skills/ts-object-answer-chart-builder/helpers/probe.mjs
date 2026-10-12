@@ -106,7 +106,7 @@ try {
     const sel = opt["hover-sel"] || opt["click-sel"];
     let p;
     if (sel) {
-      const c = await page.evaluate((s) => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, sel);
+      const c = await page.evaluate((s) => { const deep = (r) => r.querySelector(s) || [...r.querySelectorAll("*")].map((x) => x.shadowRoot && deep(x.shadowRoot)).find(Boolean) || null; const e = deep(document); if (!e) return null; const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, sel);
       if (!c) { console.error("[probe] no element matches " + sel); process.exit(1); }
       p = { x: c[0], y: c[1] };
     } else p = point(opt.hover || opt.click, box);
@@ -133,20 +133,22 @@ try {
     //      attributes (d, transform, x, y, cx, cy, width, height, r) are left out because they animate.
     const sig = () => page.evaluate(() => {
       const h = document.getElementById("chart-host") || document.body;
+      // Web-component libraries (MayaCharts) draw inside an open shadow root: look there too.
+      const all = (r, q) => { const o = [...r.querySelectorAll(q)]; for (const e of r.querySelectorAll("*")) if (e.shadowRoot) o.push(...all(e.shadowRoot, q)); return o; };
       const STATE = /(^|[-_:])(hover|active|selected|tooltip|focus)/i;
       const text = (e, n) => (e.textContent || "").replace(/\s+/g, " ").trim().slice(0, n);
       const cls = (e) => e.getAttribute("class") || "";
-      const stateEls = [...h.querySelectorAll("[class]")].filter((e) => cls(e).split(/\s+/).some((t) => STATE.test(t)));
+      const stateEls = all(h, "[class]").filter((e) => cls(e).split(/\s+/).some((t) => STATE.test(t)));
       const a = stateEls.map((e) => e.tagName + "." + cls(e) + "=" + text(e, 60)).join(",");
-      const tips = [...h.querySelectorAll("[role=tooltip],[class*=tooltip],[class*=tip]")].map((e) => {
+      const tips = all(h, "[role=tooltip],[class*=tooltip],[class*=tip]").map((e) => {
         const cs = getComputedStyle(e), r = e.getBoundingClientRect();
         const vis = cs.display !== "none" && cs.visibility !== "hidden" && Number(cs.opacity) > 0.05 && r.width > 0 && r.height > 0;
         return (vis ? "v:" + text(e, 120) : "h");
       }).join(",");
-      const sel = [...h.querySelectorAll("[aria-selected],[data-active]")];
+      const sel = all(h, "[aria-selected],[data-active]");
       const c = sel.length + ":" + sel.map((e) => (e.getAttribute("aria-selected") ?? "") + "/" + (e.getAttribute("data-active") ?? "") + "=" + text(e, 40)).join(",");
       const PAINT = ["opacity", "fill", "stroke", "stroke-width", "font-weight"];
-      const d = [...h.querySelectorAll("path, rect, circle, line, g, text, ellipse, polygon, polyline, *:not(svg *)")]
+      const d = all(h, "path, rect, circle, line, g, text, ellipse, polygon, polyline, *:not(svg *)")
         .filter((e) => e.tagName !== "STYLE" && e.tagName !== "SCRIPT")
         .map((e) => (e.getAttribute("style") || "") + ";" + PAINT.map((k) => e.getAttribute(k) ?? "").join(";"))
         .join("/");
@@ -182,7 +184,8 @@ try {
     let total = 5, nm = 0;
     const marks = await page.evaluate(() => {
       const host = document.getElementById("chart-host") || document.body;
-      const els = [...host.querySelectorAll("svg circle, svg rect, svg path[d], button, [tabindex], li, tr, [class*=row], [class*=cell], [class*=bubble], [class*=bar]")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 4 && r.height > 4 && r.width < 600 && r.height < 600 && r.bottom > 0 && r.right > 0; });
+      const all = (r, q) => { const o = [...r.querySelectorAll(q)]; for (const e of r.querySelectorAll("*")) if (e.shadowRoot) o.push(...all(e.shadowRoot, q)); return o; };
+      const els = [...all(host, "svg circle, svg rect, svg path[d], button, [tabindex], li, tr, [class*=row], [class*=cell], [class*=bubble], [class*=bar]")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 4 && r.height > 4 && r.width < 600 && r.height < 600 && r.bottom > 0 && r.right > 0; });
       const step = Math.max(1, Math.floor(els.length / 8));
       return els.filter((_, i) => i % step === 0).slice(0, 8).map((e) => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
     });

@@ -10,14 +10,11 @@ That makes this a verification pass, not a transformation. Work down it once.
 
 ## 1. The preview stub is not the host
 
-Three differences the loop cannot catch. Check them by reading.
+Differences the loop cannot catch. Check them by reading.
 
-- **Muze version.** No Muze build ships with the skill. The preview runs the user's own build when one is
-  installed (`TS_MUZE_DIR`), and none otherwise, in which case a Muze chart is **not previewed** and must be
-  checked in ThoughtSpot. The host ships its own build, which may be older or newer than the user's. If the chart leans on a
-  rarely-used option, say so in the run README rather than implying it is verified.
-- **Theme.** `preview/index.html` supplies `.muze-*` CSS the host provides itself.
-  Those rules are preview-only — if any of them leaked into `chart.css`, remove them.
+- **Library version.** The chart pins an exact CDN version (MayaCharts: the doctor's `mayacharts:` line). The
+  preview loads the same URL, so it runs the same build; say in the run README which version is pinned.
+- **Network.** The tile's sandbox blocks `fetch()`; the preview does not. Grep the chart for `fetch(`.
 - **Real data.** The stub serves `sample-data.json`. Column names, null density, row
   counts, and cardinality on a real search will differ.
 
@@ -47,7 +44,7 @@ Three differences the loop cannot catch. Check them by reading.
 
 ## 3. The BYOC contract
 
-- [ ] `const { muze, getDataFromSearchQuery } = viz;` (or the guarded mode-C form) —
+- [ ] `viz?.getDataFromSearchQuery?.()` (or the guarded mode-C form) —
       reading the **bare identifier**. Grep for `globalThis.viz` as the sole route
       in: on a host that scopes `viz` to its wrapper it resolves to `undefined`, and
       the chart silently serves sample rows *and* never signals render-complete.

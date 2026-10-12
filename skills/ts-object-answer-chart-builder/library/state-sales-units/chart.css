@@ -32,19 +32,4 @@ body { background: var(--az-surface); color: var(--az-ink); font-family: var(--a
 .az-sep { color: var(--az-muted); }
 /* ==== end amuzing core css ==== */
 
-#chart { display: flex; flex-direction: column; padding: 14px 18px 10px; gap: 8px; }
-.sc-head { flex: none; display: flex; flex-direction: column; gap: 4px; }
-.sc-lead { margin: 0; font-size: 14px; line-height: 1.35; font-weight: 600; color: var(--az-ink); }
-.sc-sub { margin: 0; font-size: 12px; line-height: 1.4; color: var(--az-ink2); }
-.sc-plot { flex: 1 1 auto; min-height: 0; position: relative; }
-.sc-plot svg text { font-family: var(--az-font); }
-[class*="muze-tooltip"] { display: none !important; }
-.muze-crossline-group { display: none !important; }
-.muze-axis-name, [class*="muze-axis-name"], [class*="muze-columnHeader"], [class*="muze-rowHeader"] { display: none !important; }
-.sc-over { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-.sc-over text { font-size: 11px; font-weight: 600; fill: var(--az-ink); paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
-.sc-over .sc-avg { stroke: var(--az-slate-3); stroke-width: 1.25; stroke-dasharray: 4 3; fill: none; }
-.sc-over .sc-avgl { font-weight: 400; fill: var(--az-ink2); }
-.sc-over .sc-ring { fill: none; stroke: var(--az-ink); stroke-width: 2; }
-/* Muze wraps each dot in a group at half opacity; dimming is ours (click to pin). */
-.sc-plot [class*="muze-layer-point"] { opacity: 1 !important; }
+#chart { display: block; height: 100%; min-height: 0; color-scheme: light; }

@@ -1,6 +1,6 @@
 ---
 name: ts-object-answer-chart-builder
-description: Build a ThoughtSpot custom chart (BYOC) as three paste-ready files, chart.html, chart.css and chart.js, by iterating in a real browser until the render is right: an intake with pick-from-a-list questions (model, data mode, search, library, destination), a preview the user watches or headless screenshots where no window can open, a vision critique of every attempt, and checks for missing, wrapped and empty data, tile resizes and pointer interaction. Can save the finished chart as a ThoughtSpot answer and screenshot it in a logged-in browser. Use when the user wants a ThoughtSpot custom chart, a BYOC tile, a Muze chart, or an existing chart tile rebuilt, debugged, or converted between sample and live data. Covers Muze, D3, ECharts, Plotly, Chart.js, gridjs, HTML tables and raw SVG, ships a library of proven live-data charts under library/, and hands finished tiles to ts-object-liveboard-chart-builder. Not for native ThoughtSpot chart configuration or non-ThoughtSpot charting work.
+description: Build a ThoughtSpot custom chart (BYOC) as three paste-ready files, chart.html, chart.css and chart.js, by iterating in a real browser until the render is right: an intake with pick-from-a-list questions (model, data mode, search, library, destination), a preview the user watches or headless screenshots where no window can open, a vision critique of every attempt, and checks for missing, wrapped and empty data, tile resizes and pointer interaction. Can save the finished chart as a ThoughtSpot answer and screenshot it in a logged-in browser. Use when the user wants a ThoughtSpot custom chart, a BYOC tile, a MayaCharts chart, or an existing chart tile rebuilt, debugged, or converted between sample and live data. Covers MayaCharts (the default), D3, ECharts, Plotly, Chart.js, gridjs, HTML tables and raw SVG, ships a library of proven live-data charts under library/, and hands finished tiles to ts-object-liveboard-chart-builder. Not for native ThoughtSpot chart configuration or non-ThoughtSpot charting work.
 ---
 
 # ThoughtSpot custom chart builder
@@ -73,8 +73,8 @@ If `deps: missing`, the `fix:` line is the command that fixes it:
 
 `browser-launch:` actually starts Chromium, which is the only reliable check:
 Chromium is pinned to the Playwright version, so a cached build can look present and
-still fail to launch. Note `cdn:` and `muze:` for Library choice below: no Muze build ships with the skill, so
-Muze charts preview only when the user has installed their own (`muze: found`).
+still fail to launch. Note `cdn:` and `mayacharts:` for Library choice below: `mayacharts:` is the latest release,
+which every MayaCharts chart pins.
 
 Also check whether the ThoughtSpot MCP tool `execute-thoughtspot-code` is connected. If it is, one
 read-only call returns the signed-in user, the org, the cluster name and the models. The token is bound
@@ -130,9 +130,8 @@ Read before writing any chart code, in this order:
 2. `references/hard-rules.md` — the silent failures, how each one shows up, and the recipes that avoid them. **Always.**
 3. `references/taste-rules.md` — the design bans and copy rules every chart is critiqued against (no emojis, no em-dashes, one accent rule, specific copy). **Always.**
 4. `references/library.md` — the proven live-data charts in `library/`, indexed by question. **Always.** Start from the nearest one and read its `chart.js` before writing; it settles the API questions faster than any reference and carries the workarounds already found.
-5. `references/library-starters.md` — per-library starters and traps (CDN loading, drill-down, motion) learned in real tiles. The first time a run uses a library other than Muze.
-6. `references/muze-api-reference.md` — only when the chart is Muze. Section 0 (Recipes: sizing, encodingTransform data access, labels, reference lines, dual axis, diverging bars, date ticks, formatting, KPI tiles) first, then only the API sections the chart needs, not the whole file.
-7. `references/examples.md` — the older charts under `examples/`, indexed by shape. Only when no library chart is close; most of its entries are superseded by the library.
+5. `references/library-starters.md` — per-library starters and traps (CDN loading, drill-down, motion) learned in real tiles. **Always for MayaCharts** (its section is the starter); otherwise the first time a run uses a library.
+6. `references/examples.md` — the older charts under `examples/`, indexed by shape. Only when no library chart is close; most of its entries are superseded by the library.
 
 Read 1 to 4 on every run, 5 to 7 only when their condition holds. Nothing else needs reading
 before the first attempt: `emit-checklist.md` belongs to Step 7 and `library-contract.md` to
@@ -418,15 +417,20 @@ Without that skill or the MCP, hand the user the three files and the search to b
 Start from a library chart: the "Start here" table at the top of `references/examples.md`
 maps shapes (animated drill, map zoom, flow, KPI variants, what-if, beeswarm ...) to a
 proven chart under `library/`. Copy its technique; keep the shared core. Otherwise,
-pick by what the chart is. Muze is the default only when the doctor reports `muze: found`; without it a Muze chart
-cannot render in the preview (the diagnostic block says `muze: unavailable`), so prefer D3, a hand-built table or raw
-SVG when they fit, and when only Muze fits, write it, mark it **not previewed**, and verify it in ThoughtSpot (Step 9);
-ThoughtSpot supplies Muze itself. Pick by shape — `references/examples.md` has a working
-file for each of these rows:
+pick by what the chart is. **MayaCharts is the default for standard business shapes** (bar, line, area,
+scatter, KPI, waterfall, heatmap, table, treemap, sunburst, sankey, funnel, box plot, gauge): one JSON spec gives the
+marks, tooltip, keyboard focus, selection, drill, empty state and resize, so a whole tile is 7 lines of
+`chart.js`: 6 fixed lines (load, mount, read rows, signal render-complete) that never change, plus one spec. Keep it that lean, and code only for what the spec cannot express (a derived
+measure, a pivot). **Always pin the MayaCharts version the doctor's `mayacharts:` line names** (the latest release
+at build time; it ships often): never an unpinned URL, which would change a saved tile under the user, and never a
+version from memory. Reach past it only when the shape needs what a spec cannot say: a bespoke layout, annotations
+computed from the data, a diagonal reference line, a log scale, an animated zoom. Pick by shape — `references/examples.md`
+has a working file for each of these rows:
 
-- **Muze** — bar, line, area, scatter, bubble, box, waterfall, pie, heatmap,
-  dual-axis, data-bound KPIs. Anything wanting axes, legends, color encodings, or
-  tooltips wired to a DataModel.
+- **MayaCharts** (CDN, `maya.global.js`) — the shapes above, plus bars with a ghost of last period (`was`),
+  target colouring (`colorBy`), reference lines (`rules`), playback (`frame`) and drill on a `path`. Starter and
+  traps: the MayaCharts section of `references/library-starters.md`; the smallest complete tile is in
+  `references/byoc-data-modes.md` (Mode B with MayaCharts).
 - **Chart.js** (CDN) — radar, polar, doughnut, sankey, gauges, bespoke smoothing,
   conditional bar coloring, background bands.
 - **D3** (CDN) — stream graphs, force layouts (beeswarm), parallel coordinates, chord; anything with a bespoke layout.
@@ -441,12 +445,12 @@ file for each of these rows:
 - **Raw HTML/CSS** — quote cards, text slides, annotation blocks.
 
 **When the doctor reports `cdn: blocked`** (usual in the Claude app), the CDN libraries
-cannot load in the preview, so a Chart.js / Plotly / gridjs chart cannot be verified
-there. Prefer a hand-built table or raw SVG (or Muze, when `muze: found`) when they fit. When only
+cannot load in the preview, so a MayaCharts / Chart.js / Plotly / gridjs chart cannot be verified
+there. Prefer a hand-built table or raw SVG when they fit. When only
 a CDN library fits, write it anyway and tell the user it is **not previewed** — never
 report MATCH on a render that could not load its library.
 
-CDN loading works in BYOC: a `<script src>` in `chart.html`, or `document.createElement('script')` + a bounded promise (the shared core's `AZ.loadScript` is that, with a timeout and a fallback host). **Verified in a real cluster: `<script src>` from cdn.jsdelivr.net and unpkg loads (d3, echarts, topojson-client), but `fetch()` to any external URL is blocked** ("Network requests are blocked for security"). Data files, GeoJSON and topologies must be inlined in `chart.js`; `library/_shared/us-states.js` is an inline US map for that reason.
+CDN loading works in BYOC: a `<script src>` in `chart.html`, or `document.createElement('script')` + a bounded promise (the shared core's `AZ.loadScript` is that, with a timeout and a fallback host). **Verified in a real cluster: `<script src>` from cdn.jsdelivr.net and unpkg loads (d3, echarts, topojson-client; MayaCharts uses the same host), but `fetch()` to any external URL is blocked** ("Network requests are blocked for security"). Data files, GeoJSON and topologies must be inlined in `chart.js`; `library/_shared/us-states.js` is an inline US map for that reason.
 
 If the request matches none of these and no close analogue exists, say so before
 writing code and offer two or three concrete paths. A confident wrong chart costs more
@@ -461,7 +465,7 @@ than an honest question.
 - Do not leave the preview daemon running.
 - Do not run `playwright install` in the Claude app, and do not rely on a background
   process surviving there — `snap.mjs` needs neither.
-- Do not claim a chart is verified against ThoughtSpot unless it has been screenshotted there (`helpers/cluster-shot.mjs`, Step 9). Otherwise it is verified against a faithful stub; the Muze build, theme and network rules differ. Say "verified in preview".
+- Do not claim a chart is verified against ThoughtSpot unless it has been screenshotted there (`helpers/cluster-shot.mjs`, Step 9). Otherwise it is verified against a faithful stub; the host's theme and network rules differ. Say "verified in preview".
 - Do not ship a chart nothing reacts to, or one that invents rows when the search returns none.
 
 ---
@@ -470,6 +474,9 @@ than an honest question.
 
 | Version | Date | Summary |
 |---|---|---|
+| 4.1.0 | 2026-10-12 | The ThoughtSpot data read is one fixed line in every MayaCharts tile, a plain loop over the column names that unwraps object cells: about 3x faster than building each row with `Object.fromEntries` (100k wrapped rows: 10 ms against 27 ms; 1M: 106 ms against 256 ms), and a standalone tile is now 7 lines. Library charts read with the core's `AZ.liveData()` instead of re-implementing it (bodies 17 to 21 lines). Both render-complete listeners are one line |
+| 4.0.0 | 2026-10-12 | Muze is removed. The preview no longer loads a Muze build (no `TS_MUZE_DIR`, no `/vendor/muze`, no `viz.muze` shim; `viz` is the plain search-result stub), the doctor has no `muze:` line, `references/muze-api-reference.md` and the Muze examples (`examples/Examples/`, `funnel-chart`, `model-connections-bump`) are deleted, and the Muze rules are gone from `hard-rules.md`, `byoc-data-modes.md`, `library-starters.md`, `library-contract.md` and `emit-checklist.md`. The three Muze library charts (`pulse-monthly-line`, `state-sales-units`, `what-premium-diverging`) are rebuilt on MayaCharts (preview only, synthetic data). MayaCharts tiles are lean: plumbing plus one spec, about ten lines of `chart.js` for a whole tile, verified on every data mode, an empty HTML tab and a CDN that fails to load. `MUZE_STUDIO` stays in the answer and Liveboard TML: it is ThoughtSpot's type name for every custom chart, not the library |
+| 3.3.0 | 2026-10-12 | MayaCharts (MIT, `maya.global.js` from jsDelivr) is the default library for standard business shapes, ahead of Muze unless a Muze build is installed. The doctor prints a `mayacharts:` line with the latest release and the pinned URLs; every chart pins that release. `references/library-starters.md` has a MayaCharts starter and its traps; `examples/maya-was-bars/` is the first chart (preview-verified on synthetic data, not yet on a cluster). `probe.mjs` (sweep, marks, `--click-sel`, `--hover-sel`) and `capture.mjs` (`svg-fit`) now look inside open shadow roots, where web-component libraries draw: before this a working MayaCharts chart read `NOT INTERACTIVE` and `svg-fit: n/a` |
 | 3.2.0 | 2026-10-02 | The vendored Muze bundle is removed: there is no license to redistribute it. The preview uses a Muze build only when the user installs one they are licensed to use (`TS_MUZE_DIR`, or `<home>/muze`); the doctor prints a `muze:` line, the diagnostic block says `muze: unavailable` when a chart runs without one, and Library choice no longer defaults to Muze unless it is installed. Muze charts without a build are written, marked not previewed, and verified in ThoughtSpot (Step 9). Non-Muze charts are unaffected |
 | 3.1.0 | 2026-10-02 | Less to read, and checks that fail honestly. `references/system-prompt.md` (the old chat-pipeline prompt, 82 KB, a third of it repeating `hard-rules.md`) is gone: its unique recipes moved into `hard-rules.md`, `muze-api-reference.md`, `byoc-data-modes.md` and `library-starters.md`. Step 1 reads four files on every run and the rest on condition, library before examples. `snap` and `probe` print `status: TIMEOUT` and exit 2 when render-complete never fires instead of a quiet `[pending]`; the probe sweep ignores entrance animation (`sweep: UNSTABLE`) and only counts hover, selection and tooltip changes; `cluster-shot` counts the chart frames that rendered against the custom-chart tiles the Liveboard export puts on each tab and exits 2 when any are missing, on a missing tab, or on failure text (found on a live pilot, where a first shot of a still-loading page had scored zero problems; checked live both ways), takes `--no-scroll` as a flag and a bare host as `--url`. `library-emit` takes `--model` and `--mode`; `sync-core` resolves folders through `env.mjs`; `answer-pack` handles a file ending in a backslash and refuses `--backup` without `--answer`. `helpers/fixtures/smoke/` stays: the thoughtspot-agent-skills smoke test renders it. Both descriptions fit the 1024-character limit |
 | 3.0.0 | 2026-10-01 | Renamed from `ts-custom-charts-builder` to `ts-object-answer-chart-builder` (its name in thoughtspot-agent-skills; the sibling is `ts-object-liveboard-chart-builder`, override `TS_ANSWER_CHART_SKILL`). Synced with thoughtspot-agent-skills PR 553 after three review rounds and a live run on ps-internal: run folders, deliverables and published charts (`library-emit`, the user's library) live under `~/.cache/ts-charts`, never in a repo; an answer update merges into the export (formulas, parameters, column formats, table settings, tables kept; `kept` and `replaced` reported), needs a checked `--backup` that is a full, current export (`helpers/backup-check.mjs`), and its round trip proves formulas, parameters and settings survived (fields ThoughtSpot adds on re-export, and rewritten formula ids, are allowed); `answer-pack` refuses flags without values and all-zero guids; `cluster-shot` keeps one sign-in profile per cluster (0700), `--logout` stays inside `cluster-profiles`; `serve.mjs` answers a malformed URL with 400 |

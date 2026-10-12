@@ -1,8 +1,7 @@
 # Opportunity Rate — KPI Card
 
 A single-number KPI card: headline rate, red/green change-vs-last-year indicator,
-and a comparison sentence with dynamic counts. Rendered as plain DOM — no Muze
-canvas (a KPI card has no plot).
+and a comparison sentence with dynamic counts. Rendered as plain DOM (a KPI card has no plot).
 
 ## ThoughtSpot setup
 
@@ -26,7 +25,7 @@ Behavior:
   and the indicator is hidden.
 - The `0` / `3` in the sentence are always the two count measures, bolded.
 
-## Paste into Muze Studio
+## Paste into ThoughtSpot
 
 Paste `result/script.js` as-is — the local preview shim lives in `index.html`
 and is not part of the pasted code. Card text, measure names, and colors are

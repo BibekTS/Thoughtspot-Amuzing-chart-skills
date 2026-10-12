@@ -14,6 +14,64 @@ real ThoughtSpot tile. All of it was verified in a cluster screenshot unless mar
   transit). Use `String.fromCharCode(8595)` for an arrow if you must; a `\\u0001` escape in source is fine.
 - Test at 280px wide as well as the nominal size.
 
+## MayaCharts (mayacharts, `maya.global.js`)
+
+Verified in the preview (headless Chromium, 0.15.0) on the starter below, `examples/maya-was-bars/` and the three
+MayaCharts library charts: render, every data mode, 280px to 1400px tiles, hover, click, sweep. Not yet screenshotted on a cluster: say "verified in preview" until it has been.
+
+- **Version: the latest release, pinned.** Take it from the doctor's `mayacharts:` line (it asks jsDelivr, then npm)
+  and write it into the one `MAYA` URL constant. Never `mayacharts/dist/...` without a version: a saved tile would change under the
+  user on the next release. Never a version from memory: the library ships often. If the line says `unknown`, ask.
+- **The whole tile is 6 fixed lines plus one spec.** No `AZ.boot`, no `AZ.tip`, no header or readout unless the user asks
+  for one: the element paints its own empty state (`text.noData`) and errors, follows its box, and carries the
+  tooltip, selection and keyboard focus. Verified in the preview on live, absent, wrapped, empty and no-host data,
+  280 to 1400px tiles, an empty HTML tab and a CDN that fails to load:
+  ```js
+  // Search: [sales] [item type]
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.15.0/dist/maya.global.js';
+  const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+  const done = () => viz?.events?.emitRenderCompletedEvent();
+  if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
+  const rows = ((r) => { const k = r.schema.map((c) => c.name); return r.data.map((d) => { const o = {}; k.forEach((n, i) => { const v = d[i]; o[n] = v !== null && typeof v === 'object' ? (typeof v.value === 'function' ? v.value() : v.value) : v; }); return o; }); })(viz?.getDataFromSearchQuery?.()?.getData() ?? { schema: [], data: [] });
+  ['maya-render', 'maya-error'].forEach((t) => el.addEventListener(t, done, { once: true }));
+  el.spec = { type: 'bar', x: 'Item Type', y: 'Total Sales', theme: THEME, data: rows };
+  ```
+  `chart.html` is `<maya-chart id="chart"></maya-chart>` (plus the Geist link); `chart.css` is
+  `html, body { height: 100%; margin: 0; background: #fff; } #chart { display: block; height: 100%; min-height: 0; color-scheme: light; }`.
+  The JS injects the global build itself (all 27 types; the ESM files need `import`, which a JS tab cannot do), so
+  an HTML tab pasted empty still works. Signal render-complete on `maya-render` and on `maya-error`, never on
+  `customElements.whenDefined`, which fires before the first draw when the JS runs before the library has loaded
+  (measured; BbekShr/mayacharts#59). The `rows` line is the same in every tile: never edit it, only the spec changes.
+  It is a plain loop over the column names, about 3x faster than `Object.fromEntries` per row (100k wrapped rows:
+  10 ms against 27 ms; 1M: 106 ms against 256 ms). In a library chart (core block present) read with
+  `const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };` instead, and use `AZ.col(schema, /sales/i)`
+  where a cluster may case a column differently.
+- **`min-height: 0` on the element is required**: its `:host` sets `min-height: 200px`, so in a short tile the axis
+  spills past the box.
+- **Fit the bar count to the tile**: bars squeeze to slivers rather than drop. Set `limit` from the tile height
+  (about 22px a bar) and the rest roll into Other.
+- **Theme to the house style** with tokens, not CSS overrides: `{ font: 'Geist, system-ui, sans-serif', fontSize:
+  '12px', fg: AZ.T.ink, fgMuted: AZ.T.muted, accent: AZ.T.ink, series1: AZ.T.ink, radius: '2px', bg: '#FFFFFF' }`.
+  Family hues go in `colors` as a map keyed by series value (`{ Outerwear: AZ.T.family.Outerwear, ... }`). Pin
+  `color-scheme: light` on the element: ThoughtSpot tiles are light whatever the OS is.
+- **Spec is JSON only**: no callbacks, no formatters. Money on an axis: `format: { sales: { style: 'currency',
+  currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } }` (the `currency` preset prints `$1,000,000`).
+  Display names: `titles`. Dates: epoch ms work with `xType: 'time'`.
+- **`was` (ghost of last period) needs wide rows** (`{ item, sales, before }`). A search such as
+  `[sales] [item type] [date].yearly` returns long rows, one per item and year, so pivot the latest two years first
+  (about 10 lines; BbekShr/mayacharts#60 asks for a period field instead). `was` does not combine with `stack` or a
+  `y` array.
+- **Interactivity is built in**: hover tooltip and dimming, keyboard focus, `legend` toggles, `select: true` (listen
+  for `maya-select`, `e.detail.selected[0].x`), `drill` on a `path`, `zoom`. That meets the contract's interaction
+  bar without `AZ.tip`. Restore a selection after a redraw with `chart.selected = [{ x: picked }]`.
+- **Shadow DOM**: the marks live in the element's open shadow root. `probe.mjs` and `snap.mjs`'s `svg-fit` look
+  inside it, and so do `--click-sel` / `--hover-sel` (marks carry `data-x`, e.g. `--click-sel "rect[data-x]"`); your
+  own `--eval` / `--after` expressions must reach in themselves (`document.querySelector('maya-chart').shadowRoot`).
+- Too many marks: bars roll up into "Other" past 10,000 marks and say so; waterfall, dumbbell and the module charts
+  throw `too-many-marks` instead. Keep searches aggregated, or set `limit`.
+- Errors carry a code and a link (`https://bbekshr.github.io/mayacharts/errors.html#<code>`): read that page before
+  guessing.
+
 ## ECharts (echarts@5)
 
 - Render with `renderer: 'svg'`, set `animation: false`, and pass an explicit `width` and `height`
@@ -30,13 +88,6 @@ real ThoughtSpot tile. All of it was verified in a cluster screenshot unless mar
   library would fight the shared tooltip.
 - Geography: do not fetch topology. `library/_shared/us-states.js` holds all 51 states as pre-projected
   Albers paths (viewBox 0 0 975 610) with centroids. Paste the const into the chart body and draw plain SVG.
-
-## Muze
-
-See section 0 (Recipes) of `references/muze-api-reference.md` and the "Verified in a real cluster" table in
-`references/hard-rules.md`. Short version: set stroke colour and width yourself on line marks, hide the native
-tooltip, crosshair and the `muze-columnHeader` cells, draw your own hover from `path.getScreenCTM()` read on
-every move.
 
 ## Chart.js (chart.js@4)
 

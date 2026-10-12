@@ -141,11 +141,7 @@ export function resolveEnv({ slug } = {}) {
     headless: headlessDefault(),
     display: hasDisplay(),
     helpersWritable: isWritable(here),
-    // No Muze build ships with this skill (its license does not allow redistribution). A user who is licensed
-    // to use one puts it here, or points TS_MUZE_DIR at it, and the preview uses it for Muze charts.
-    muzeDir: path.resolve(process.env.TS_MUZE_DIR || path.join(home, "muze")),
   };
-  env.muze = fs.existsSync(path.join(env.muzeDir, "muze.js"));
   if (slug) {
     env.slug = slug;
     env.runDir = path.join(env.runsRoot, slug);
@@ -286,6 +282,23 @@ async function cdnReachable() {
   } catch { return "blocked"; }
 }
 
+// MayaCharts ships often: every chart pins the release that is latest when it is built. jsDelivr answers
+// "latest" for the URL; the npm registry is the fallback (the Claude app can often reach one but not the other).
+async function mayaLatest() {
+  const tries = [
+    ["https://data.jsdelivr.com/v1/packages/npm/mayacharts/resolved?specifier=latest", (j) => j.version],
+    ["https://registry.npmjs.org/mayacharts/latest", (j) => j.version],
+  ];
+  for (const [url, pick] of tries) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(4000) });
+      const v = r.ok ? pick(await r.json()) : null;
+      if (/^\d+\.\d+\.\d+$/.test(v || "")) return `${v} (pin https://cdn.jsdelivr.net/npm/mayacharts@${v}/dist/maya.global.js, fallback https://unpkg.com/mayacharts@${v}/dist/maya.global.js)`;
+    } catch {}
+  }
+  return "unknown - could not reach jsDelivr or npm; ask before pinning a version from memory";
+}
+
 function fontFamilies() {
   const r = spawnSync("fc-list", [":", "family"], { encoding: "utf8" });
   if (r.status !== 0) return "n/a";
@@ -334,7 +347,7 @@ async function doctor(argv) {
     ["browser-launch", launch],
     ["cdn", noProbe ? "skipped" : await cdnReachable()],
     ["fonts", fontFamilies()],
-    ["muze", env.muze ? `found (${env.muzeDir})` : `not installed - Muze charts cannot be previewed here; verify them in ThoughtSpot (Step 9). To preview them, put a Muze build you are licensed to use (muze.js, muze.css, assets/) in ${env.muzeDir}, or set TS_MUZE_DIR`],
+    ["mayacharts", noProbe ? "skipped" : await mayaLatest()],
   ];
   if (slug) {
     lines.push(["run-dir", env.runDir], ["chart-dir", env.chartDir],

@@ -14,26 +14,13 @@
 //
 // 2. `viz` arrives as an argument, and is deliberately NOT set on `globalThis`.
 //    ThoughtSpot's documented entry point is the bare identifier
-//    (`const { muze, getDataFromSearchQuery } = viz;`). A chart that reads
+//    (`const { getDataFromSearchQuery } = viz;`). A chart that reads
 //    `globalThis.viz` instead passes a preview that publishes the global and
 //    then, on a host that scopes `viz` to the wrapper, silently falls back to
 //    sample rows and never fires emitRenderCompletedEvent. Withholding the
 //    global is what makes that failure visible here instead of on a tile.
 
 import { buildViz } from "./viz-stub.js";
-
-// No Muze build ships with the skill. If the user supplied one (see env.mjs, TS_MUZE_DIR), the server serves it
-// under /vendor/muze/ and Muze charts get viz.muze here as on a tile; otherwise viz.muze is undefined and the
-// diagnostic block says so, so a Muze chart that fails is not mistaken for a chart defect.
-let muze = null;
-try {
-  const has = await (await fetch("/__muze", { cache: "no-store" })).json();
-  if (!has.available) throw new Error("no Muze build");
-  muze = (await import("/vendor/muze/muze.js")).default ?? null;
-  const link = document.createElement("link");
-  link.rel = "stylesheet"; link.href = "/vendor/muze/muze.css";
-  document.head.appendChild(link);
-} catch { muze = null; }
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
@@ -44,7 +31,7 @@ const statusEl = document.getElementById("status");
 const hostEl = document.getElementById("chart-host");
 
 // Read by snap.mjs and printed in the diagnostic block.
-globalThis.__previewDiagnostics = { heightChain: null, muze: muze ? "available" : "unavailable" };
+globalThis.__previewDiagnostics = { heightChain: null };
 
 function setStatus(text, kind = "") {
   statusEl.textContent = text;
@@ -127,7 +114,7 @@ async function main() {
     console.warn("[preview] no sample-data.json — live-data modes will be empty");
   }
 
-  const viz = buildViz({ muze, dataset, mode: dataMode });
+  const viz = buildViz({ dataset, mode: dataMode });
 
   let html = "", css = "", js = "";
   try {
