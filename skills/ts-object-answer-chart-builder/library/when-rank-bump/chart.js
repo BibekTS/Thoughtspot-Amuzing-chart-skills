@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,156 +243,25 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [item type] [date].yearly
-// Bump chart of item-type rank by year (hand-built SVG, no library). Toggle Rank / Sales for the vertical axis.
-// Hover a line to highlight it and read year, rank and sales; click to pin it; click empty space to release.
-// The first and last year are marked "partial" when their sales are well below the years between them
-// (the yearly search carries no month detail, so the exact months cannot be read from the rows).
-let mode = 'rank', pinned = null;
-
-AZ.boot({
-  need: 'sales, item type and date at yearly grain, e.g. [sales] [item type] [date].yearly',
-  render: async ({ el, rows, schema, redraw }) => {
-    const iK = AZ.col(schema, /item/i), dK = AZ.col(schema, /date|year/i), sK = AZ.col(schema, /sales/i);
-    const S = new Map(), items = new Set(), yrs = new Set();
-    rows.forEach((r) => {
-      const t = AZ.ms(r[dK]); if (!isFinite(t)) return;
-      const y = AZ.year(t), it = String(r[iK]);
-      items.add(it); yrs.add(y);
-      S.set(it + '|' + y, (S.get(it + '|' + y) || 0) + AZ.num(r[sK]));
-    });
-    const Y = Array.from(yrs).sort((a, b) => a - b), I = Array.from(items);
-    if (!Y.length) { AZ.paint(el, '<div class="az-empty"><b>No years in the result</b><span>The search needs [sales] [item type] [date].yearly</span></div>'); return; }
-    if (pinned && I.indexOf(pinned) < 0) pinned = null;
-    const val = (it, y) => (S.has(it + '|' + y) ? S.get(it + '|' + y) : null);
-    const tot = (y) => I.reduce((a, it) => a + (val(it, y) || 0), 0);
-    // ranks per year
-    const rank = new Map();
-    Y.forEach((y) => {
-      I.filter((it) => val(it, y) != null).sort((a, b) => val(b, y) - val(a, y) || a.localeCompare(b)).forEach((it, k) => rank.set(it + '|' + y, k + 1));
-    });
-    const R = (it, y) => rank.get(it + '|' + y) || null;
-    // partial years: first / last year well under the mean of the years between them
-    const interior = Y.slice(1, -1), mean = interior.length ? interior.reduce((a, y) => a + tot(y), 0) / interior.length : 0;
-    const isPartial = (y) => mean > 0 && (y === Y[0] || y === Y[Y.length - 1]) && tot(y) < 0.85 * mean;
-    const nRank = Math.max(1, Math.max.apply(null, I.map((it) => Math.max.apply(null, Y.map((y) => R(it, y) || 0)))));
-
-    // Header line from the rows: who leads, biggest mover between first and last year
-    const y0 = Y[0], y1 = Y[Y.length - 1];
-    let sub;
-    const both = I.filter((it) => R(it, y0) && R(it, y1));
-    const lead0 = I.find((it) => R(it, y0) === 1), lead1 = I.find((it) => R(it, y1) === 1);
-    const held = Y.every((y) => I.find((it) => R(it, y) === 1) === lead1);
-    if (Y.length < 2) sub = AZ.esc(lead0) + ' ranks first in ' + y0 + ' with ' + AZ.money(val(lead0, y0), 1) + ' of sales';
-    else {
-      const mv = both.map((it) => ({ it, d: R(it, y0) - R(it, y1) }));
-      const up = mv.reduce((b, m) => (m.d > b.d ? m : b), mv[0] || { d: 0 }), dn = mv.reduce((b, m) => (m.d < b.d ? m : b), mv[0] || { d: 0 });
-      const changed = mv.filter((m) => m.d !== 0).length;
-      sub = (held ? '<b>' + AZ.esc(lead1) + '</b> is first in every year. ' : '<b>' + AZ.esc(lead0) + '</b> led in ' + y0 + ', <b>' + AZ.esc(lead1) + '</b> leads in ' + y1 + '. ')
-        + (changed === 0 ? 'No item type changes rank between ' + y0 + ' and ' + y1 + '.'
-          : 'Between ' + y0 + ' and ' + y1 + ', ' + (up.d > 0 ? '<b>' + AZ.esc(up.it) + '</b> climbs ' + up.d + (up.d === 1 ? ' place' : ' places') : '') + (up.d > 0 && dn.d < 0 ? ' and ' : '') + (dn.d < 0 ? '<b>' + AZ.esc(dn.it) + '</b> drops ' + (-dn.d) + (dn.d === -1 ? ' place' : ' places') : '') + '.');
-    }
-
-    const seg = [['rank', 'Rank'], ['sales', 'Sales']].map((k) => '<button type="button" data-k="' + k[0] + '" class="' + (k[0] === mode ? 'on' : '') + '">' + k[1] + '</button>').join('');
-    el.innerHTML = '<div class="rb-top"><div class="rb-title">Item type ' + (mode === 'rank' ? 'rank' : 'sales') + ' by year</div><div class="rb-seg" role="group" aria-label="Vertical axis">' + seg + '</div></div><div class="rb-sub">' + sub + '</div><div class="rb-plot" id="rb-plot"></div>';
-    el.querySelectorAll('.rb-seg button').forEach((b) => b.addEventListener('click', () => { mode = b.getAttribute('data-k'); redraw(); }));
-
-    const box = document.getElementById('rb-plot'), W = Math.max(240, box.clientWidth), H = Math.max(140, box.clientHeight);
-    const longest = Math.max.apply(null, I.map((it) => it.length)) + 6;
-    const ml = mode === 'sales' ? 40 : Math.min(W * 0.28, longest * 6.4 + 30), mr = Math.min(W * 0.3, longest * 6.4 + 34), mt = 8, mb = 38;
-    const iw = W - ml - mr, ih = H - mt - mb;
-    const xs = (i) => (Y.length < 2 ? ml + iw / 2 : ml + (i * iw) / (Y.length - 1));
-    let vmax = 0; I.forEach((it) => Y.forEach((y) => { const v = val(it, y); if (v != null && v > vmax) vmax = v; }));
-    const ysr = (r) => mt + 6 + (nRank <= 1 ? (ih - 12) / 2 : ((r - 1) * (ih - 12)) / (nRank - 1));
-    const step = (function () { const raw = vmax / 4 || 1, pw = Math.pow(10, Math.floor(Math.log10(raw))); return [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].find((n) => n * pw >= raw) * pw; })();
-    const top = Math.max(step, Math.ceil(vmax / step) * step);
-    const yss = (v) => mt + 6 + (ih - 12) * (1 - v / top);
-    const yPos = (it, y) => (mode === 'rank' ? ysr(R(it, y)) : yss(val(it, y)));
-    const fam = (it) => AZ.familyColor(it);
-    const NS = 'http://www.w3.org/2000/svg';
-
-    let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Item type rank by year">';
-    // partial year bands and gridlines
-    Y.forEach((y, i) => { if (isPartial(y)) s += '<rect x="' + (xs(i) - (Y.length < 2 ? 40 : iw / (Y.length - 1) * 0.28)).toFixed(1) + '" y="' + mt + '" width="' + (Y.length < 2 ? 80 : iw / (Y.length - 1) * 0.56).toFixed(1) + '" height="' + ih + '" fill="' + AZ.T.slate[0] + '" opacity="0.7"/>'; });
-    if (mode === 'sales') for (let v = 0; v <= top + 1; v += step) s += '<line x1="' + ml + '" x2="' + (ml + iw) + '" y1="' + yss(v).toFixed(1) + '" y2="' + yss(v).toFixed(1) + '" stroke="' + AZ.T.grid + '"/><text class="rb-gl" x="' + (ml - 4) + '" y="' + (yss(v) - 3).toFixed(1) + '" text-anchor="end" style="display:none">' + AZ.money(v, 0) + '</text>';
-    Y.forEach((y, i) => {
-      s += '<line x1="' + xs(i).toFixed(1) + '" x2="' + xs(i).toFixed(1) + '" y1="' + mt + '" y2="' + (mt + ih) + '" stroke="' + AZ.T.grid + '"/>';
-      s += '<text class="rb-ax" x="' + xs(i).toFixed(1) + '" y="' + (H - 20) + '" text-anchor="middle">' + y + '</text>';
-      if (isPartial(y)) s += '<text class="rb-ax2" x="' + xs(i).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle">partial</text>';
-    });
-    // lines: draw in reverse rank order of the last year so the leaders sit on top
-    const order = I.slice().sort((a, b) => (R(b, y1) || 99) - (R(a, y1) || 99));
-    order.forEach((it) => {
-      const k = AZ.esc(it);
-      s += '<g class="rb-line" data-k="' + k + '">';
-      for (let i = 0; i < Y.length - 1; i++) {
-        if (val(it, Y[i]) == null || val(it, Y[i + 1]) == null) continue;
-        const xa = xs(i), xb = xs(i + 1), ya = yPos(it, Y[i]), yb = yPos(it, Y[i + 1]), xm = (xa + xb) / 2;
-        const dash = isPartial(Y[i]) || isPartial(Y[i + 1]);
-        s += '<path d="M' + xa.toFixed(1) + ' ' + ya.toFixed(1) + ' C' + xm.toFixed(1) + ' ' + ya.toFixed(1) + ' ' + xm.toFixed(1) + ' ' + yb.toFixed(1) + ' ' + xb.toFixed(1) + ' ' + yb.toFixed(1) + '" fill="none" stroke="' + fam(it) + '" stroke-width="2.5" stroke-linecap="round"' + (dash ? ' stroke-dasharray="5 4"' : '') + '/>';
-        s += '<path d="M' + xa.toFixed(1) + ' ' + ya.toFixed(1) + ' C' + xm.toFixed(1) + ' ' + ya.toFixed(1) + ' ' + xm.toFixed(1) + ' ' + yb.toFixed(1) + ' ' + xb.toFixed(1) + ' ' + yb.toFixed(1) + '" fill="none" stroke="transparent" stroke-width="12" data-hit="1"/>';
-      }
-      Y.forEach((y, i) => { if (val(it, y) != null) s += '<circle class="rb-pt" cx="' + xs(i).toFixed(1) + '" cy="' + yPos(it, y).toFixed(1) + '" r="4.5" fill="#fff" stroke="' + fam(it) + '" stroke-width="2.5" data-hit="1"/>'; });
-      s += '</g>';
-    });
-    // end labels, spread so they do not collide
-    const spread = (arr) => {
-      const lo = mt + 6, hi = mt + ih - 4, gap = 13.5;
-      arr.forEach((a) => { a.y0 = a.y; });
-      arr.sort((a, b) => a.y - b.y);
-      for (let n = 0; n < 60; n++) {
-        for (let k = 1; k < arr.length; k++) {
-          const d = arr[k].y - arr[k - 1].y;
-          if (d < gap) { const m = (gap - d) / 2; arr[k - 1].y -= m; arr[k].y += m; }
-        }
-        arr.forEach((a) => { a.y = Math.max(lo, Math.min(hi, a.y)); });
-      }
-      return arr;
-    };
-    const left = spread(I.filter((it) => val(it, y0) != null).map((it) => ({ it, y: yPos(it, y0) })));
-    const right = spread(I.filter((it) => val(it, y1) != null).map((it) => ({ it, y: yPos(it, y1) })));
-    if (mode === 'rank') left.forEach((a) => { s += '<text class="rb-lab" data-k="' + AZ.esc(a.it) + '" x="' + (xs(0) - 11) + '" y="' + (a.y + 4).toFixed(1) + '" text-anchor="end">' + AZ.esc(a.it) + '</text>'; });
-    right.forEach((a) => {
-      if (Math.abs(a.y - a.y0) > 2) s += '<line x1="' + (xs(Y.length - 1) + 6) + '" y1="' + a.y0.toFixed(1) + '" x2="' + (xs(Y.length - 1) + 10) + '" y2="' + a.y.toFixed(1) + '" stroke="' + AZ.T.muted + '" stroke-width="1"/>';
-      const v = mode === 'rank' ? '#' + R(a.it, y1) : AZ.money(val(a.it, y1), 1);
-      s += '<text class="rb-lab" data-k="' + AZ.esc(a.it) + '" x="' + (xs(Y.length - 1) + 11) + '" y="' + (a.y + 4).toFixed(1) + '">' + AZ.esc(a.it) + ' <tspan class="v">' + v + '</tspan></text>';
-    });
-    s += '</svg>';
-    box.innerHTML = s;
-    if (mode === 'sales') box.querySelectorAll('.rb-gl').forEach((t) => { t.style.display = ''; });
-
-    const svg = box.querySelector('svg'), tip = AZ.tip(box);
-    const groups = Array.from(svg.querySelectorAll('.rb-line')), labs = Array.from(svg.querySelectorAll('.rb-lab'));
-    const apply = (hov) => {
-      const act = hov || pinned;
-      groups.forEach((g) => { g.style.opacity = act && g.getAttribute('data-k') !== AZ.esc(act) ? 0.15 : 1; });
-      labs.forEach((t) => { t.style.opacity = act && t.getAttribute('data-k') !== AZ.esc(act) ? 0.3 : 1; t.style.fontWeight = act && t.getAttribute('data-k') === AZ.esc(act) ? 600 : 400; });
-    };
-    const unesc = (k) => I.find((it) => AZ.esc(it) === k);
-    apply(null);
-    svg.addEventListener('mousemove', (e) => {
-      const tgt = e.target.closest && e.target.closest('[data-k]');
-      if (!tgt) { apply(null); tip.hide(); return; }
-      const it = unesc(tgt.getAttribute('data-k'));
-      apply(it);
-      const b = box.getBoundingClientRect(), px = (e.clientX - b.left) / b.width * W;
-      let k = 0, bd = 1e9; Y.forEach((y, i) => { const d = Math.abs(xs(i) - px); if (d < bd) { bd = d; k = i; } });
-      let yy = Y[k]; if (val(it, yy) == null) { yy = Y.find((y) => val(it, y) != null); }
-      let h = '<b>' + AZ.esc(it) + '</b>' + AZ.row('Year', String(yy) + (isPartial(yy) ? ' (partial)' : ''), fam(it)) + AZ.row('Rank', '#' + R(it, yy)) + AZ.row('Sales', AZ.money(val(it, yy), 1));
-      const j = Y.indexOf(yy);
-      if (j > 0 && R(it, Y[j - 1])) { const d = R(it, Y[j - 1]) - R(it, yy); h += AZ.row('Rank vs ' + Y[j - 1], d === 0 ? 'no change' : (d > 0 ? '+' : '-') + Math.abs(d) + (Math.abs(d) === 1 ? ' place' : ' places')); }
-      tip.show(h, e.clientX - b.left, e.clientY - b.top);
-    });
-    svg.addEventListener('mouseleave', () => { apply(null); tip.hide(); });
-    svg.addEventListener('click', (e) => {
-      const tgt = e.target.closest && e.target.closest('[data-k]');
-      const it = tgt ? unesc(tgt.getAttribute('data-k')) : null;
-      pinned = it && it !== pinned ? it : null;
-      apply(pinned);
-    });
-  }
-});
+// Interactions: hover a dot to light that item type's thread and see the year's order; click a thread or a legend key to select it (Escape clears); arrow keys step through years and item types.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const opt = { optional: true }, I = AZ.col(schema, /item/i, opt) ?? 'Item type', D = AZ.col(schema, /date|year/i, opt) ?? 'Year', V = AZ.col(schema, /sales/i, opt) ?? 'Sales';
+// A weave holds 8 threads: keep the 8 item types with the most sales over the years shown (ranks are among those 8).
+const tot = new Map();
+for (const r of rows) tot.set(r[I], (tot.get(r[I]) ?? 0) + (AZ.num(r[V]) || 0));
+const top = new Set([...tot].sort((a, b) => b[1] - a[1]).slice(0, 8).map((e) => e[0]));
+const pts = rows.filter((r) => top.has(r[I])).map((r) => ({ Year: String(AZ.year(AZ.ms(r[D]))), 'Item type': r[I], Sales: AZ.num(r[V]) })).sort((a, b) => a.Year.localeCompare(b.Year));
+AZ.maya({
+  type: 'weave', x: 'Year', y: 'Sales', series: 'Item type', select: true,
+  colors: Object.fromEntries([...top].map((k) => [k, AZ.familyColor(k)])),
+  title: pts.length ? 'Item type rank by year' : '',
+  subtitle: tot.size > 8 ? 'Top 8 of ' + tot.size + ' item types by sales; colour is product family' : '',
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
+  text: { noData: 'No rows yet. Bind the search [sales] [item type] [date].yearly' },
+  data: pts
+}, 'maya.global.js');

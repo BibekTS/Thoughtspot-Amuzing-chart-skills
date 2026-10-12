@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,85 +243,32 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
-// Search: [sales] [region] [item type]
-// Five small multiples, one per region: the region's share of sales by product family (ink bar)
-// against the all-region average (slate tick). Region is shown by panel, never by colour.
-// Interactions: hover a family row for the region's share and the gap to the average, click a region to enlarge it and dim the rest.
-let iso = null;
-
-AZ.boot({
-  need: 'sales by region and item type, e.g. [sales] [region] [item type]',
-  render: async ({ el, rows, schema, redraw, w }) => {
-    const rK = AZ.col(schema, /region/i), tK = AZ.col(schema, /item type|type/i), sK = AZ.col(schema, /sales/i);
-    const fams = Object.keys(AZ.T.family), reg = new Map(), avgS = {};
-    let grand = 0;
-    rows.forEach((r) => {
-      const f = AZ.familyOf(r[tK]); if (fams.indexOf(f) < 0) return;
-      const n = String(r[rK]), v = AZ.num(r[sK]);
-      const o = reg.get(n) || { name: n, tot: 0, by: {} };
-      o.tot += v; o.by[f] = (o.by[f] || 0) + v; reg.set(n, o);
-      avgS[f] = (avgS[f] || 0) + v; grand += v;
-    });
-    if (!reg.size || !grand) throw new Error('No regions in the result. Search: [sales] [region] [item type]');
-    const avg = {}; fams.forEach((f) => { avg[f] = (avgS[f] || 0) / grand; });
-    const R = Array.from(reg.values()).sort((a, b) => b.tot - a.tot);
-    R.forEach((o) => {
-      o.sh = {}; o.gap = {}; let dev = 0, top = null;
-      fams.forEach((f) => { o.sh[f] = o.tot ? (o.by[f] || 0) / o.tot : 0; o.gap[f] = o.sh[f] - avg[f]; dev += Math.abs(o.gap[f]); if (!top || Math.abs(o.gap[f]) > Math.abs(o.gap[top])) top = f; });
-      o.dev = dev / 2; o.topFam = top;
-    });
-    if (iso && !reg.has(iso)) iso = null;
-    const mx = Math.max.apply(null, R.map((o) => Math.max.apply(null, fams.map((f) => Math.max(o.sh[f], avg[f]))))) * 1.08 || 1;
-    const far = R.slice().sort((a, b) => b.dev - a.dev)[0];
-    const pts = (x) => (x >= 0 ? '+' : '-') + Math.abs(x * 100).toFixed(1) + ' pts';
-    const head = R.length < 2
-      ? '<b>' + AZ.esc(far.name) + '</b> is the only region in the current filter, so its mix is the average.'
-      : '<b>' + AZ.esc(far.name) + '</b> differs most' + (Math.abs(far.gap[far.topFam]) < 0.03 ? ', and only slightly' : '') + ': <b>' + AZ.esc(far.topFam) + '</b> is ' + AZ.pct(far.sh[far.topFam], 0) + ' of its sales against ' + AZ.pct(avg[far.topFam], 0) + ' overall (' + pts(far.gap[far.topFam]) + ').';
-
-    const panel = (o, big) => '<div class="rp-p' + (big ? ' big' : '') + '" tabindex="0" role="button" data-r="' + AZ.esc(o.name) + '" aria-pressed="' + (o.name === iso) + '" aria-label="' + AZ.esc(o.name + ', ' + (o.dev * 100).toFixed(1) + ' points of its sales mix differ from the average. ' + (big ? 'Click to restore' : 'Click to enlarge')) + '">'
-      + '<div class="rp-t"><b>' + AZ.esc(o.name) + '</b><span>' + (big ? AZ.money(o.tot, 1) + ' sales | ' + (o.dev * 100).toFixed(1) + ' pts off average' : (o.dev * 100).toFixed(1) + ' pts') + '</span></div>'
-      + '<div class="rp-rows">' + fams.map((f) => '<div class="rp-r" data-f="' + AZ.esc(f) + '"><i style="background:' + AZ.T.family[f] + '"></i><span class="fn">' + AZ.esc(f) + '</span>'
-        + '<div class="rp-tr"><div class="rp-bar" style="width:' + (o.sh[f] / mx * 100).toFixed(1) + '%"></div><div class="rp-av" style="left:' + (avg[f] / mx * 100).toFixed(1) + '%"></div></div>'
-        + '<span class="gp"></span></div>').join('') + '</div></div>';
-
-    let body = '';
-    if (iso && R.length > 1) {
-      const o = reg.get(iso), rest = R.filter((x) => x !== o);
-      body = panel(o, true) + rest.map((x) => panel(x, false)).join('');
-    } else {
-      body = R.map((x) => panel(x, false)).join('');
-    }
-    el.innerHTML = '<div class="rp-head">' + head + '</div><div class="rp-body' + (iso && R.length > 1 ? ' iso' : '') + (w < 340 ? ' nar' : '') + '">' + body
-      + (iso && R.length > 1 ? '' : '<div class="rp-key"><div><i class="k" style="background:var(--az-ink);width:14px"></i>Region share</div><div><i class="k" style="background:var(--az-slate-4,#6A7891);width:3px;margin:0 5px"></i>All-region avg.</div>'
-        + fams.map((f) => '<div><i style="background:' + AZ.T.family[f] + '"></i>' + AZ.esc(f) + '</div>').join('') + '</div>') + '</div>'
-      + '<div class="rp-ft">Share of each region&#39;s sales by family. Bars share one scale. Families group item types (editorial).</div>';
-
-    // Enlarged panel shows the numbers: replace the gap column text with share and gap.
-    const tip = AZ.tip(el);
-    if (iso && R.length > 1) {
-      const o = reg.get(iso);
-      el.querySelectorAll('.rp-p.big .rp-r').forEach((r) => {
-        const f = r.getAttribute('data-f');
-        r.querySelector('.gp').textContent = AZ.pct(o.sh[f], 0) + '  ' + pts(o.gap[f]);
-        r.querySelector('.gp').style.fontWeight = '500';
-      });
-    }
-    el.querySelectorAll('.rp-p').forEach((p) => {
-      const name = p.getAttribute('data-r'), o = reg.get(name);
-      const toggle = () => { iso = iso === name ? null : name; redraw(); };
-      p.addEventListener('click', toggle);
-      p.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
-      p.addEventListener('mousemove', (e) => {
-        const r = e.target.closest && e.target.closest('.rp-r'), b = el.getBoundingClientRect();
-        if (!r) return tip.hide();
-        const f = r.getAttribute('data-f');
-        tip.show('<b>' + AZ.esc(name) + '</b>' + AZ.row(f, AZ.pct(o.sh[f], 1), AZ.T.family[f]) + AZ.row('All-region average', AZ.pct(avg[f], 1)) + AZ.row('Gap to average', pts(o.gap[f])) + AZ.row('Sales', AZ.money(o.by[f] || 0, 1)), e.clientX - b.left, e.clientY - b.top);
-      });
-      p.addEventListener('mouseleave', () => tip.hide());
-    });
-  }
+// Search: [sales] [region] [item type]   (Family is an editorial grouping of Item Type, derived here)
+// Interactions: Gap / Share toggle; hover a bar for the region, family and value; click a family key to hide or show it; click bars to select, Escape clears.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, Rg = c(/region/i, 'Region'), I = c(/item/i, 'Item Type'), V = c(/sales/i, 'Total Sales');
+// Each region's family mix (share of its own sales) and its gap in points from the all-region mix.
+const FO = Object.keys(AZ.T.family).concat('Other'), reg = new Map(), all = new Map();
+rows.forEach((r) => {
+  const f = AZ.familyOf(r[I]), v = AZ.num(r[V]), m = reg.get(r[Rg]) ?? reg.set(r[Rg], new Map()).get(r[Rg]);
+  m.set(f, (m.get(f) ?? 0) + v); all.set(f, (all.get(f) ?? 0) + v);
+});
+const sum = (m) => [...m.values()].reduce((a, b) => a + b, 0), A = sum(all);
+const data = [...reg].sort((a, b) => sum(b[1]) - sum(a[1])).flatMap(([rg, m]) => FO.filter((f) => all.has(f)).map((f) => {
+  const s = sum(m) ? (m.get(f) ?? 0) / sum(m) : 0, avg = A ? all.get(f) / A : 0;
+  return { Region: rg, Family: f, Share: s, Gap: 100 * (s - avg) };
+}));
+const w = [...data].sort((a, b) => Math.abs(b.Gap) - Math.abs(a.Gap))[0];
+AZ.maya({
+  type: 'bar', horizontal: true, x: 'Region', y: ['Gap', 'Share'], series: 'Family', select: true, colors: AZ.T.family,
+  title: w ? w.Region + ' differs most: ' + w.Family + ' ' + AZ.pts(w.Gap / 100) : '',
+  subtitle: w ? 'Family share of each region\'s sales minus the all-region share' + (Math.abs(w.Gap) < 1 ? '; every gap is under 1 point' : '') : '',
+  titles: { Gap: 'Gap from average', Share: 'Share of region sales' },
+  format: { Gap: { maximumFractionDigits: 1, signDisplay: 'exceptZero', suffix: ' pts' }, Share: { style: 'percent', maximumFractionDigits: 1 } },
+  text: { noData: 'No rows yet: bind [sales] [region] [item type]' },
+  data
 });

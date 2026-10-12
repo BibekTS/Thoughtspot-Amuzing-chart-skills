@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,138 +243,29 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [store] [date].quarterly
-// Bar-chart race: top 10 stores by cumulative sales, re-ranked quarter by quarter.
-// Interactions: Play / Pause, scrub slider, hover tooltip, click a store to follow it.
-let qi = null, playing = false, followed = null;
-
-AZ.boot({
-  need: 'sales by store by quarter, e.g. [sales] [store] [date].quarterly',
-  render: async ({ el, rows, schema, redraw, h }) => {
-    const sK = AZ.col(schema, /sales/i), stK = AZ.col(schema, /store/i), dK = AZ.col(schema, /date|quarter|month/i);
-    const qset = new Set(), by = new Map();
-    rows.forEach((r) => {
-      const t = AZ.ms(r[dK]); if (!isFinite(t)) return;
-      qset.add(t);
-      const s = String(r[stK]);
-      if (!by.has(s)) by.set(s, new Map());
-      const m = by.get(s); m.set(t, (m.get(t) || 0) + AZ.num(r[sK]));
-    });
-    const qs = Array.from(qset).sort((a, b) => a - b);
-    if (!qs.length || !by.size) throw new Error('No stores or quarters in the result. Search: [sales] [store] [date].quarterly');
-    const qLabel = (t) => { const d = new Date(t); return 'Q' + (Math.floor(d.getUTCMonth() / 3) + 1) + ' ' + d.getUTCFullYear(); };
-    const stores = Array.from(by.keys()).map((name) => {
-      const m = by.get(name); let run = 0;
-      const q = qs.map((t) => m.get(t) || 0), cum = q.map((v) => (run += v));
-      const mt = name.match(/^(.*?)\s*\((.*)\)\s*$/);
-      return { name, state: mt ? mt[1] : name, code: mt ? mt[2] : name, q, cum };
-    });
-    const N = stores.length, TOP = Math.min(10, N), last = qs.length - 1;
-    if (qi == null || qi > last) qi = last;
-    if (followed && !by.has(followed)) followed = null;
-    // Rank of every store at every quarter, and who has led.
-    const rankAt = qs.map((t, i) => {
-      const o = stores.slice().sort((a, b) => b.cum[i] - a.cum[i] || a.name.localeCompare(b.name));
-      const mp = new Map(); o.forEach((s, k) => mp.set(s.name, k + 1)); return { order: o, rank: mp };
-    });
-    
-    el.innerHTML =
-      '<div class="sr-head" id="sr-head"></div>'
-      + '<div class="sr-ctl"><button type="button" class="sr-btn" id="sr-play"></button>'
-      + '<input type="range" class="sr-slider" id="sr-sl" min="0" max="' + last + '" step="1" value="' + qi + '" aria-label="Quarter"' + (last ? '' : ' disabled') + '>'
-      + '<div class="sr-q" id="sr-q"></div></div>'
-      + '<div class="sr-area" id="sr-area"></div>'
-      + (h < 360 ? '' : '<div class="sr-cap">Cumulative sales since ' + AZ.esc(qLabel(qs[0])) + (new Date(qs[0]).getUTCFullYear() === 2021 && new Date(qs[0]).getUTCMonth() === 3 ? ', which covers June only' : '') + '. State is shown under each store code.</div>');
-    const area = el.querySelector('#sr-area'), head = el.querySelector('#sr-head'), btn = el.querySelector('#sr-play'), sl = el.querySelector('#sr-sl'), qEl = el.querySelector('#sr-q');
-    const slots = TOP + 1, aw = Math.max(200, area.clientWidth), ah = Math.max(60, area.clientHeight);
-    const rowH = Math.min(38, Math.floor(ah / slots));
-    if (rowH < 26) area.classList.add('tight');
-    const NMW = rowH < 26 ? 122 : 96;
-    const trackW = Math.max(60, aw - 28 - NMW - 16 - 8);
-    const VALW = 62;
-
-    stores.forEach((s) => {
-      const r = document.createElement('div');
-      r.className = 'sr-row off'; r.tabIndex = 0; r.setAttribute('role', 'button');
-      r.style.height = rowH + 'px'; r.style.transform = 'translateY(' + (slots * rowH) + 'px)';
-      r.innerHTML = '<span class="sr-rk"></span><span class="sr-nm"><b>' + AZ.esc(s.code) + '</b><i>' + AZ.esc(s.state) + '</i></span><span class="sr-tr"><span class="sr-bar"></span><span class="sr-val"></span></span>';
-      r.querySelector('.sr-nm').style.width = NMW + 'px'; s.rk = r.querySelector('.sr-rk'); s.bar = r.querySelector('.sr-bar'); s.val = r.querySelector('.sr-val');
-      r.addEventListener('click', () => { followed = followed === s.name ? null : s.name; update(); });
-      r.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); followed = followed === s.name ? null : s.name; update(); } });
-      r.addEventListener('mousemove', (e) => { hov = s; showTip(s, e); });
-      r.addEventListener('mouseleave', () => { hov = null; tip.hide(); });
-      r.addEventListener('focus', () => { const b = r.getBoundingClientRect(), a = el.getBoundingClientRect(); hov = s; showTip(s, { clientX: b.left + 120, clientY: b.top + b.height / 2 }); });
-      r.addEventListener('blur', () => { hov = null; tip.hide(); });
-      area.appendChild(r); s.el = r;
-    });
-    const hint = document.createElement('div'); hint.className = 'sr-hint'; hint.style.height = rowH + 'px'; hint.style.transform = 'translateY(' + (TOP * rowH) + 'px)';
-    hint.textContent = 'Click a store to follow it'; area.appendChild(hint);
-    const tip = AZ.tip(el); let hov = null;
-    function showTip(s, e) {
-      const b = el.getBoundingClientRect();
-      tip.show('<b>' + AZ.esc(s.name) + '</b>' + AZ.row('Rank', '#' + rankAt[qi].rank.get(s.name) + ' of ' + N)
-        + AZ.row('Cumulative sales', AZ.money(s.cum[qi], 2)) + AZ.row(qLabel(qs[qi]) + ' sales', AZ.money(s.q[qi], 2))
-        + (followed === s.name ? AZ.row('Following', 'yes') : ''), e.clientX - b.left, e.clientY - b.top);
-    }
-
-    function update() {
-      const ord = rankAt[qi].order, shown = new Set(ord.slice(0, TOP).map((s) => s.name));
-      const mx = Math.max(1, ord[0].cum[qi]);
-      const barMax = trackW - VALW;
-      const pinned = followed && !shown.has(followed) ? followed : null;
-      stores.forEach((s) => {
-        const rank = rankAt[qi].rank.get(s.name), r = s.el;
-        const slot = rank <= TOP ? rank - 1 : (s.name === pinned ? TOP : -1);
-        const on = slot >= 0;
-        r.classList.toggle('off', !on);
-        r.classList.toggle('fol', followed === s.name);
-        r.classList.toggle('sr-dim', !!followed && followed !== s.name);
-        r.setAttribute('aria-label', s.name + ', rank ' + rank + ', cumulative ' + AZ.money(s.cum[qi], 2) + (followed === s.name ? ', following' : ''));
-        r.setAttribute('aria-pressed', followed === s.name ? 'true' : 'false');
-        r.style.transform = 'translateY(' + (on ? slot * rowH : slots * rowH) + 'px)';
-        s.rk.textContent = rank <= TOP ? String(rank) : '#' + rank;
-        const w = Math.max(2, Math.round(s.cum[qi] / mx * barMax));
-        s.bar.style.width = w + 'px';
-        s.val.style.left = (w + 8) + 'px';
-        s.val.textContent = AZ.money(s.cum[qi], s.cum[qi] >= 1e8 ? 0 : 1);
-      });
-      hint.style.opacity = followed ? 0 : 1;
-      const lead = ord[0], second = ord[1], leaders = new Set(rankAt.slice(0, qi + 1).map((r) => r.order[0].name));
-      head.innerHTML = '<b>' + AZ.esc(lead.name) + '</b> leads with ' + AZ.money(lead.cum[qi], 1)
-        + (second ? ', ' + AZ.money(lead.cum[qi] - second.cum[qi], 1) + ' ahead of ' + AZ.esc(second.name) : '')
-        + ' <span>| ' + (leaders.size === 1 ? 'the only store to lead so far' : leaders.size + ' different stores have led so far') + '</span>';
-      qEl.textContent = qLabel(qs[qi]);
-      sl.value = String(qi);
-      btn.textContent = playing ? 'Pause' : 'Play';
-      btn.setAttribute('aria-label', playing ? 'Pause the race' : 'Play the race from the first quarter');
-      if (hov) tip.hide();
-    }
-
-    // Playback clock on requestAnimationFrame, one quarter per STEP ms; stopped in cleanup.
-    const STEP = 900; let raf = 0, acc = 0, prev = 0;
-    function frame(ts) {
-      if (!playing) { raf = 0; return; }
-      acc += ts - prev; prev = ts;
-      if (acc >= STEP) {
-        acc = 0;
-        if (qi >= last) { playing = false; update(); raf = 0; return; }
-        qi += 1; update();
-      }
-      raf = requestAnimationFrame(frame);
-    }
-    function start() { if (raf) cancelAnimationFrame(raf); acc = 0; prev = performance.now(); raf = requestAnimationFrame(frame); }
-    btn.addEventListener('click', () => {
-      if (last === 0) return;
-      if (playing) { playing = false; update(); return; }
-      qi = 0; playing = true; update(); start();
-    });
-    sl.addEventListener('input', () => { playing = false; qi = Number(sl.value); update(); });
-    update();
-    if (playing) start();
-    return () => { if (raf) cancelAnimationFrame(raf); raf = 0; };
-  }
+// Interactions: Play steps through the quarters (bars re-rank as cumulative sales build); hover a bar for the store, its cumulative sales and that quarter's sales; click stores to select them, Escape clears.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, St = c(/store/i, 'Store'), D = c(/date|quarter/i, 'Quarter(date)'), V = c(/sales/i, 'Total Sales');
+// Cumulative sales per store at the end of every quarter (a store with no sales in a quarter carries its total forward).
+const qName = (t) => { const d = new Date(t); return 'Q' + (Math.floor(d.getUTCMonth() / 3) + 1) + ' ' + d.getUTCFullYear(); };
+const ts = [...new Set(rows.map((r) => AZ.ms(r[D])))].sort((a, b) => a - b), stores = [...new Set(rows.map((r) => r[St]))];
+const q = new Map(rows.map((r) => [r[St] + '|' + AZ.ms(r[D]), AZ.num(r[V])])), run = new Map(stores.map((s) => [s, 0]));
+const data = ts.flatMap((t) => stores.map((s) => { const v = q.get(s + '|' + t) ?? 0; run.set(s, run.get(s) + v); return { Quarter: qName(t), Store: s, Cumulative: run.get(s), 'Quarter sales': v }; }));
+// Each quarter keeps its own top 10, so a store enters and leaves the race as it climbs or falls.
+const money = { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 };
+const top = ts.flatMap((t) => data.filter((r) => r.Quarter === qName(t)).sort((a, b) => b.Cumulative - a.Cumulative).slice(0, 10));
+AZ.maya({
+  type: 'bar', horizontal: true, x: 'Store', y: 'Cumulative', frame: 'Quarter', sort: 'desc', labels: true, select: 'multi', tooltip: { fields: ['Quarter sales'] },
+  title: top.length ? '{max.x} leads with {max.y}' : '', // tokens follow the frame shown
+  subtitle: ts.length ? 'Cumulative sales since ' + qName(ts[0]) + ', top 10 stores; press Play to race through the quarters' : '',
+  titles: { Cumulative: 'Cumulative sales' },
+  format: { Cumulative: money, 'Quarter sales': money },
+  text: { noData: 'No rows yet: bind [sales] [store] [date].quarterly' },
+  theme: { series1: '#8E9AAB' },
+  data: top
 });

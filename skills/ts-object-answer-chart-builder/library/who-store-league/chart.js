@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,281 +243,43 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
-
 // Search: [sales] [store] [region] [date].monthly [date].'this year' [date].'last year'
-// Store league table: position, movement against last year's position over the same year-to-date window, region,
-// YTD sales, YTD change and a form strip (the last 5 complete months, each against the same month last year).
-// Interactions: region chips filter (rows glide), click a header to sort (rows glide), hover a row or a form square
-// for a tooltip, click a row to open its monthly bars this year against last year. Escape closes.
-let sortKey = 'pos', sortDir = 1, regs = new Set(), openKey = null, soloShut = false;
-
-AZ.boot({
-  need: 'sales, store, region and month over this year and last year, e.g. [sales] [store] [region] [date].monthly [date].\'this year\' [date].\'last year\'',
-  render: async ({ el, rows, schema, w }) => {
-    const sK = AZ.col(schema, /^store$|store/i), rK = AZ.col(schema, /region/i, { optional: true });
-    const dK = AZ.col(schema, /month|date/i), vK = AZ.col(schema, /sales/i);
-    const UP = String.fromCharCode(8593), DN = String.fromCharCode(8595), SP = String.fromCharCode(160);
-    const mKey = (y, m) => y * 12 + m;
-    const ST = new Map(), TOT = new Map();
-    rows.forEach((r) => {
-      const t = AZ.ms(r[dK]); if (!isFinite(t)) return;
-      const d = new Date(t), k = mKey(d.getUTCFullYear(), d.getUTCMonth()), v = AZ.num(r[vK]), name = String(r[sK]);
-      const s = ST.get(name) || { store: name, region: rK ? String(r[rK] == null ? '' : r[rK]) : '', m: new Map() };
-      s.m.set(k, (s.m.get(k) || 0) + v); ST.set(name, s);
-      TOT.set(k, (TOT.get(k) || 0) + v);
-    });
-    if (!ST.size) {
-      el.innerHTML = '<div class="az-empty"><b>No stores in the result</b><span>The filters leave no rows. Search: [sales] [store] [region] [date].monthly</span></div>';
-      return;
-    }
-    const keys = Array.from(TOT.keys()).sort((a, b) => a - b);
-    const latest = keys[keys.length - 1];
-    // Part month: the latest month is partial when its total is far below the median of the three before it.
-    const prev3 = keys.filter((k) => k < latest).slice(-3).map((k) => TOT.get(k)).sort((a, b) => a - b);
-    const partial = prev3.length >= 2 && TOT.get(latest) < 0.6 * prev3[Math.floor(prev3.length / 2)];
-    const full = keys.filter((k) => !partial || k !== latest);
-    const lastFull = full.length ? full[full.length - 1] : latest;
-    const Y = Math.floor(lastFull / 12), M = lastFull % 12;
-    const lab = (k) => AZ.MON[k % 12] + ' ' + Math.floor(k / 12);
-    // The window starts at the first month of this year in the result (a date filter may cut it), and LY uses the same months.
-    const F = Math.min(...keys.filter((k) => Math.floor(k / 12) === Y && k <= lastFull).map((k) => k % 12));
-    const inWin = (mo) => mo >= F && mo <= M;
-    const hasLY = keys.some((k) => Math.floor(k / 12) === Y - 1 && inWin(k % 12));
-    const formKeys = full.filter((k) => k <= lastFull).slice(-5);
-
-    const all = Array.from(ST.values());
-    all.forEach((s) => {
-      s.key = s.store; s.ty = 0; s.ly = 0;
-      s.m.forEach((v, k) => { const y = Math.floor(k / 12), mo = k % 12; if (!inWin(mo)) return; if (y === Y) s.ty += v; else if (y === Y - 1) s.ly += v; });
-      s.chg = hasLY && s.ly > 0 ? s.ty / s.ly - 1 : null;
-      s.form = formKeys.map((k) => {
-        const cur = s.m.get(k), pv = s.m.get(k - 12);
-        if (cur == null || pv == null || !pv) return { k, st: 'n', cur, pv };
-        const p = cur / pv - 1;
-        return { k, st: p > 0.0005 ? 'w' : p < -0.0005 ? 'l' : 'e', cur, pv, p };
-      });
-      s.wins = s.form.filter((f) => f.st === 'w').length;
-      s.losses = s.form.filter((f) => f.st === 'l').length;
-      s.fsum = s.form.reduce((a, f) => a + (f.p || 0), 0);
-      s.fscore = s.wins - s.losses + s.fsum / 100;
-    });
-    all.sort((a, b) => b.ty - a.ty || a.store.localeCompare(b.store)).forEach((s, i) => { s.pos = i + 1; });
-    if (hasLY) all.slice().filter((s) => s.ly > 0).sort((a, b) => b.ly - a.ly || a.store.localeCompare(b.store)).forEach((s, i) => { s.lyPos = i + 1; s.move = s.lyPos - s.pos; });
-    all.forEach((s) => { if (s.move == null) s.move = null; });
-    const maxV = Math.max(1, ...all.map((s) => Math.max(s.ty, s.ly)));
-    const anyForm = all.some((s) => s.form.some((f) => f.st !== 'n'));
-
-    // Headline: leader, biggest climber, best form, all computed from the rows.
-    const lead = all[0];
-    const climber = all.filter((s) => s.move > 0).sort((a, b) => b.move - a.move || a.pos - b.pos)[0];
-    const inForm = anyForm ? all.slice().sort((a, b) => b.fscore - a.fscore || a.pos - b.pos)[0] : null;
-    const ytdLabel = AZ.MON[F] + (M > F ? ' to ' + AZ.MON[M] : '') + ' ' + Y;
-    const solo = all.length === 1;
-    let head = '<b>' + AZ.esc(lead.store) + '</b> ' + (solo ? 'sold ' + AZ.money(lead.ty, 2) + ' in ' + ytdLabel : 'leads ' + ytdLabel + ' with ' + AZ.money(lead.ty, 2)) + (lead.chg == null ? '' : ' (' + AZ.pct(lead.chg, 1, true) + ' on last year)') + '.';
-    const formTxt = inForm && inForm.wins > 0 ? 'beat last year in ' + inForm.wins + ' of the last ' + formKeys.length + ' months' : '';
-    const upTxt = climber ? 'climbed most, up ' + climber.move + ' place' + (climber.move === 1 ? '' : 's') : '';
-    if (all.length > 1 && hasLY && climber && formTxt && climber === inForm) head += ' <b>' + AZ.esc(climber.store) + '</b> ' + upTxt + ', and ' + formTxt + '.';
-    else {
-      if (all.length > 1 && hasLY) head += climber ? ' <b>' + AZ.esc(climber.store) + '</b> ' + upTxt + '.' : ' No store moved up on last year.';
-      if (formTxt) head += solo ? ' It ' + formTxt + '.' : ' <b>' + AZ.esc(inForm.store) + '</b> ' + formTxt + '.';
-      else if (anyForm) head += ' No store beat last year in any of the last ' + formKeys.length + ' months.';
-    }
-
-    const regNames = Array.from(new Set(all.map((s) => s.region).filter((r) => r))).sort();
-    regs = new Set(Array.from(regs).filter((r) => regNames.indexOf(r) >= 0));
-    const showChips = regNames.length > 1;
-    const narrow = w < 560, tiny = w < 400, micro = w < 330;
-    const COLS = [
-      { k: 'pos', t: tiny ? '#' : 'Pos', w: tiny ? 30 : 42, num: 1, dir: 1 },
-      { k: 'move', t: 'Move', w: 44, num: 1, dir: -1, hide: micro },
-      { k: 'store', t: 'Store', w: 0, dir: 1 },
-      { k: 'region', t: 'Region', w: 78, dir: 1, hide: narrow || !rK },
-      { k: 'ty', t: 'YTD sales', w: 74, num: 1, dir: -1, hide: tiny },
-      { k: 'bar', t: '', w: 110, nosort: 1, hide: narrow },
-      { k: 'chg', t: 'vs LY', w: 58, num: 1, dir: -1 },
-      { k: 'form', t: 'Form', w: formKeys.length * 13 + 12, dir: -1 }
-    ].filter((c) => !c.hide);
-
-    const notes = [];
-    notes.push(hasLY ? 'YTD: ' + ytdLabel + ' vs the same months of ' + (Y - 1) + '.' : 'No months of ' + (Y - 1) + ' in this result, so change, movement and form show - (widen the date filter to include last year).');
-    if (anyForm) notes.push('Form: ' + (Math.floor(formKeys[0] / 12) === Math.floor(formKeys[formKeys.length - 1] / 12) ? AZ.MON[formKeys[0] % 12] : lab(formKeys[0])) + ' to ' + lab(formKeys[formKeys.length - 1]) + '.');
-    if (partial) notes.push(lab(latest) + ' looks partial (' + AZ.money(TOT.get(latest), 1) + ' so far) and is left out of YTD and form.');
-
-    el.classList.toggle('lg-micro', micro);
-    el.innerHTML =
-      '<div class="lg-head">' + head + '</div>'
-      + (showChips ? '<div class="lg-chips" role="group" aria-label="Filter by region">' + regNames.map((r) => '<button type="button" class="lg-chip" data-r="' + AZ.esc(r) + '" aria-pressed="' + (regs.has(r) ? 'true' : 'false') + '">' + AZ.esc(r) + '</button>').join('') + '</div>' : '')
-      + '<div class="lg-wrap" tabindex="0" aria-label="Store league table, scrollable"><table class="lg"><colgroup>' + COLS.map((c) => '<col' + (c.w ? ' style="width:' + c.w + 'px"' : '') + '>').join('') + '</colgroup><thead><tr>'
-      + COLS.map((c) => '<th class="' + (c.num ? 'num' : '') + (c.k === 'form' ? ' fm' : '') + '" data-k="' + c.k + '">' + (c.nosort ? '' : '<button type="button" data-k="' + c.k + '">' + AZ.esc(c.t) + '<span class="ar"></span></button>') + '</th>').join('')
-      + '</tr></thead><tbody></tbody></table></div>'
-      + '<div class="lg-foot">' + (anyForm ? '<span class="lg-key"><i class="sq w"></i>above LY<i class="sq l"></i>below<i class="sq e"></i>level</span>' : '') + (hasLY && !narrow ? '<span class="lg-key"><i class="kb"></i>YTD<i class="kt"></i>same months LY</span>' : '') + '<span class="lg-note">' + AZ.esc(notes.join(' ')) + '</span></div>';
-    const body = el.querySelector('tbody'), wrap = el.querySelector('.lg-wrap');
-
-    const val = (s, k) => (k === 'form' ? (anyForm ? s.fscore : null) : s[k]);
-    const cmp = (a, b) => {
-      const A = val(a, sortKey), B = val(b, sortKey);
-      if (A == null && B == null) return a.pos - b.pos; if (A == null) return 1; if (B == null) return -1;
-      const d = typeof A === 'string' ? A.localeCompare(B) : A - B;
-      return d ? d * sortDir : a.pos - b.pos;
-    };
-    const moveHTML = (s) => {
-      if (s.move == null) return '<span class="mv na">-</span>';
-      if (s.move === 0) return '<span class="mv eq">=</span>';
-      return '<span class="mv ' + (s.move > 0 ? 'up' : 'dn') + '">' + (s.move > 0 ? UP + SP + '+' + s.move : DN + SP + '-' + (-s.move)) + '</span>';
-    };
-    const chgHTML = (s) => (s.chg == null ? '<span class="na">-</span>' : '<span class="' + (s.chg > 0 ? 'up' : s.chg < 0 ? 'dn' : '') + '">' + AZ.pct(s.chg, 1, true) + '</span>');
-    const formHTML = (s) => '<span class="fs">' + s.form.map((f, j) => '<i class="sq ' + f.st + '" data-j="' + j + '"></i>').join('') + '</span>';
-
-    let shown = [], cancels = [];
-    const stop = () => { cancels.forEach((c) => c()); cancels = []; };
-    const detailHTML = (s) => {
-      const yrs = [Y - 1, Y], mx = Math.max(1, ...Array.from(s.m.values()));
-      let h = '<div class="lg-d"><div class="lg-dh"><b>' + AZ.esc(s.store) + '</b> by month: <span class="k ty"></span>' + Y + ' <span class="k ly"></span>' + (Y - 1)
-        + (s.chg == null ? '' : '. YTD ' + AZ.money(s.ty, 2) + ' against ' + AZ.money(s.ly, 2) + ' (' + AZ.pct(s.chg, 1, true) + ')') + (s.move == null ? '' : ', position ' + s.lyPos + ' last year, ' + s.pos + ' now') + '.</div><div class="lg-bars">';
-      for (let mo = 0; mo < 12; mo++) {
-        h += '<div class="lg-slot" data-mo="' + mo + '"><div class="lg-pair">';
-        yrs.forEach((y) => {
-          const k = mKey(y, mo), v = s.m.get(k);
-          const cls = (y === Y ? 'ty' : 'ly') + (partial && k === latest ? ' part' : '');
-          h += '<span class="lg-b ' + cls + '" data-h="' + (v == null ? 0 : (v / mx * 100).toFixed(2)) + '"></span>';
-        });
-        h += '</div><em>' + (tiny ? AZ.MON[mo].charAt(0) : AZ.MON[mo]) + '</em></div>';
-      }
-      return h + '</div></div>';
-    };
-    const openDetail = (tr, s, animate) => {
-      const d = document.createElement('tr'); d.className = 'lg-detail'; d.setAttribute('data-for', s.key);
-      d.innerHTML = '<td colspan="' + COLS.length + '"><div class="lg-dw">' + detailHTML(s) + '</div></td>';
-      tr.parentNode.insertBefore(d, tr.nextSibling);
-      const dw = d.querySelector('.lg-dw'), bars = Array.from(d.querySelectorAll('.lg-b'));
-      const setH = (k) => bars.forEach((b, i) => { const kk = Math.max(0, Math.min(1, k * 1.6 - (i % 24) * 0.025)); b.style.height = (parseFloat(b.getAttribute('data-h')) * kk).toFixed(2) + '%'; });
-      if (!animate) { setH(1); return; }
-      setH(0); const H = dw.scrollHeight; dw.style.height = '0px';
-      const sc0 = wrap.scrollTop, need = tr.offsetTop + tr.offsetHeight + H - (sc0 + wrap.clientHeight), sc1 = need > 0 ? Math.min(sc0 + need, Math.max(0, tr.offsetTop - 28)) : sc0;
-      cancels.push(AZ.tween(380, (k) => { dw.style.height = (H * k).toFixed(1) + 'px'; if (sc1 !== sc0) wrap.scrollTop = AZ.lerp(sc0, sc1, k); }, () => { dw.style.height = 'auto'; }, AZ.EASE.inOut));
-      cancels.push(AZ.tween(620, setH, () => setH(1), AZ.EASE.out));
-    };
-    const closeDetail = (d, animate) => {
-      if (!d) return;
-      const dw = d.querySelector('.lg-dw'), H = dw.offsetHeight;
-      if (!animate) { d.remove(); return; }
-      dw.style.height = H + 'px';
-      cancels.push(AZ.tween(280, (k) => { dw.style.height = (H * (1 - k)).toFixed(1) + 'px'; }, () => d.remove(), AZ.EASE.inOut));
-    };
-    const rowFor = (key) => Array.from(body.querySelectorAll('tr[data-key]')).find((t) => t.getAttribute('data-key') === key);
-    const toggle = (s) => {
-      const old = body.querySelector('.lg-detail');
-      el.querySelectorAll('tr[aria-expanded="true"]').forEach((t) => t.setAttribute('aria-expanded', 'false'));
-      closeDetail(old, true);
-      if (openKey === s.key) { openKey = null; if (solo) soloShut = true; return; }
-      openKey = s.key;
-      const tr = rowFor(s.key); if (!tr) return;
-      tr.setAttribute('aria-expanded', 'true'); openDetail(tr, s, true);
-    };
-
-    const tipRoot = document.createElement('div'); tipRoot.className = 'az-tip-root'; tipRoot.style.cssText = 'position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none';
-    el.appendChild(tipRoot);
-    const tip = AZ.tip(tipRoot);
-    const byKey = new Map(all.map((s) => [s.key, s]));
-    const ths = Array.from(el.querySelectorAll('thead th'));
-    // Position-dependent hover: the row under the pointer, its column header and the form square.
-    const clearHot = () => { el.querySelectorAll('.hot, tr.on').forEach((q) => q.classList.remove('hot', 'on')); };
-    body.addEventListener('mousemove', (e) => {
-      const b = el.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top;
-      const slot = e.target.closest && e.target.closest('.lg-slot');
-      if (slot) {
-        clearHot(); slot.classList.add('hot');
-        const s = byKey.get(slot.closest('tr').getAttribute('data-for')), mo = Number(slot.getAttribute('data-mo'));
-        const cur = s.m.get(mKey(Y, mo)), pv = s.m.get(mKey(Y - 1, mo));
-        return tip.show('<b>' + AZ.esc(s.store) + ', ' + AZ.MON[mo] + '</b>' + AZ.row(String(Y) + (partial && mKey(Y, mo) === latest ? ' (partial)' : ''), cur == null ? '-' : AZ.money(cur, 1)) + AZ.row(String(Y - 1), pv == null ? '-' : AZ.money(pv, 1)) + AZ.row('Change', cur != null && pv ? AZ.pct(cur / pv - 1, 1, true) : '-'), x, y);
-      }
-      const tr = e.target.closest && e.target.closest('tr[data-i]'), s = tr && shown[Number(tr.getAttribute('data-i'))];
-      if (!s) { clearHot(); return tip.hide(); }
-      clearHot();
-      tr.classList.add('on');
-      const td = e.target.closest('td'), ci = td ? Array.prototype.indexOf.call(tr.children, td) : -1;
-      if (ci >= 0 && ths[ci]) ths[ci].classList.add('hot');
-      const sq = e.target.closest('.sq');
-      if (sq) {
-        sq.classList.add('hot');
-        const f = s.form[Number(sq.getAttribute('data-j'))];
-        const verdict = f.st === 'w' ? 'Above last year' : f.st === 'l' ? 'Below last year' : f.st === 'e' ? 'Level with last year' : 'No month last year to compare';
-        return tip.show('<b>' + AZ.esc(s.store) + ', ' + lab(f.k) + '</b>' + AZ.row(lab(f.k), f.cur == null ? '-' : AZ.money(f.cur, 1)) + AZ.row(lab(f.k - 12), f.pv == null ? '-' : AZ.money(f.pv, 1)) + AZ.row(verdict, f.p == null ? '-' : AZ.pct(f.p, 1, true)), x, y);
-      }
-      const ck = ci >= 0 && COLS[ci] ? COLS[ci].k : '';
-      const HINT = {
-        pos: 'Position by YTD sales among all ' + all.length + ' stores',
-        move: s.move == null ? 'No last-year position to compare' : 'Places gained on the same months last year',
-        store: 'Click the row to see its months',
-        region: 'Region filters sit above the table',
-        ty: 'Sales ' + ytdLabel,
-        bar: 'Bar: YTD. Tick: same months last year',
-        chg: 'YTD against the same months last year'
-      };
-      const hint = HINT[ck] ? '<div class="lg-th">' + AZ.esc(HINT[ck]) + '</div>' : '';
-      const mv = s.move == null ? '-' : s.move === 0 ? 'Same as last year (' + s.pos + ')' : s.lyPos + ' to ' + s.pos + ' (' + (s.move > 0 ? 'up ' : 'down ') + Math.abs(s.move) + ')';
-      tip.show('<b>' + AZ.esc(s.store) + '</b>' + (s.region ? AZ.row('Region', s.region) : '') + AZ.row('Position', s.pos + ' of ' + all.length) + AZ.row('YTD ' + Y, AZ.money(s.ty, 2)) + AZ.row('Same months ' + (Y - 1), s.ly ? AZ.money(s.ly, 2) : '-') + AZ.row('Change', s.chg == null ? '-' : AZ.pct(s.chg, 1, true)) + AZ.row('Position change', mv) + (anyForm ? AZ.row('Form', s.wins + ' above, ' + s.losses + ' below') : '') + hint, x, y);
-    });
-    body.addEventListener('mouseleave', () => { tip.hide(); clearHot(); });
-    body.addEventListener('click', (e) => { const tr = e.target.closest && e.target.closest('tr[data-i]'); if (tr) toggle(shown[Number(tr.getAttribute('data-i'))]); });
-    body.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('tr[data-i]')) { e.preventDefault(); toggle(shown[Number(e.target.getAttribute('data-i'))]); } });
-    const onKey = (e) => { if (e.key === 'Escape' && openKey) { const s = byKey.get(openKey); if (s) { e.preventDefault(); toggle(s); } } };
-    document.addEventListener('keydown', onKey);
-
-    function paint(anim) {
-      stop();
-      const before = {};
-      if (anim) body.querySelectorAll('tr[data-key]').forEach((t) => { before[t.getAttribute('data-key')] = t.getBoundingClientRect().top; });
-      const list = all.filter((s) => !regs.size || regs.has(s.region)).sort(cmp);
-      body.innerHTML = list.map((s, i) => '<tr data-i="' + i + '" data-key="' + AZ.esc(s.key) + '" tabindex="0" aria-expanded="false">' + COLS.map((c) => {
-        if (c.k === 'pos') return '<td class="num ps">' + s.pos + '</td>';
-        if (c.k === 'move') return '<td class="num">' + moveHTML(s) + '</td>';
-        if (c.k === 'store') return '<td class="sn" title="' + AZ.esc(s.store) + '">' + AZ.esc(s.store) + '</td>';
-        if (c.k === 'region') return '<td class="rg">' + AZ.esc(s.region) + '</td>';
-        if (c.k === 'ty') return '<td class="num">' + AZ.money(s.ty, s.ty >= 1e6 ? 2 : 0) + '</td>';
-        if (c.k === 'bar') return '<td class="br"><span class="bw"><span class="yb" style="width:' + (s.ty / maxV * 100).toFixed(1) + '%"></span>' + (s.ly ? '<span class="lt" style="left:' + (s.ly / maxV * 100).toFixed(1) + '%"></span>' : '') + '</span></td>';
-        if (c.k === 'chg') return '<td class="num">' + chgHTML(s) + '</td>';
-        return '<td class="fm">' + formHTML(s) + '</td>';
-      }).join('') + '</tr>').join('') || '<tr><td colspan="' + COLS.length + '" class="lg-none">No store in the selected regions.</td></tr>';
-      shown = list;
-      if (openKey && !list.some((s) => s.key === openKey)) openKey = null;
-      if (openKey) { const tr = rowFor(openKey); if (tr) { tr.setAttribute('aria-expanded', 'true'); openDetail(tr, byKey.get(openKey), false); } }
-      if (anim) {
-        const mv = [];
-        body.querySelectorAll('tr[data-key]').forEach((t) => { const k = t.getAttribute('data-key'); if (before[k] == null) mv.push({ t, dy: 0, fresh: true }); else { const dy = before[k] - t.getBoundingClientRect().top; if (Math.abs(dy) > 1) mv.push({ t, dy, fresh: false }); } });
-        mv.forEach((m) => { m.t.style.position = 'relative'; if (m.fresh) m.t.style.opacity = 0; else m.t.style.transform = 'translateY(' + m.dy + 'px)'; });
-        if (mv.length) cancels.push(AZ.tween(420, (k) => mv.forEach((m) => { if (m.fresh) m.t.style.opacity = k; else m.t.style.transform = 'translateY(' + (m.dy * (1 - k)).toFixed(1) + 'px)'; }), () => mv.forEach((m) => { m.t.style.transform = ''; m.t.style.opacity = ''; m.t.style.position = ''; }), AZ.EASE.inOut));
-      }
-      el.querySelectorAll('th[data-k]').forEach((th) => {
-        const on = th.getAttribute('data-k') === sortKey;
-        if (on) th.setAttribute('aria-sort', sortDir < 0 ? 'descending' : 'ascending'); else th.removeAttribute('aria-sort');
-        const ar = th.querySelector('.ar'); if (ar) ar.textContent = on ? (sortDir < 0 ? DN : UP) : '';
-      });
-    }
-    el.querySelectorAll('th button').forEach((b) => b.addEventListener('click', () => {
-      const k = b.getAttribute('data-k'), c = COLS.find((x) => x.k === k);
-      if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = c.dir; }
-      wrap.scrollTop = 0; paint(true);
-    }));
-    el.querySelectorAll('.lg-chip').forEach((b) => b.addEventListener('click', () => {
-      const r = b.getAttribute('data-r'); if (regs.has(r)) regs.delete(r); else regs.add(r);
-      b.setAttribute('aria-pressed', regs.has(r) ? 'true' : 'false'); wrap.scrollTop = 0; paint(true);
-    }));
-    if (!COLS.some((c) => c.k === sortKey)) { sortKey = 'pos'; sortDir = 1; }
-    // One store in the result: open its months so the tile is not a single line.
-    if (solo && !soloShut) openKey = lead.key;
-    paint(false);
-    if (openKey) { const tr = rowFor(openKey); if (tr) wrap.scrollTop = Math.max(0, tr.offsetTop - 28); }
-    // Entrance: the form squares fill in left to right, once.
-    const sqs = Array.from(body.querySelectorAll('.sq'));
-    if (sqs.length && !AZ.reduced()) {
-      sqs.forEach((q) => { q.style.opacity = 0; });
-      cancels.push(AZ.tween(480, (k) => sqs.forEach((q) => { const j = Number(q.getAttribute('data-j')); q.style.opacity = Math.max(0, Math.min(1, k * 2.2 - j * 0.28)).toFixed(3); }), () => sqs.forEach((q) => { q.style.opacity = ''; })));
-    }
-    return () => { stop(); document.removeEventListener('keydown', onKey); };
-  }
+// Interactions: click a column header (or Enter / Space on it) to sort by store, YTD sales, change, movement or form (rows start in league order); hover a row for its values; click a row to select it, Escape clears; arrow keys move between rows.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, St = c(/store/i, 'Store'), D = c(/month|date/i, 'Month(date)'), V = c(/sales/i, 'Total Sales');
+// Year to date: the first month of the latest year in the result through the latest complete month (a latest month
+// under 60% of the median of the three before it is partial and left out); last year is the same months.
+const mk = (t) => { const d = new Date(AZ.ms(t)); return d.getUTCFullYear() * 12 + d.getUTCMonth(); };
+const ST = new Map(), TOT = new Map();
+rows.forEach((r) => { const k = mk(r[D]), v = AZ.num(r[V]), m = ST.get(r[St]) ?? ST.set(r[St], new Map()).get(r[St]); m.set(k, (m.get(k) ?? 0) + v); TOT.set(k, (TOT.get(k) ?? 0) + v); });
+const keys = [...TOT.keys()].sort((a, b) => a - b), latest = keys[keys.length - 1];
+const p3 = keys.filter((k) => k < latest).slice(-3).map((k) => TOT.get(k)).sort((a, b) => a - b);
+const partial = p3.length >= 2 && TOT.get(latest) < 0.6 * p3[Math.floor(p3.length / 2)], full = keys.filter((k) => !partial || k !== latest);
+const last = full[full.length - 1] ?? 0, Y = Math.floor(last / 12), M = last % 12;
+const F = Math.min(12, ...keys.filter((k) => Math.floor(k / 12) === Y && k <= last).map((k) => k % 12)), inWin = (k) => k % 12 >= F && k % 12 <= M;
+const formKeys = full.slice(-5), hasLY = keys.some((k) => Math.floor(k / 12) === Y - 1 && inWin(k));
+// Per store: YTD, change on the same months last year, position movement on last year's league, and form
+// (how many of the last 5 complete months beat the same month a year earlier).
+const all = [...ST].map(([s, m]) => {
+  let ty = 0, ly = 0; m.forEach((v, k) => { if (!inWin(k)) return; if (Math.floor(k / 12) === Y) ty += v; else if (Math.floor(k / 12) === Y - 1) ly += v; });
+  return { Store: s, YTD: ty, ly, Change: hasLY && ly ? ty / ly - 1 : null, Form: hasLY ? formKeys.filter((k) => m.get(k - 12) && (m.get(k) ?? 0) > m.get(k - 12) * 1.0005).length : null };
+});
+all.sort((a, b) => b.YTD - a.YTD).forEach((s, i) => { s.pos = i + 1; }); // rows arrive in league order
+if (hasLY) [...all].sort((a, b) => b.ly - a.ly).forEach((s, i) => { s.Move = s.ly ? i + 1 - s.pos : null; });
+const data = all.map(({ ly, pos, ...s }) => ({ Move: null, ...s }));
+const lead = all[0], up = all.filter((s) => s.Move > 0).sort((a, b) => b.Move - a.Move)[0], MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const win = MON[F] + (M > F ? ' to ' + MON[M] : '') + ' ' + Y;
+AZ.maya({
+  type: 'table', x: 'Store', y: ['YTD', 'Change', 'Move', 'Form'], select: true,
+  title: lead ? lead.Store + ' leads ' + win + ' with ' + AZ.money(lead.YTD, 2) + (up ? '; ' + up.Store + ' climbed most, up ' + up.Move : '') : '',
+  subtitle: lead ? 'YTD: ' + win + (hasLY ? ' against the same months of ' + (Y - 1) + '. Move: places gained on last year. Form: of the last ' + formKeys.length + ' months, how many beat a year earlier' : '; no last-year months, so change, move and form are blank') + (partial ? '. The latest month is partial and left out' : '') : '',
+  titles: { YTD: 'YTD sales', Change: 'vs LY', Form: 'Form' },
+  format: { YTD: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 2 }, Change: { style: 'percent', maximumFractionDigits: 1, signDisplay: 'exceptZero' }, Move: { maximumFractionDigits: 0, signDisplay: 'exceptZero' }, Form: { maximumFractionDigits: 0, suffix: ' of ' + formKeys.length } },
+  text: { noData: 'No rows yet: bind [sales] [store] [region] [date].monthly [date].\'this year\' [date].\'last year\'' },
+  theme: { series1: '#1E1E24' },
+  data
 });

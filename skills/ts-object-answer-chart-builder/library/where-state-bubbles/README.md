@@ -6,16 +6,16 @@ Which states carry the sales, and how many stores sit behind them?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [store] [state] [region]` |
-| Library | none (inline SVG; pre-projected us-atlas states-albers-10m paths embedded in chart.js) |
+| Library | MayaCharts 0.16.0 (maya.global.js from jsDelivr) |
 | Tile | 7x7 grid units (03 Where tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | none |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js` |
 
 ## Interactions
-Sales / Stores toggle sets bubble size at both levels (radii tween); hover a state, bubble or store; click a state to zoom (viewBox tween) while its bubble breaks into one bubble per store labelled by zip code; crumbs, Back and Escape zoom out
+Click Sales or Stores to switch what the fill shows (summed sales, or the number of stores in the state). Hover or arrow-key to a state for its value; click states to select several, Escape clears.
 
 ## Notes
-Stores are placed by state centre and arranged around it, never by lat/long. In Stores mode at the store level every bubble is one store, so all are the same size. Map paths are inline because tiles cannot fetch().
+Built on MayaCharts 0.16.0 as a `hexmap` with `y: [sales, Stores]` as the measure toggle and `select: 'multi'`. The body adds Stores = 1 per store row, so the default sum is the store count per state, and computes the subtitle (top state, its sales and store count, and how many states have more than one store). Dropped against the old chart: the Albers map with sized bubbles (MayaCharts has no geographic projection or bubble map) and the click-to-zoom into a state with one bubble per store; stores are no longer shown individually, only counted. Preview-verified on synthetic data, not yet re-checked on a cluster.
 
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.

@@ -32,22 +32,4 @@ body { background: var(--az-surface); color: var(--az-ink); font-family: var(--a
 .az-sep { color: var(--az-muted); }
 /* ==== end amuzing core css ==== */
 
-#chart { display: flex; flex-direction: column; padding: 14px 16px 10px; gap: 6px; }
-.rb-top { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.rb-title { font-size: 14px; line-height: 1.3; font-weight: 600; }
-.rb-sub { flex: none; font-size: 12px; line-height: 1.4; color: var(--az-ink2); }
-.rb-sub b { color: var(--az-ink); font-weight: 600; }
-.rb-seg { display: inline-flex; border: 1px solid var(--az-grid); border-radius: 6px; overflow: hidden; flex: none; }
-.rb-seg button { all: unset; cursor: pointer; font-size: 11px; line-height: 1; padding: 6px 10px; color: var(--az-muted); }
-.rb-seg button + button { border-left: 1px solid var(--az-grid); }
-.rb-seg button.on { background: var(--az-ink); color: #fff; }
-.rb-seg button:not(.on):hover { background: #F1F2F4; color: var(--az-ink); }
-.rb-seg button:focus-visible { outline: 2px solid var(--az-ink); outline-offset: -2px; }
-.rb-plot { flex: 1 1 auto; min-height: 0; position: relative; }
-.rb-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.rb-line, .rb-lab, .rb-pt { transition: opacity .12s ease; }
-.rb-lab { font-size: 11px; fill: var(--az-ink); cursor: pointer; }
-.rb-lab .v { fill: var(--az-ink2); }
-.rb-ax { font-size: 11px; fill: var(--az-ink2); }
-.rb-ax2 { font-size: 11px; fill: var(--az-muted); }
-.rb-gl { font-size: 11px; fill: var(--az-muted); }
+#chart { display: block; height: 100%; color-scheme: light; }

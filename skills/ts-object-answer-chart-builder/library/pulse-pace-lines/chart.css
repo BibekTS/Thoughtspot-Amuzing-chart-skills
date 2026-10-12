@@ -32,22 +32,4 @@ body { background: var(--az-surface); color: var(--az-ink); font-family: var(--a
 .az-sep { color: var(--az-muted); }
 /* ==== end amuzing core css ==== */
 
-#chart { display: flex; flex-direction: column; padding: 14px 14px 10px; gap: 6px; overflow: hidden; }
-.pp-head { flex: none; min-height: 58px; }
-.pp-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; min-height: 22px; }
-.pp-title { font-size: 13px; line-height: 1.3; font-weight: 600; padding-top: 2px; }
-.pp-lead { margin: 4px 0 0; font-size: 13px; line-height: 1.35; font-weight: 600; color: var(--az-ink); }
-.pp-sub { margin: 2px 0 0; font-size: 12px; line-height: 1.4; color: var(--az-ink2); }
-.pp-back { all: unset; cursor: pointer; flex: none; font-size: 11px; color: var(--az-ink); border: 1px solid var(--az-grid); border-radius: 6px; padding: 4px 9px; }
-.pp-back:hover { background: #F1F2F4; }
-.pp-back:focus-visible { outline: 2px solid var(--az-ink); outline-offset: 1px; }
-.pp-plot { flex: 1 1 auto; min-height: 0; position: relative; }
-.pp-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.pp-grid { stroke: var(--az-grid); stroke-width: 1; shape-rendering: crispEdges; }
-.pp-tick { font-family: var(--az-font); font-size: 11px; fill: var(--az-muted); }
-.pp-hit { fill: none; stroke: transparent; stroke-width: 16px; cursor: pointer; pointer-events: stroke; }
-.pp-hit:focus-visible { outline: none; stroke: rgba(30, 30, 36, .12); }
-.pp-lab { font-family: var(--az-font); font-size: 11px; cursor: pointer; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
-.pp-lab:focus-visible { outline: none; text-decoration: underline; }
-.pp-guide { stroke: var(--az-ink); stroke-opacity: .25; stroke-width: 1; pointer-events: none; }
-#chart > .az-tip { animation: none !important; }
+#chart { display: block; height: 100%; color-scheme: light; }

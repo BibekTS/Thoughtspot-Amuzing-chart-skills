@@ -6,16 +6,16 @@ For each product family, did sales change because we sold more units or because 
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [quantity purchased] [item type] [date].monthly` |
-| Library | Hand-built HTML and SVG (no CDN) |
+| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
 | Tile | 12x6 grid units (02 Pulse tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | none |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
 
 ## Interactions
-Period toggle (Year to date against the same months a year earlier / Latest full year against the prior year) tweens values and bars in place; hover a card or a row for sales, units and price per unit in both periods plus the units and price effects, with the bar row under the pointer emphasised; click a card (or Enter) to expand it into its item types (All families expands into the families) while the others compress into a strip, click it again or press Escape to close
+The measure toggle switches between latest full year and year to date. Hover a bar for the units effect, the price effect and their total. Click a family (or Enter) to drill into its item types; Back, Escape or a click on empty space returns. Click a legend key to hide an effect. Arrow keys step through families.
 
 ## Notes
-Units (volume) effect = (units now - units before) x price before; price effect = (price now - price before) x units now; they sum exactly to the sales change (checked against the fixture). Family is an editorial grouping (AZ.familyOf), not a model column. Windows come from the rows: YTD uses the months of the latest year up to the latest month that the prior year also has; Latest full year needs 12 months in both years, so part years (2021, the current year) are skipped and named in the caption. Family cards share one bar scale with the zero placed by the data; All families has its own, and its price effect includes the mix shift between families. Effects under a millionth of prior sales are treated as zero (identical months in the source otherwise show float noise). With no comparison period each card shows its sales in the filter and says so; one family opens straight into its item types. Preview only: built on real search output and checked in the preview, but not yet on a Liveboard or seen in a real cluster tile.
+Built on MayaCharts 0.16.0: a horizontal stacked `bar` with `path: [Family, Item type]` and `drill`. `series` is the effect (units in dark slate, price in light slate) and the `y` array is the two periods, which gives the measure toggle. Each effect is computed per item type: units effect = (units now - units before) x price before, and price effect = (price now - price before) x units now. Families and the total add up from the item types, so a family's price effect no longer includes the mix shift between its item types (the old All families card did). The title's `{total}` token gives the sales change for the period shown. Periods come from the rows as before: year to date is the latest year's months against the same months a year earlier, and the latest full year needs 12 months in both years. Dropped against the old chart: the card layout, family hues (families are now the category axis, and effects are the only colour), the All families card (now the title), the per-family percent change, and the period tween. Preview-verified on synthetic data, not yet re-checked on a cluster.
 
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.

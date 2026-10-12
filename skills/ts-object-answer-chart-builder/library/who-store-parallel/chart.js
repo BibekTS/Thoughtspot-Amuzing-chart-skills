@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,198 +243,33 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [quantity purchased] [store] [date].quarterly
-// Parallel coordinates: one line per store across five axes (total sales, total units, price per unit, year-to-date change,
-// share of the largest store). Drag on an axis to brush and filter; hover a line for the store; click a line to pin it.
-let pinned = null, entered = false;
-const brush = {};
-
-AZ.boot({
-  need: 'sales, quantity purchased, store and date at quarterly grain, e.g. [sales] [quantity purchased] [store] [date].quarterly',
-  render: async ({ el, rows, schema, w, h }) => {
-    const sK = AZ.col(schema, /sales/i), uK = AZ.col(schema, /quantity/i), stK = AZ.col(schema, /store/i), dK = AZ.col(schema, /date|quarter|month/i);
-    const by = new Map(); let maxT = -1;
-    rows.forEach((r) => {
-      const t = AZ.ms(r[dK]); if (!isFinite(t)) return;
-      if (t > maxT) maxT = t;
-      const k = String(r[stK]);
-      if (!by.has(k)) by.set(k, []);
-      by.get(k).push({ t: t, s: AZ.num(r[sK]), u: AZ.num(r[uK]) });
-    });
-    if (!by.size) { AZ.paint(el, '<div class="az-empty"><b>No stores in the result</b><span>The search needs [sales] [quantity purchased] [store] [date].quarterly</span></div>'); return; }
-    const qn = (t) => Math.floor(new Date(t).getUTCMonth() / 3) + 1, yr = (t) => new Date(t).getUTCFullYear();
-    const ly = yr(maxT), lq = qn(maxT);
-    const stores = Array.from(by.entries()).map(([name, a]) => {
-      let s = 0, u = 0, c = 0, p = 0, nc = 0, np = 0;
-      a.forEach((r) => {
-        s += r.s; u += r.u;
-        if (qn(r.t) <= lq) { if (yr(r.t) === ly) { c += r.s; nc++; } else if (yr(r.t) === ly - 1) { p += r.s; np++; } }
-      });
-      return { name: name, s: s, u: u, price: u ? s / u : 0, chg: nc > 0 && nc === np && p > 0 ? c / p - 1 : null };
-    });
-    const maxS = Math.max.apply(null, stores.map((x) => x.s)) || 1;
-    stores.forEach((x) => { x.share = x.s / maxS; });
-    const hasChg = stores.some((x) => x.chg != null);
-    const lbl = 'Q1-Q' + lq;
-    const AX = [
-      { k: 's', t: 'Total sales', sub: 'all quarters', f: (v) => AZ.money(v, 1) },
-      { k: 'u', t: 'Units', sub: 'all quarters', f: (v) => AZ.int(v) },
-      { k: 'price', t: 'Price per unit', sub: 'sales / units', f: (v) => AZ.money(v, 2) },
-      { k: 'chg', t: 'YTD change', sub: (lq === 1 ? 'Q1' : lbl) + ' vs ' + (ly - 1), f: (v) => AZ.pct(v, 1, true) },
-      { k: 'share', t: 'Share of top', sub: 'largest = 100%', f: (v) => AZ.pct(v, 0) }
-    ].filter((a) => a.k !== 'chg' || hasChg);
-    AX.forEach((a) => {
-      const vals = stores.map((x) => x[a.k]).filter((v) => v != null);
-      let lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
-      if (hi - lo < 1e-9) { lo -= Math.abs(lo) * 0.05 + 0.01; hi += Math.abs(hi) * 0.05 + 0.01; }
-      const pad = (hi - lo) * 0.04; a.lo = lo - pad; a.hi = hi + pad; a.dlo = lo; a.dhi = hi;
-      a.rank = new Map(); stores.filter((x) => x[a.k] != null).sort((p, q) => q[a.k] - p[a.k]).forEach((x, i) => a.rank.set(x.name, i + 1));
-    });
-    Object.keys(brush).forEach((k) => { if (!AX.some((a) => a.k === k)) delete brush[k]; });
-    if (pinned && !by.has(pinned)) pinned = null;
-
-    const N = stores.length, showPanel = w >= 600;
-    const chgs = stores.map((x) => x.chg).filter((v) => v != null);
-    const pa = AX.find((a) => a.k === 'price');
-    const sub = hasChg
-      ? 'Year-to-date change (' + lbl + ' ' + ly + ' on ' + (ly - 1) + ') runs from <b>' + AZ.pct(Math.min.apply(null, chgs), 1, true) + '</b> to <b>' + AZ.pct(Math.max.apply(null, chgs), 1, true) + '</b>; price per unit from <b>' + AZ.money(pa.dlo, 2) + '</b> to <b>' + AZ.money(pa.dhi, 2) + '</b>'
-      : 'Price per unit runs from <b>' + AZ.money(pa.dlo, 2) + '</b> to <b>' + AZ.money(pa.dhi, 2) + '</b>. No same-quarter comparison with last year in this view, so YTD change is left out';
-    el.innerHTML = '<div class="pc-head"><div><div class="pc-title" id="pc-title"></div><div class="pc-sub">' + sub + '</div></div><button type="button" class="pc-reset" id="pc-reset">Reset</button></div>'
-      + '<div class="pc-body"><div class="pc-plot" id="pc-plot"></div>' + (showPanel ? '<div class="pc-panel" id="pc-panel"></div>' : '') + '</div>'
-      + '<div class="pc-cap" id="pc-cap"></div>';
-    const plot = el.querySelector('#pc-plot'), panel = el.querySelector('#pc-panel'), titleEl = el.querySelector('#pc-title'), resetB = el.querySelector('#pc-reset'), cap = el.querySelector('#pc-cap');
-    const W = Math.max(200, plot.clientWidth), H = Math.max(120, plot.clientHeight);
-    const narrow = W < 420, PT = narrow ? 34 : 42, PB = 12, PL = narrow ? 34 : 44, PR = narrow ? 34 : 50;
-    const ph = H - PT - PB, n = AX.length, gap = (W - PL - PR) / Math.max(1, n - 1);
-    const axX = (i) => n === 1 ? W / 2 : PL + i * gap;
-    const yOf = (a, v) => PT + (1 - (v - a.lo) / (a.hi - a.lo)) * ph;
-    const vOf = (a, y) => a.lo + (1 - (y - PT) / ph) * (a.hi - a.lo);
-    const NS = 'http://www.w3.org/2000/svg';
-    const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); Object.keys(attrs || {}).forEach((k) => e.setAttribute(k, attrs[k])); if (parent) parent.appendChild(e); return e; };
-    const svg = mk('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': 'Parallel coordinates of ' + N + ' stores' }, plot);
-    const gAx = mk('g', {}, svg), gLines = mk('g', {}, svg), gStrip = mk('g', {}, svg), gHit = mk('g', {}, svg), gBr = mk('g', { 'pointer-events': 'none' }, svg), gTop = mk('g', { 'pointer-events': 'none' }, svg);
-
-    AX.forEach((a, i) => {
-      const x = axX(i), anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle';
-      mk('line', { x1: x, x2: x, y1: PT, y2: PT + ph, stroke: AZ.T.slate[3], 'stroke-width': 1.5 }, gAx);
-      mk('text', { class: 'pc-at', x: x, y: PT - (narrow ? 20 : 26), 'text-anchor': anchor }, gAx).textContent = narrow ? a.t.replace('Share of top', 'Share') : a.t;
-      if (!narrow) mk('text', { class: 'pc-as', x: x, y: PT - 13, 'text-anchor': anchor }, gAx).textContent = a.sub;
-      [a.dhi, a.dlo].forEach((v, j) => {
-        mk('line', { x1: x - 4, x2: x + 4, y1: yOf(a, v), y2: yOf(a, v), stroke: AZ.T.slate[3] }, gAx);
-        mk('text', { class: 'pc-tk', x: x + (i === n - 1 ? -8 : 8), y: yOf(a, v) + (j === 0 ? 11 : -3), 'text-anchor': i === n - 1 ? 'end' : 'start' }, gAx).textContent = a.f(v);
-      });
-    });
-
-    // one path per store; a null value breaks the line
-    const pathOf = (x) => { let d = '', open = false; AX.forEach((a, i) => { const v = x[a.k]; if (v == null) { open = false; return; } d += (open ? 'L' : 'M') + axX(i).toFixed(1) + ' ' + yOf(a, v).toFixed(1); open = true; }); return d; };
-    stores.forEach((x) => {
-      x.d = pathOf(x);
-      x.p = mk('path', { d: x.d, class: 'pc-line', fill: 'none', 'stroke-linejoin': 'round', 'stroke-linecap': 'round', pathLength: 1 }, gLines);
-      x.hit = mk('path', { d: x.d, class: 'pc-hit', fill: 'none', 'stroke-width': narrow ? 8 : 10, stroke: 'transparent', tabindex: 0, role: 'button', 'aria-label': x.name }, gHit);
-    });
-    const tip = AZ.tip(el); let hov = null, drag = null;
-    const match = (x) => AX.every((a) => { const b = brush[a.k]; if (!b) return true; const v = x[a.k]; return v != null && v >= b[0] && v <= b[1]; });
-    const brushed = () => Object.keys(brush).length > 0;
-
-    function paint() {
-      let m = 0; const front = [];
-      stores.forEach((x) => {
-        const ok = match(x); x.ok = ok; if (ok) m++;
-        const isP = pinned === x.name, isH = hov === x;
-        x.p.setAttribute('stroke', isP || isH || ok ? AZ.T.ink : AZ.T.slate[2]);
-        x.p.setAttribute('stroke-opacity', isP ? 1 : isH ? 0.95 : ok ? (brushed() ? 0.7 : 0.32) : 0.12);
-        x.p.setAttribute('stroke-width', isP ? 3 : isH ? 2.6 : ok && brushed() ? 1.7 : 1.4);
-        if (isP || isH) front.push(x);
-      });
-      front.sort((p, q) => (pinned === p.name ? 1 : 0) - (pinned === q.name ? 1 : 0)).forEach((x) => gLines.appendChild(x.p));
-      gBr.innerHTML = '';
-      AX.forEach((a, i) => {
-        const b = brush[a.k]; if (!b) return;
-        const y1 = yOf(a, Math.min(a.hi, b[1])), y2 = yOf(a, Math.max(a.lo, b[0]));
-        mk('rect', { class: 'pc-brush', x: axX(i) - 8, y: y1, width: 16, height: Math.max(2, y2 - y1), rx: 3 }, gBr);
-      });
-      gTop.innerHTML = '';
-      const focus = pinned ? stores.find((x) => x.name === pinned) : hov;
-      if (focus) AX.forEach((a, i) => { if (focus[a.k] != null) mk('circle', { cx: axX(i), cy: yOf(a, focus[a.k]), r: 3.5, fill: '#fff', stroke: AZ.T.ink, 'stroke-width': 2 }, gTop); });
-      titleEl.textContent = brushed() ? m + ' of ' + N + ' stores match the brush' : N + ' stores across ' + n + ' measures';
-      resetB.disabled = !(brushed() || pinned);
-      cap.textContent = pinned ? 'Pinned: ' + pinned + '. Click its line again, or Reset, to release it.' : (brushed() ? 'Drag on an axis to replace its brush, click an axis to clear it.' : 'Drag along any axis to filter. Hover a line for the store, click to pin it.');
-      if (panel) panelDraw(focus);
-    }
-    function panelDraw(x) {
-      if (!x) { panel.innerHTML = '<div class="pc-pt">No store selected</div><div class="pc-pm">Hover a line to read a store, click to pin it.</div>'; return; }
-      panel.innerHTML = '<div class="pc-pt">' + AZ.esc(x.name) + (pinned === x.name ? ' <span class="pc-pin">pinned</span>' : '') + '</div>'
-        + AX.map((a) => '<div class="pc-pr"><span>' + AZ.esc(a.t) + '</span><b>' + (x[a.k] != null ? a.f(x[a.k]) : 'n/a') + '</b><i>' + (a.rank.get(x.name) ? '#' + a.rank.get(x.name) : '') + '</i></div>').join('');
-    }
-    const showTip = (x, e) => {
-      const b = el.getBoundingClientRect();
-      tip.show('<b>' + AZ.esc(x.name) + '</b>' + AX.map((a) => AZ.row(a.t, x[a.k] != null ? a.f(x[a.k]) : 'n/a')).join(''), e.clientX - b.left, e.clientY - b.top);
-    };
-    // hit-test by distance to the polyline, so the thin lines are easy to reach
-    const segD = (px, py, x1, y1, x2, y2) => { const dx = x2 - x1, dy = y2 - y1, l2 = dx * dx + dy * dy, t = l2 ? Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / l2)) : 0; return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy)); };
-    const nearest = (e) => {
-      const b = plot.getBoundingClientRect(), px = (e.clientX - b.left) / b.width * W, py = (e.clientY - b.top) / b.height * H;
-      let best = null, bd = narrow ? 12 : 14;
-      stores.forEach((x) => {
-        if (brushed() && !x.ok) return;
-        for (let i = 0; i < AX.length - 1; i++) {
-          if (x[AX[i].k] == null || x[AX[i + 1].k] == null) continue;
-          const d = segD(px, py, axX(i), yOf(AX[i], x[AX[i].k]), axX(i + 1), yOf(AX[i + 1], x[AX[i + 1].k]));
-          if (d < bd) { bd = d; best = x; }
-        }
-      });
-      return best;
-    };
-    plot.addEventListener('mousemove', (e) => {
-      if (drag) return;
-      const x = nearest(e);
-      plot.style.cursor = x ? 'pointer' : '';
-      if (x !== hov) { hov = x; paint(); }
-      if (x) showTip(x, e); else tip.hide();
-    });
-    plot.addEventListener('mouseleave', () => { hov = null; tip.hide(); paint(); });
-    plot.addEventListener('click', (e) => {
-      if (e.target.classList && e.target.classList.contains('pc-strip')) return;
-      const x = nearest(e); if (x) { pinned = pinned === x.name ? null : x.name; paint(); }
-    });
-    stores.forEach((x) => {
-      x.hit.style.pointerEvents = 'none';
-      x.hit.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pinned = pinned === x.name ? null : x.name; paint(); } });
-      x.hit.addEventListener('focus', () => { const bb = x.hit.getBoundingClientRect(); hov = x; showTip(x, { clientX: bb.left + bb.width / 2, clientY: bb.top }); paint(); });
-      x.hit.addEventListener('blur', () => { hov = null; tip.hide(); paint(); });
-    });
-
-    // brush: a transparent strip over each axis, below the hit lines so a line still wins where they cross
-    AX.forEach((a, i) => {
-      const r = mk('rect', { class: 'pc-strip', x: axX(i) - 12, y: PT - 4, width: 24, height: ph + 8, fill: 'transparent' }, gStrip);
-      const yAt = (e) => { const b = plot.getBoundingClientRect(); return Math.max(PT, Math.min(PT + ph, (e.clientY - b.top) / b.height * H)); };
-      r.addEventListener('pointerdown', (e) => { drag = { a: a, y0: yAt(e), moved: false }; try { r.setPointerCapture(e.pointerId); } catch (er) {} tip.hide(); hov = null; });
-      r.addEventListener('pointermove', (e) => {
-        if (!drag || drag.a !== a) return;
-        const y = yAt(e); if (Math.abs(y - drag.y0) > 3) drag.moved = true;
-        if (drag.moved) { const v0 = vOf(a, drag.y0), v1 = vOf(a, y); brush[a.k] = [Math.min(v0, v1), Math.max(v0, v1)]; paint(); }
-      });
-      const end = () => { if (!drag || drag.a !== a) return; if (!drag.moved) delete brush[a.k]; drag = null; paint(); };
-      r.addEventListener('pointerup', end); r.addEventListener('pointercancel', end);
-    });
-    resetB.addEventListener('click', () => { Object.keys(brush).forEach((k) => delete brush[k]); pinned = null; paint(); });
-    const onKey = (e) => { if (e.key === 'Escape') { Object.keys(brush).forEach((k) => delete brush[k]); pinned = null; paint(); } };
-    window.addEventListener('keydown', onKey);
-
-    paint();
-    let cancel = () => {};
-    if (!entered && !AZ.reduced()) {
-      // lines draw in with a stagger; the final frame is the default state
-      const total = 620, dur = 340, gp = N > 1 ? (total - dur) / (N - 1) : 0;
-      stores.forEach((x) => { x.p.setAttribute('stroke-dasharray', '1 1'); x.p.setAttribute('stroke-dashoffset', 1); });
-      cancel = AZ.tween(total, (k) => { const t = k * total; stores.forEach((x, i) => { const p = Math.max(0, Math.min(1, (t - i * gp) / dur)); x.p.setAttribute('stroke-dashoffset', (1 - AZ.EASE.out(p)).toFixed(3)); }); },
-        () => stores.forEach((x) => { x.p.removeAttribute('stroke-dasharray'); x.p.removeAttribute('stroke-dashoffset'); }), (t) => t);
-    }
-    entered = true;
-    return () => { cancel(); window.removeEventListener('keydown', onKey); };
-  }
+// Interactions: hover a line for the store and its five values; click lines to select several (the rest fade), Escape clears; arrow keys step between stores.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, St = c(/store/i, 'Store'), D = c(/date|quarter/i, 'Quarter(date)'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
+// Per store: totals over every quarter, price per unit, year-to-date change (the latest year's quarters up to the
+// latest quarter against the same quarters a year earlier) and total sales as a share of the largest store.
+const last = rows.reduce((m, r) => Math.max(m, AZ.ms(r[D])), 0), ly = AZ.year(last), lq = new Date(last).getUTCMonth();
+const by = new Map();
+rows.forEach((r) => {
+  const o = by.get(r[St]) ?? by.set(r[St], { s: 0, u: 0, cur: 0, prev: 0 }).get(r[St]), t = new Date(AZ.ms(r[D])), v = AZ.num(r[V]);
+  o.s += v; o.u += AZ.num(r[Q]);
+  if (t.getUTCMonth() <= lq) { if (t.getUTCFullYear() === ly) o.cur += v; else if (t.getUTCFullYear() === ly - 1) o.prev += v; }
+});
+const top = Math.max(0, ...[...by.values()].map((o) => o.s)), ytd = [...by.values()].some((o) => o.prev > 0);
+const data = [...by].map(([k, o]) => ({ Store: k, Sales: o.s, Units: o.u, Price: o.u ? o.s / o.u : null, YTD: ytd && o.prev ? o.cur / o.prev - 1 : null, Share: top ? o.s / top : null }));
+const qs = 'Q1' + (lq > 0 ? '-Q' + (Math.floor(lq / 3) + 1) : ''), money = { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 };
+AZ.maya({
+  type: 'parallel', x: 'Store', y: ['Sales', 'Units', 'Price'].concat(ytd ? ['YTD'] : [], ['Share']), select: 'multi',
+  title: data.length ? data.length + ' stores across ' + (ytd ? 5 : 4) + ' measures' : '',
+  subtitle: data.length ? 'Sales and units over every quarter; ' + (ytd ? 'year-to-date change is ' + qs + ' ' + ly + ' on ' + (ly - 1) + '; ' : '') + 'share is of the largest store' : '',
+  titles: { Sales: 'Total sales', Price: 'Price per unit', YTD: 'YTD change', Share: 'Share of top' },
+  format: { Sales: money, Units: { notation: 'compact', maximumFractionDigits: 1 }, Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }, YTD: { style: 'percent', maximumFractionDigits: 1, signDisplay: 'exceptZero' }, Share: { style: 'percent', maximumFractionDigits: 0 } },
+  text: { noData: 'No rows yet: bind [sales] [quantity purchased] [store] [date].quarterly' },
+  theme: { series1: '#6A7891', line: '1.25' },
+  data
 });

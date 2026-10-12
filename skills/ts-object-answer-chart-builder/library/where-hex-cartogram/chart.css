@@ -32,33 +32,4 @@ body { background: var(--az-surface); color: var(--az-ink); font-family: var(--a
 .az-sep { color: var(--az-muted); }
 /* ==== end amuzing core css ==== */
 
-#chart { display: flex; flex-direction: column; padding: 14px 14px 10px; gap: 8px; overflow: hidden; }
-.hx-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none; }
-.hx-title { font-size: 13px; line-height: 1.3; font-weight: 600; }
-.hx-line { font-size: 12px; line-height: 1.4; color: var(--az-ink2); flex: none; margin-top: -4px; }
-.hx-line b { color: var(--az-ink); font-weight: 600; }
-.hx-seg { display: inline-flex; border: 1px solid var(--az-grid); border-radius: 6px; overflow: hidden; flex: none; }
-.hx-seg button { all: unset; cursor: pointer; font-size: 11px; line-height: 1; padding: 6px 8px; color: var(--az-muted); white-space: nowrap; }
-.hx-seg button + button { border-left: 1px solid var(--az-grid); }
-.hx-seg button.on { background: var(--az-ink); color: #fff; }
-.hx-seg button:not(.on):hover { background: #F1F2F4; color: var(--az-ink); }
-.hx-seg button:focus-visible { outline: 2px solid var(--az-ink); outline-offset: -2px; }
-.hx-map { flex: 1 1 auto; min-height: 0; position: relative; }
-.hx-map svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.hx-h { transition: opacity .15s ease; }
-.hx-h.has { cursor: pointer; }
-.hx-h.dim { opacity: .3; }
-.hx-h polygon { stroke-linejoin: round; }
-.hx-h.has:hover polygon { stroke: var(--az-ink); stroke-width: 2; }
-.hx-h.pin polygon { stroke: var(--az-ink); stroke-width: 2.5; }
-.hx-h:focus { outline: none; }
-.hx-h:focus-visible polygon { stroke: var(--az-ink); stroke-width: 2.5; }
-.hx-t { font-family: var(--az-font); pointer-events: none; text-anchor: middle; }
-.hx-key { flex: none; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; font-size: 11px; line-height: 1.3; color: var(--az-muted); }
-.hx-ramp { display: inline-flex; }
-.hx-ramp i { width: 16px; height: 10px; display: inline-block; }
-.hx-none { width: 14px; height: 10px; border: 1px solid var(--az-grid); border-radius: 2px; display: inline-block; box-sizing: border-box; }
-.hx-read { flex: none; min-height: 34px; font-size: 12px; line-height: 1.4; color: var(--az-ink2); border-top: 1px solid var(--az-grid); padding-top: 8px; display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; }
-.hx-read b { color: var(--az-ink); font-weight: 600; }
-.hx-x { all: unset; cursor: pointer; flex: none; font-size: 11px; color: var(--az-ink); border: 1px solid var(--az-grid); border-radius: 6px; padding: 4px 8px; }
-.hx-x:focus-visible { outline: 2px solid var(--az-ink); outline-offset: 1px; }
+#chart { display: block; height: 100%; min-height: 0; color-scheme: light; }

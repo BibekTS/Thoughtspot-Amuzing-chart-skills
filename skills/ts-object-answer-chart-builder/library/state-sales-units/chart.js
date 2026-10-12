@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,24 +243,19 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [quantity purchased] [state]   (columns arrive as "state", "Total sales", "Total quantity purchased")
 // Interactions: hover a dot for state, sales, units and sales per unit; click dots to select several; drag to zoom (double-click resets); the dashed diagonal is the average price.
-const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js';
-const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
-const done = () => viz?.events?.emitRenderCompletedEvent?.();
-if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const S = AZ.col(schema, /state/i, { optional: true }) ?? 'state', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Total sales', U = AZ.col(schema, /quantity|units/i, { optional: true }) ?? 'Total quantity purchased';
 // Sales per unit for the tooltip; the three largest states by sales get their name on the chart.
 const data = rows.map((r) => ({ ...r, Price: AZ.num(r[U]) ? AZ.num(r[V]) / AZ.num(r[U]) : null }));
 const P = data.map((r) => r.Price).filter((p) => p != null), usd = (n) => '$' + n.toFixed(2), avg = AZ.num(rows.reduce((a, r) => a + AZ.num(r[V]), 0) / rows.reduce((a, r) => a + AZ.num(r[U]), 0));
 const top = [...data].sort((a, b) => AZ.num(b[V]) - AZ.num(a[V])).slice(0, 3).map((r) => ({ x: r[U], text: String(r[S]).slice(0, 40) }));
-el.addEventListener('maya-settled', done, { once: true });
-el.spec = {
+AZ.maya({
   type: 'scatter', x: U, y: V, name: S, select: 'multi', zoom: true, xScale: 'log', yScale: 'log', tooltip: { fields: ['Price'] }, annotate: top.length ? top : ['max'],
   rules: [{ slope: 'mean', label: 'Average price' }],
   title: P.length ? 'Sales per unit runs ' + usd(Math.min(...P)) + ' to ' + usd(Math.max(...P)) + ' across ' + rows.length + ' states' : '',
@@ -255,6 +263,6 @@ el.spec = {
   titles: { [S]: 'State', [V]: 'Sales', [U]: 'Units', Price: 'Sales per unit' },
   format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, [U]: { notation: 'compact', maximumFractionDigits: 1 }, Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 2 } },
   text: { noData: 'No rows yet: bind [sales] [quantity purchased] [state]' },
-  theme: { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: '#1E1E24', fgMuted: '#8A8A94', accent: '#1E1E24', series1: '#1E1E24', series2: '#B4BDC9', radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' },
+  theme: { series1: '#1E1E24', series2: '#B4BDC9' },
   data
-};
+});

@@ -32,30 +32,4 @@ body { background: var(--az-surface); color: var(--az-ink); font-family: var(--a
 .az-sep { color: var(--az-muted); }
 /* ==== end amuzing core css ==== */
 
-#chart { display: flex; flex-direction: column; padding: 14px 18px 10px; gap: 8px; }
-.bm-head { flex: none; font-size: 14px; line-height: 1.35; font-weight: 500; color: var(--az-ink); min-height: 19px; }
-.bm-head b { font-weight: 600; }
-.bm-head span { color: var(--az-ink2); }
-.bm-ctl { flex: none; display: flex; align-items: center; gap: 12px; }
-.bm-btn { all: unset; cursor: pointer; box-sizing: border-box; min-width: 64px; text-align: center; font-size: 12px; line-height: 1; font-weight: 500; padding: 7px 12px; border-radius: 6px; background: var(--az-ink); color: #fff; }
-.bm-btn:hover { background: #33333B; }
-.bm-btn:focus-visible { outline: 2px solid var(--az-ink); outline-offset: 2px; }
-.bm-slider { flex: 1 1 auto; min-width: 0; margin: 0; accent-color: var(--az-ink); cursor: pointer; height: 20px; }
-.bm-slider:focus-visible { outline: 2px solid var(--az-ink); outline-offset: 2px; border-radius: 6px; }
-.bm-q { flex: none; width: 74px; text-align: right; font-size: 13px; font-weight: 600; }
-.bm-plot { flex: 1 1 auto; min-height: 90px; position: relative; }
-.bm-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.bm-ax { font-size: 11px; fill: var(--az-muted); }
-.bm-axt { font-size: 11px; fill: var(--az-ink2); }
-.bm-big { font-size: 46px; font-weight: 600; fill: var(--az-slate-1); letter-spacing: -1px; pointer-events: none; }
-.bm-big2 { font-size: 12px; fill: var(--az-muted); pointer-events: none; }
-.bm-lb { font-size: 11px; font-weight: 500; fill: var(--az-ink); paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
-.bm-yr { font-size: 10px; fill: var(--az-ink2); paint-order: stroke; stroke: #fff; stroke-width: 3px; }
-.bm-bub { cursor: pointer; outline: none; }
-.bm-bub:focus-visible { stroke: var(--az-ink); stroke-width: 3; }
-.bm-key { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; font-size: 11px; color: var(--az-ink2); }
-.bm-k { display: inline-flex; align-items: center; gap: 5px; }
-.bm-k i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-.bm-note { margin-left: auto; color: var(--az-muted); }
-#chart.bm-md .bm-big { font-size: 34px; } #chart.bm-md .bm-note { display: none; }
-#chart.bm-sm .bm-key { display: none; } #chart.bm-sm .bm-head { font-size: 13px; }
+#chart { display: block; height: 100%; color-scheme: light; }

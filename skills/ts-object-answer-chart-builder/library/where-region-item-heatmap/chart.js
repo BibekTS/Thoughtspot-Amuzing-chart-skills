@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,118 +243,24 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [region] [item type]
-// Region rows x item-type columns on the slate ramp. Item types run left to right by total sales.
-// Family colour appears only as the small bar above each column (editorial grouping, not a model column).
-// Interactions: Sales / Share of region toggle; hover a cell; click a row or column header to isolate it (click again to clear).
-let mode = 'sales';
-let iso = null; // { k: 'r' | 'c', v: name }
-
-AZ.boot({
-  need: 'sales by region and item type, e.g. [sales] [region] [item type]',
-  render: async ({ el, rows, schema, w, redraw }) => {
-    const rK = AZ.col(schema, /region/i), iK = AZ.col(schema, /item/i), sK = AZ.col(schema, /sales/i);
-    const cell = new Map(), rt = new Map(), ct = new Map();
-    let all = 0;
-    rows.forEach((r) => {
-      const a = String(r[rK]), b = String(r[iK]), v = AZ.num(r[sK]);
-      cell.set(a + '\u0001' + b, (cell.get(a + '\u0001' + b) || 0) + v);
-      rt.set(a, (rt.get(a) || 0) + v); ct.set(b, (ct.get(b) || 0) + v); all += v;
-    });
-    const regs = Array.from(rt.keys()).sort((a, b) => rt.get(b) - rt.get(a));
-    const items = Array.from(ct.keys()).sort((a, b) => ct.get(b) - ct.get(a));
-    if (!regs.length || !items.length || all <= 0) {
-      AZ.paint(el, '<div class="az-empty"><b>No region and item type sales</b><span>The current filter returns no rows. Search: [sales] [region] [item type]</span></div>');
-      return;
-    }
-    if (iso && !(iso.k === 'r' ? rt.has(iso.v) : ct.has(iso.v))) iso = null;
-    const key = (a, b) => a + '\u0001' + b;
-    const val = (a, b) => cell.get(key(a, b));
-    const share = (a, b) => { const v = val(a, b); return v == null ? null : v / rt.get(a); };
-    const metric = (a, b) => (mode === 'sales' ? val(a, b) : share(a, b));
-    let mx = 0;
-    regs.forEach((a) => items.forEach((b) => { const m = metric(a, b); if (m != null && m > mx) mx = m; }));
-    const S = AZ.T.slate;
-    const bin = (m) => Math.min(S.length - 1, Math.floor((m / mx) * S.length * 0.999));
-
-    // Header line: the biggest cell, and how many regions lead with the same item type
-    let best = null;
-    regs.forEach((a) => items.forEach((b) => { const v = val(a, b); if (v != null && (!best || v > best.v)) best = { a: a, b: b, v: v }; }));
-    const leaders = regs.map((a) => items.reduce((t, b) => ((val(a, b) || 0) > (val(a, t) || 0) ? b : t), items[0]));
-    const topItem = items[0], nTop = leaders.filter((x) => x === topItem).length;
-    const line = '<b>' + AZ.esc(best.a) + ' ' + AZ.esc(best.b.toLowerCase()) + '</b> is the largest cell: ' + AZ.money(best.v, 1) + ', ' + AZ.pct(best.v / all, 1) + ' of sales. '
-      + (regs.length === 1 ? AZ.esc(topItem) + ' is the top item here.' : nTop === regs.length ? AZ.esc(topItem) + ' is the top item in every region.' : AZ.esc(topItem) + ' is the top item in ' + nTop + ' of ' + regs.length + ' regions.');
-
-    const showVals = (w - 28 - 66) / items.length >= 34;
-    const cols = '66px repeat(' + items.length + ', minmax(0, 1fr))';
-    let g = '<div class="hm-grid" id="hm-grid" style="grid-template-columns:' + cols + ';grid-template-rows:8px 62px repeat(' + regs.length + ', minmax(22px, 1fr))">';
-    g += '<span></span>';
-    items.forEach((b) => { g += '<span class="hm-fam" data-c="' + AZ.esc(b) + '" style="background:' + AZ.familyColor(b) + '"></span>'; });
-    g += '<span></span>';
-    items.forEach((b) => { g += '<button type="button" class="hm-ch" data-c="' + AZ.esc(b) + '" title="' + AZ.esc(b) + '">' + AZ.esc(b) + '</button>'; });
-    regs.forEach((a) => {
-      g += '<button type="button" class="hm-rh" data-r="' + AZ.esc(a) + '">' + AZ.esc(a) + '</button>';
-      items.forEach((b) => {
-        const m = metric(a, b);
-        if (m == null) { g += '<span class="hm-c none" data-r="' + AZ.esc(a) + '" data-c="' + AZ.esc(b) + '" data-n="1"></span>'; return; }
-        const k = bin(m), txt = showVals ? (mode === 'sales' ? AZ.money(m, 0) : AZ.pct(m, 0)) : '';
-        g += '<span class="hm-c" data-r="' + AZ.esc(a) + '" data-c="' + AZ.esc(b) + '" style="background:' + S[k] + ';color:' + (k >= 4 ? '#fff' : AZ.T.ink) + '">' + txt + '</span>';
-      });
-    });
-    g += '</div>';
-    const fams = []; items.forEach((b) => { const f = AZ.familyOf(b); if (fams.indexOf(f) < 0) fams.push(f); });
-    el.innerHTML =
-      '<div class="hm-top"><div class="hm-title">Sales by region and item type</div>'
-      + '<div class="hm-seg" role="group" aria-label="Measure"><button type="button" data-m="sales" class="' + (mode === 'sales' ? 'on' : '') + '">Sales</button><button type="button" data-m="share" class="' + (mode === 'share' ? 'on' : '') + '">Share of region</button></div></div><div class="hm-line">' + line + '</div>'
-      + g
-      + '<div class="hm-key"><span class="hm-ramp">' + S.map((c) => '<i style="background:' + c + '"></i>').join('') + '</span><span>' + (mode === 'sales' ? '$0 to ' + AZ.money(mx, 0) : '0% to ' + AZ.pct(mx, 0) + ' of a region') + '</span>'
-      + fams.map((f) => '<span><i style="background:' + AZ.T.family[f] + '"></i>' + AZ.esc(f) + '</span>').join('')
-      + '<button type="button" class="hm-clear" id="hm-clear">Show all</button></div>';
-    el.querySelectorAll('.hm-seg button').forEach((b) => b.addEventListener('click', () => { mode = b.getAttribute('data-m'); redraw(); }));
-
-    const grid = document.getElementById('hm-grid'), clear = document.getElementById('hm-clear');
-    const paint = () => {
-      grid.querySelectorAll('[data-r],[data-c]').forEach((n) => {
-        const r = n.getAttribute('data-r'), c = n.getAttribute('data-c');
-        let hit = true;
-        if (iso) hit = iso.k === 'r' ? (r === iso.v) : (c === iso.v);
-        // a row header has only data-r, a column header or swatch only data-c
-        n.classList.toggle('hm-dim', !hit);
-        if (n.classList.contains('hm-rh')) n.classList.toggle('on', !!iso && iso.k === 'r' && r === iso.v);
-        if (n.classList.contains('hm-ch')) n.classList.toggle('on', !!iso && iso.k === 'c' && c === iso.v);
-      });
-      clear.style.visibility = iso ? 'visible' : 'hidden';
-    };
-    paint();
-    const pick = (k, v) => { iso = iso && iso.k === k && iso.v === v ? null : { k: k, v: v }; paint(); };
-    grid.querySelectorAll('.hm-rh').forEach((n) => n.addEventListener('click', () => pick('r', n.getAttribute('data-r'))));
-    grid.querySelectorAll('.hm-ch').forEach((n) => n.addEventListener('click', () => pick('c', n.getAttribute('data-c'))));
-    clear.addEventListener('click', () => { iso = null; paint(); });
-
-    const tip = AZ.tip(el);
-    grid.querySelectorAll('.hm-c').forEach((n) => {
-      const a = n.getAttribute('data-r'), b = n.getAttribute('data-c');
-      n.addEventListener('mousemove', (e) => {
-        const bx = el.getBoundingClientRect(), v = val(a, b);
-        const rank = items.slice().sort((x, y) => (val(a, y) || 0) - (val(a, x) || 0)).indexOf(b) + 1;
-        const html = '<b>' + AZ.esc(a) + ' / ' + AZ.esc(b) + '</b>'
-          + (v == null ? AZ.row('Sales', 'none in this filter') : AZ.row('Sales', AZ.money(v, 2), '#FFFFFF') + AZ.row('Share of ' + a, AZ.pct(v / rt.get(a), 1)) + AZ.row('Share of all sales', AZ.pct(v / all, 1)) + AZ.row('Rank in ' + a, rank + ' of ' + items.length))
-          + AZ.row('Family', AZ.familyOf(b), AZ.familyColor(b));
-        tip.show(html, e.clientX - bx.left, e.clientY - bx.top);
-      });
-      n.addEventListener('mouseleave', () => tip.hide());
-    });
-    grid.querySelectorAll('.hm-rh,.hm-ch').forEach((n) => {
-      n.addEventListener('mousemove', (e) => {
-        const bx = el.getBoundingClientRect(), r = n.getAttribute('data-r'), c = n.getAttribute('data-c');
-        tip.show(r ? '<b>' + AZ.esc(r) + '</b>' + AZ.row('Sales', AZ.money(rt.get(r), 1)) + AZ.row('Share of all sales', AZ.pct(rt.get(r) / all, 1)) + AZ.row('Click', 'isolate this row')
-          : '<b>' + AZ.esc(c) + '</b>' + AZ.row('Sales', AZ.money(ct.get(c), 1)) + AZ.row('Share of all sales', AZ.pct(ct.get(c) / all, 1)) + AZ.row('Family', AZ.familyOf(c), AZ.familyColor(c)) + AZ.row('Click', 'isolate this column'), e.clientX - bx.left, e.clientY - bx.top);
-      });
-      n.addEventListener('mouseleave', () => tip.hide());
-    });
-  }
+// Interactions: Sales / Share of region toggle; hover or arrow-key to a cell for region, item type and value; click cells to select several, Escape clears.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const R = AZ.col(schema, /region/i, { optional: true }) ?? 'region', I = AZ.col(schema, /item/i, { optional: true }) ?? 'item type', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Total sales';
+// Share of region for the measure toggle; rows ordered so the largest region is the top row.
+const rt = new Map(); rows.forEach((r) => rt.set(r[R], (rt.get(r[R]) || 0) + AZ.num(r[V])));
+const data = rows.map((r) => ({ [R]: r[R], [I]: r[I], [V]: AZ.num(r[V]), Share: rt.get(r[R]) ? AZ.num(r[V]) / rt.get(r[R]) : 0 })).sort((a, b) => rt.get(b[R]) - rt.get(a[R]));
+AZ.maya({
+  type: 'heatmap', x: I, series: R, y: [V, 'Share'], sort: 'desc', select: 'multi',
+  title: 'Sales by region and item type',
+  subtitle: 'Item types by total sales, largest first',
+  titles: { [R]: 'Region', [I]: 'Item type', [V]: 'Sales', Share: 'Share of region' },
+  format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Share: { style: 'percent', maximumFractionDigits: 0 } },
+  text: { noData: 'No rows yet. Bind the search [sales] [region] [item type]' },
+  theme: { accent: '#6A7891', series1: '#6A7891' },
+  data
 });

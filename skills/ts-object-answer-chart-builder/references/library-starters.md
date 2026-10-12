@@ -17,8 +17,8 @@ screenshot unless marked otherwise.
 
 ## MayaCharts (mayacharts, `maya.core.global.js` / `maya.global.js`)
 
-Verified in the preview (headless Chromium, 0.16.0) on the starter below, `examples/maya-was-bars/` and the six
-MayaCharts library charts: render, every data mode, 130 to 1400 px tiles, hover, click, drill, sweep. Not yet
+Verified in the preview (headless Chromium, 0.16.0) on the starter below, `examples/maya-was-bars/` and the
+MayaCharts library charts (48 of 58 as of 2026-10-12): render, every data mode, 130 to 1400 px tiles, hover, click, drill, sweep. Not yet
 screenshotted on a cluster: say "verified in preview" until it has been.
 
 - **Version: the latest release, pinned.** Take it from the doctor's `mayacharts:` line (it asks jsDelivr, then npm)
@@ -44,20 +44,24 @@ screenshotted on a cluster: say "verified in preview" until it has been.
   `frame`, `y2`, `was.by`, `tooltip.fields`) take a RegExp, so a cluster that names the column `Total sales` or
   `Total Sales` both match.
 - **When the spec needs a field the search does not return** (a family derived from item type, a per-row price, a
-  top-N roll-up), read the rows yourself and signal on settle. In a library chart (core block present):
+  top-N roll-up), read the rows yourself. In a library chart (core block present) the body is the rows, the derived
+  fields and one `AZ.maya(spec)` call; `AZ.maya(spec, 'maya.global.js')` for a module type:
   ```js
-  const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
-  const done = () => viz?.events?.emitRenderCompletedEvent?.();
-  if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
   const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-  el.addEventListener('maya-settled', done, { once: true });
-  el.spec = { ..., data: rows.map((r) => ({ ...r, Family: AZ.familyOf(r[I]) })) };
+  const I = AZ.col(schema, /item/i, { optional: true }) ?? 'Item Type';
+  AZ.maya({ type: 'bar', x: 'Family', y: 'Total Sales', colors: AZ.T.family, data: rows.map((r) => ({ ...r, Family: AZ.familyOf(r[I]) })) });
   ```
-  Signal on `maya-settled` (after the entrance animation, and after an error), never on `maya-render`, which fires
-  while the animation still runs, or `customElements.whenDefined`. `AZ.col(schema, /re/i, { optional: true }) ?? 'Name'`
-  reads a column without throwing on absent data.
-- **Theme to the house style** with tokens: `{ font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: AZ.T.ink,
-  fgMuted: AZ.T.muted, accent: AZ.T.ink, series1: AZ.T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px' }`.
+  `AZ.maya` finds or creates `<maya-chart id="chart">`, loads the pinned build once (the URL lives in the core, so a
+  version bump is one edit in `library/_shared/core.js` plus `sync-core`), paints a message if the CDN fails, merges
+  `spec.theme` over the house theme and signals render-complete on `maya-settled` (after the entrance animation, and
+  after an error), never on `maya-render`, which fires while the animation still runs, or
+  `customElements.whenDefined`. It returns the element, for `el.view` or a `maya-select` listener.
+  `AZ.col(schema, /re/i, { optional: true }) ?? 'Name'` reads a column without throwing on absent data. Do not copy
+  the loader lines into a library chart, and do not restate the house theme.
+- **Theme to the house style.** `AZ.maya` applies it: `{ font: 'Geist, system-ui, sans-serif', fontSize: '12px',
+  fg: AZ.T.ink, fgMuted: AZ.T.muted, accent: AZ.T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px',
+  titleWeight: '600' }`. Put only the tokens that differ in `spec.theme` (a slate `accent` on a ramp, `good` / `bad`).
+  Leave `series1` to `series8` out when the spec has a `colors` map: in 0.16.0 a series token beats the map.
   Pin `color-scheme: light` on the element: ThoughtSpot tiles are light whatever the OS is.
 - **Colours by meaning.** `colors` takes a map: by series value, by `path[0]` on treemap and sunburst, by node name on
   sankey and chord (links and inner levels inherit), by category on waffle. Slots are fixed from all rows, so hues
@@ -89,7 +93,10 @@ screenshotted on a cluster: say "verified in preview" until it has been.
     level; a filter that removes the branch falls back to the root.
   - A date path (`path: ['year', 'month']` with ISO months) drills onto a real time axis. The drill only filters rows
     the tile has, so the search needs every level.
-- **Known 0.16.0 traps** (BbekShr/mayacharts#76): with no rows, `title` / `subtitle` tokens print raw, so set them
+- **Known 0.16.0 traps** (BbekShr/mayacharts#76, and #89 to #93: a `series1` token beats a `colors` map, `was` ghosts
+  are clipped and missing from the tooltip, labels keep dark ink on dark fills, `text.noData` does not wrap). Gaps that
+  kept a chart off MayaCharts or cost it a feature are #78 to #88; check them before hand-building.
+  Also: with no rows, `title` / `subtitle` tokens print raw, so set them
   only when there are rows (`subtitle: data.length ? '...' : ''`, or skip tokens in an adapter tile); tokens are not
   filled on scatter; `{total}` sums every series while `{max.y}` and `{last.y}` take one, so on a this-year /
   last-year line quote `{x}` tokens or compute the headline; `annotate: []` throws (omit the key); in a tile under

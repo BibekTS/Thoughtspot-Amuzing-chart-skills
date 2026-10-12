@@ -6,16 +6,16 @@ Where does the year end if the rest follows last year's months, or the last thre
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [date].monthly` |
-| Library | Inline SVG (no CDN) |
+| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
 | Tile | 6x6 grid units (07 Next tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | none |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
 
 ## Interactions
-scenario toggle (both, same months last year, 3-month average); hover a month for actual or projected values
+Hover a month for the actual value or both projected values. Click a legend key to hide or show a scenario, which replaces the old scenario toggle. Wider tiles also name each line at its right end. Drag to zoom into a span of months; double-click or Escape resets. Arrow keys step through months and lines.
 
 ## Notes
-Projection, not a forecast. Projects the next year if December is already in the data. Months missing under a filter are skipped, and totals then cover the months present. Jan to May 2026 equals Jan to May 2025 in this data.
+Built on MayaCharts 0.16.0: a `line` on a time axis with three series (actual in ink, and the two projections dashed in slate through `dash`), plus a `rules` x line at the last actual month labelled Projected. The body still builds the projections: the same months a year earlier, and the last three months' average carried on, both starting from the last actual month. If December is already in the data, it projects the next year. The title gives both year-end totals and the subtitle compares them with last year. Dropped against the old chart: the two total cards (now in the title), the shaded projection band and the 'apart by' caption. A projection, not a forecast. Preview-verified on synthetic data, not yet re-checked on a cluster.
 
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.

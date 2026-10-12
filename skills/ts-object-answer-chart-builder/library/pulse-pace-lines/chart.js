@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,206 +243,34 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
-// Search: [sales] [date].monthly     (columns arrive as "Total sales" and "Month(date)")
-// Cumulative sales by month, one line per year (a year needs at least 3 months). Lines draw on left to right.
-// Interactions: hover a month for every year's cumulative value; click a line or its label (Enter or Space when focused)
-// to open that year: the other lines fade out while its monthly columns rise against the previous year as an outline.
-// Crumbs, Back and Escape return. No library, no fetch: plain SVG.
-const INK = AZ.T.ink;
-let drill = null;   // year number when a single year is open
-
-const nice = (max) => {
-  const raw = max / 4, p = Math.pow(10, Math.floor(Math.log10(raw || 1))), f = raw / p;
-  const step = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
-  const t = []; for (let v = 0; v <= max + step * 0.999; v += step) t.push(v);
-  return { ticks: t, top: t[t.length - 1] };
-};
-
-AZ.boot({
-  need: 'sales by date at monthly grain, e.g. [sales] [date].monthly',
-  render: async ({ el, rows, schema }) => {
-    const dKey = AZ.col(schema, /date|month/i), sKey = AZ.col(schema, /sales/i);
-    const byYear = new Map();
-    rows.forEach((r) => {
-      const t = AZ.ms(r[dKey]); if (!isFinite(t)) return;
-      const y = AZ.year(t), m = new Date(t).getUTCMonth();
-      if (!byYear.has(y)) byYear.set(y, { y: y, mon: new Array(12).fill(null) });
-      const o = byYear.get(y); o.mon[m] = (o.mon[m] || 0) + AZ.num(r[sKey]);
-    });
-    const all = Array.from(byYear.values()).sort((a, b) => a.y - b.y);
-    all.forEach((o) => { let c = 0; o.cum = o.mon.map((v) => (v == null ? null : (c += v))); o.n = o.mon.filter((v) => v != null).length; o.first = o.mon.findIndex((v) => v != null); o.last = o.mon.reduce((a, v, i) => (v != null ? i : a), -1); });
-    const Y = all.filter((o) => o.n >= 3);
-    if (!Y.length) {
-      AZ.paint(el, '<div class="az-empty"><b>Not enough months</b><span>Cumulative lines need at least 3 months of sales in one year. Search: [sales] [date].monthly</span></div>');
-      return;
-    }
-    const latest = Y[Y.length - 1], prevAll = all.find((o) => o.y === latest.y - 1);
-    if (drill != null && !Y.some((o) => o.y === drill)) drill = null;
-    const yOf = (n) => all.find((o) => o.y === n);
-    const shade = (o) => { if (o === latest) return INK; const idx = Y.indexOf(o), span = Math.max(1, Y.length - 2); return AZ.T.slate[2 + Math.round((idx / span) * 3)] || AZ.T.slate[4]; };
-    const lineW = (o) => (o === latest ? 2.8 : 1.6);
-
-    // header text, all computed from the rows
-    const lm = latest.last;
-    const nCur = latest.mon.slice(0, lm + 1).filter((v) => v != null).length;
-    const prevSum = prevAll ? prevAll.mon.slice(0, lm + 1).reduce((a, v) => a + (v || 0), 0) : 0;
-    const nPrev = prevAll ? prevAll.mon.slice(0, lm + 1).filter((v) => v != null).length : 0;
-    const comparable = prevAll && nPrev === nCur && prevSum > 0;
-    const leadAll = comparable
-      ? latest.y + ' is at ' + AZ.money(latest.cum[lm], 1) + ' through ' + AZ.MON[lm] + ', ' + AZ.pct(latest.cum[lm] / prevSum - 1, 1, true) + ' on ' + prevAll.y + ' to the same month (' + AZ.money(prevSum, 1) + ').'
-      : latest.y + ' is at ' + AZ.money(latest.cum[lm], 1) + ' through ' + AZ.MON[lm] + (prevAll ? '; ' + prevAll.y + ' has ' + nPrev + ' of the same ' + nCur + ' months in this filter, so the two are not like for like.' : '.');
-    const partial = Y.filter((o) => o.first > 0 && o !== latest).map((o) => o.y + ' starts in ' + AZ.MON[o.first]);
-    const subAll = 'Cumulative sales by month, one line per year. Click a year to open its months.' + (partial.length ? ' ' + partial.join('; ') + '.' : '');
-
-    el.innerHTML = '<div class="pp-head"><div class="pp-top"><div class="pp-title" id="pp-title">Sales pace by year</div><button type="button" class="pp-back" id="pp-back" style="display:none">Back</button></div><p class="pp-lead" id="pp-lead"></p><p class="pp-sub" id="pp-sub"></p></div><div class="pp-plot" id="pp-plot"></div>';
-    const plot = document.getElementById('pp-plot');
-    await AZ.settle();
-    const W = Math.max(200, plot.clientWidth), H = Math.max(120, plot.clientHeight);
-    const ml = 40, mr = W < 380 ? 70 : 84, mt = 8, mb = 22, iw = W - ml - mr, ih = H - mt - mb, bw = iw / 12;
-    const xm = (m) => ml + (m + 0.5) * bw;
-    const maxCum = Math.max.apply(null, Y.map((o) => o.cum[o.last]));
-    const gA = nice(maxCum), yA = (v) => mt + ih - (v / gA.top) * ih;
-    const ns = (a) => a.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-
-    // ---- layer A: cumulative lines
-    let A = '<g id="pp-A"><g>';
-    gA.ticks.forEach((v) => { A += '<line class="pp-grid" x1="' + ml + '" x2="' + (W - mr) + '" y1="' + yA(v).toFixed(1) + '" y2="' + yA(v).toFixed(1) + '"/><text class="pp-tick" x="' + (ml - 6) + '" y="' + (yA(v) + 4).toFixed(1) + '" text-anchor="end">' + (v >= 1e6 && v % 1e6 !== 0 ? AZ.money(v, 1) : AZ.money(v, 0)) + '</text>'; });
-    A += '</g>';
-    const labY = Y.map((o) => ({ o: o, y: yA(o.cum[o.last]) })).sort((a, b) => a.y - b.y);
-    for (let i = 1; i < labY.length; i++) if (labY[i].y - labY[i - 1].y < 13) labY[i].y = labY[i - 1].y + 13;
-    const shift = labY.length && labY[labY.length - 1].y > mt + ih ? labY[labY.length - 1].y - (mt + ih) : 0;
-    labY.forEach((l) => { l.y -= shift; });
-    Y.slice().sort((a, b) => (a === latest) - (b === latest)).forEach((o) => {
-      const pts = []; o.cum.forEach((v, m) => { if (v != null) pts.push([xm(m), yA(v)]); });
-      const d = 'M' + pts.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L');
-      A += '<path class="pp-line" data-y="' + o.y + '" d="' + d + '" pathLength="1" fill="none" stroke="' + shade(o) + '" stroke-width="' + lineW(o) + '" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="1" stroke-dashoffset="1"/>';
-      A += '<path class="pp-hit" tabindex="0" role="button" aria-label="Open ' + o.y + '" data-y="' + o.y + '" d="' + d + '"/>';
-    });
-    labY.forEach((l) => {
-      const o = l.o, px = xm(o.last);
-      A += '<text class="pp-lab" tabindex="0" role="button" data-y="' + o.y + '" x="' + (px + 8).toFixed(1) + '" y="' + (l.y + 4).toFixed(1) + '" fill="' + (o === latest ? INK : AZ.T.slate[5]) + '" font-weight="' + (o === latest ? 600 : 400) + '" opacity="0">' + o.y + ' <tspan font-weight="600">' + AZ.money(o.cum[o.last], 0) + '</tspan></text>';
-    });
-    A += '<line class="pp-guide" id="pp-guide" y1="' + mt + '" y2="' + (mt + ih) + '" x1="0" x2="0" style="display:none"/><g id="pp-dots"></g></g>';
-
-    // ---- layer B: monthly columns for the open year (built on demand)
-    const months = AZ.MON;
-    let X = '<g>';
-    for (let m = 0; m < 12; m++) X += '<text class="pp-tick" x="' + xm(m).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle">' + (bw < 26 ? months[m].charAt(0) : months[m]) + '</text>';
-    X += '</g>';
-    plot.innerHTML = '<svg id="pp-svg" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '">' + X + A + '<g id="pp-B" style="opacity:0"></g></svg>';
-    const svg = document.getElementById('pp-svg'), gAel = document.getElementById('pp-A'), gB = document.getElementById('pp-B');
-    const lines = Array.from(svg.querySelectorAll('.pp-line')), labs = Array.from(svg.querySelectorAll('.pp-lab')), hits = Array.from(svg.querySelectorAll('.pp-hit'));
-    const guide = document.getElementById('pp-guide'), dotsG = document.getElementById('pp-dots');
-    const tip = AZ.tip(el);
-    const cancels = { draw: null, drill: null };
-    let cur = 0, busy = false, B = null;   // cur: 0 all years, 1 open year
-
-    const buildB = (yr) => {
-      const o = yOf(yr), p = yOf(yr - 1);
-      const mx = Math.max.apply(null, o.mon.concat(p ? p.mon : []).map((v) => v || 0));
-      const g = nice(mx), yB = (v) => mt + ih - (v / g.top) * ih;
-      let h = '';
-      g.ticks.forEach((v) => { h += '<line class="pp-grid" x1="' + ml + '" x2="' + (W - mr) + '" y1="' + yB(v).toFixed(1) + '" y2="' + yB(v).toFixed(1) + '"/><text class="pp-tick" x="' + (ml - 6) + '" y="' + (yB(v) + 4).toFixed(1) + '" text-anchor="end">' + (v >= 1e6 && v % 1e6 !== 0 ? AZ.money(v, 1) : AZ.money(v, 0)) + '</text>'; });
-      const bars = [];
-      for (let m = 0; m < 12; m++) {
-        if (o.mon[m] != null) { h += '<rect class="pp-bar" data-m="' + m + '" x="' + (xm(m) - bw * 0.3).toFixed(1) + '" width="' + (bw * 0.6).toFixed(1) + '" y="' + yB(0).toFixed(1) + '" height="0" rx="2" fill="' + (o === latest ? INK : shade(o)) + '"/>'; bars.push({ m: m, v: o.mon[m] }); }
-      }
-      const outs = [];
-      for (let m = 0; m < 12; m++) {
-        if (p && p.mon[m] != null) { h += '<rect class="pp-out" data-m="' + m + '" x="' + (xm(m) - bw * 0.38).toFixed(1) + '" width="' + (bw * 0.76).toFixed(1) + '" y="' + yB(0).toFixed(1) + '" height="0" rx="2" fill="none" stroke="' + AZ.T.slate[3] + '" stroke-width="1.5"/>'; outs.push({ m: m, v: p.mon[m] }); }
-      }
-      gB.innerHTML = h;
-      B = { yr: yr, o: o, p: p, yB: yB, base: yB(0), bars: bars, outs: outs, barEls: Array.from(gB.querySelectorAll('.pp-bar')), outEls: Array.from(gB.querySelectorAll('.pp-out')) };
-    };
-    const frame = (k) => {
-      cur = k;
-      const sel = B ? B.yr : null;
-      gAel.style.opacity = String(1 - k);
-      gAel.style.pointerEvents = k > 0.02 ? 'none' : '';
-      gB.style.opacity = String(Math.min(1, k * 2));
-      if (B) {
-        const kk = AZ.EASE.out(Math.max(0, Math.min(1, (k - 0.1) / 0.9)));
-        B.barEls.forEach((r, i) => { const h = (B.base - B.yB(B.bars[i].v)) * kk; r.setAttribute('y', (B.base - h).toFixed(1)); r.setAttribute('height', h.toFixed(1)); });
-        B.outEls.forEach((r, i) => { const h = (B.base - B.yB(B.outs[i].v)) * kk; r.setAttribute('y', (B.base - h).toFixed(1)); r.setAttribute('height', h.toFixed(1)); });
-      }
-      void sel;
-    };
-    const paintHead = () => {
-      const t = document.getElementById('pp-title'), lead = document.getElementById('pp-lead'), sub = document.getElementById('pp-sub'), back = document.getElementById('pp-back');
-      if (drill == null) {
-        t.textContent = 'Sales pace by year'; lead.textContent = leadAll; sub.textContent = subAll; back.style.display = 'none';
-      } else {
-        const o = yOf(drill), p = yOf(drill - 1), best = o.mon.reduce((a, v, i) => (v != null && (a < 0 || v > o.mon[a]) ? i : a), -1);
-        t.innerHTML = AZ.crumbs(['All years', String(drill)]); AZ.wireCrumbs(t, () => go(null));
-        const tot = o.cum[o.last];
-        lead.textContent = drill + ': ' + AZ.money(tot, 1) + ' over ' + o.n + ' months, best month ' + AZ.MON[best] + ' at ' + AZ.money(o.mon[best], 1) + '.';
-        const same = p ? p.mon.slice(0, o.last + 1).reduce((a, v) => a + (v || 0), 0) : 0, nP = p ? p.mon.slice(0, o.last + 1).filter((v) => v != null).length : 0, nO = o.mon.slice(0, o.last + 1).filter((v) => v != null).length;
-        sub.textContent = p && nP === nO && same > 0 ? 'Columns are monthly sales; outlines are ' + p.y + '. Through ' + AZ.MON[o.last] + ' that is ' + AZ.pct(tot / same - 1, 1, true) + ' on ' + p.y + '.' : (p ? 'Columns are monthly sales; outlines are ' + p.y + ', where it has data.' : 'Columns are monthly sales. There is no ' + (drill - 1) + ' in this filter to compare.');
-        back.style.display = '';
-      }
-    };
-    const go = (yr) => {
-      if (cancels.drill) cancels.drill();
-      tip.hide(); guide.style.display = 'none'; dotsG.innerHTML = '';
-      const from = cur;
-      if (yr != null) { if (!B || B.yr !== yr) buildB(yr); drill = yr; } else drill = null;
-      paintHead();
-      busy = true;
-      const to = yr != null ? 1 : 0;
-      cancels.drill = AZ.tween(560, (k) => frame(AZ.lerp(from, to, k)), () => { busy = false; }, AZ.EASE.inOut);
-    };
-    document.getElementById('pp-back').addEventListener('click', () => go(null));
-
-    // ---- entrance: lines draw on left to right, labels fade in
-    const paintDraw = (k) => {
-      lines.forEach((l) => l.setAttribute('stroke-dashoffset', String(1 - k)));
-      labs.forEach((t) => t.setAttribute('opacity', String(Math.max(0, (k - 0.6) / 0.4))));
-    };
-    if (drill != null) { buildB(drill); paintDraw(1); frame(1); }
-    else {
-      paintDraw(0);
-      if (typeof window.__azPPSeen === 'undefined') {
-        window.__azPPSeen = true;
-        cancels.draw = AZ.tween(650, paintDraw, null, AZ.EASE.inOut);
-      } else paintDraw(1);
-    }
-    paintHead();
-
-    // ---- open a year: click a line or label, Enter or Space when focused
-    hits.concat(labs).forEach((n) => {
-      const yr = Number(n.getAttribute('data-y'));
-      n.addEventListener('click', () => { if (drill == null && !busy) go(yr); });
-      n.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && drill == null && !busy) { e.preventDefault(); go(yr); } });
-    });
-
-    // ---- hover by position, so the gaps between marks still register
-    const monthAt = (clientX) => { const r = svg.getBoundingClientRect(); return Math.max(0, Math.min(11, Math.floor((clientX - r.left - ml) / bw))); };
-    svg.addEventListener('mousemove', (e) => {
-      if (busy) return;
-      const r = svg.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
-      if (px < ml || px > W - mr + 4 || py < mt - 4 || py > mt + ih + 4) { tip.hide(); guide.style.display = 'none'; dotsG.innerHTML = ''; svg.querySelectorAll('.pp-bar').forEach((b) => b.setAttribute('fill-opacity', '1')); return; }
-      const m = monthAt(e.clientX), b = el.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top;
-      if (drill == null) {
-        const have = Y.filter((o) => o.cum[m] != null).sort((a, b2) => b2.y - a.y);
-        if (!have.length) { tip.hide(); return; }
-        guide.setAttribute('x1', xm(m)); guide.setAttribute('x2', xm(m)); guide.style.display = '';
-        dotsG.innerHTML = have.map((o) => '<circle cx="' + xm(m).toFixed(1) + '" cy="' + yA(o.cum[m]).toFixed(1) + '" r="' + (o === latest ? 4 : 3) + '" fill="' + shade(o) + '" stroke="#fff" stroke-width="1.5"/>').join('');
-        tip.show('<b>Through ' + months[m] + '</b>' + have.map((o) => AZ.row(String(o.y), AZ.money(o.cum[m], 1), shade(o) === INK ? '#FFFFFF' : shade(o))).join(''), x, y);
-      } else {
-        const o = B.o, p = B.p, v = o.mon[m], pv = p ? p.mon[m] : null;
-        guide.style.display = 'none';
-        svg.querySelectorAll('.pp-bar').forEach((bar) => bar.setAttribute('fill-opacity', Number(bar.getAttribute('data-m')) === m ? '1' : '0.45'));
-        if (v == null && pv == null) { tip.hide(); return; }
-        tip.show('<b>' + months[m] + ' ' + o.y + '</b>' + (v != null ? AZ.row(String(o.y), AZ.money(v, 2), '#FFFFFF') : AZ.row(String(o.y), 'no data')) + (pv != null ? AZ.row(String(p.y), AZ.money(pv, 2), AZ.T.slate[3]) : '') + (v != null && pv ? AZ.row('Change', AZ.pct(v / pv - 1, 1, true)) : ''), x, y);
-      }
-    });
-    svg.addEventListener('mouseleave', () => { tip.hide(); guide.style.display = 'none'; dotsG.innerHTML = ''; svg.querySelectorAll('.pp-bar').forEach((b) => b.setAttribute('fill-opacity', '1')); });
-    const onKey = (e) => { if (e.key === 'Escape' && drill != null) go(null); };
-    window.addEventListener('keydown', onKey);
-    return () => { Object.keys(cancels).forEach((k) => { if (cancels[k]) cancels[k](); }); window.removeEventListener('keydown', onKey); };
-  }
+// Search: [sales] [date].monthly
+// Interactions: hover a month for every year's cumulative sales; click a line or a legend key to select a year (the others dim; Escape clears); click a legend key on narrow tiles to hide or show a year; arrow keys step through months and years.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month(date)', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Total sales';
+// Cumulative sales through each month, one line per year; a year needs at least 3 months.
+const by = new Map();
+rows.forEach((r) => { const t = AZ.ms(r[D]), y = AZ.year(t), m = new Date(t).getUTCMonth(); if (!by.has(y)) by.set(y, new Array(12).fill(null)); by.get(y)[m] = (by.get(y)[m] ?? 0) + AZ.num(r[V]); });
+const years = [...by.keys()].sort().filter((y) => by.get(y).filter((v) => v != null).length >= 3), cum = new Map();
+years.forEach((y) => { let c = 0; cum.set(y, by.get(y).map((v) => (v == null ? null : (c += v)))); });
+// Months before a year's first month go in as null, so months run Jan to Dec and years stay in order everywhere.
+const data = AZ.MON.flatMap((mon, m) => years.filter((y) => m === 0 || cum.get(y)[m] != null).map((y) => ({ Month: mon, Year: String(y), Sales: cum.get(y)[m] })));
+// Headline: the latest year against the year before through the same month.
+const ly = years[years.length - 1], lm = ly ? by.get(ly).reduce((a, v, i) => (v != null ? i : a), -1) : -1, prev = by.get(ly - 1);
+const sumTo = (arr) => arr.slice(0, lm + 1).reduce((a, v) => a + (v ?? 0), 0), cur = ly ? sumTo(by.get(ly)) : 0, was = prev ? sumTo(prev) : 0;
+const part = years.filter((y) => by.get(y)[0] == null).map((y) => y + ' starts in ' + AZ.MON[by.get(y).findIndex((v) => v != null)]);
+const slate = ['#B4BDC9', '#8E9AAB', '#6A7891', '#4A5872'], colors = {};
+years.forEach((y, i) => { colors[y] = y === ly ? '#1E1E24' : slate[Math.max(0, slate.length - (years.length - 1 - i))] ?? slate[0]; });
+AZ.maya({
+  type: 'line', x: 'Month', y: 'Sales', series: 'Year', xType: 'category', select: true,
+  title: data.length ? ly + ' is at ' + AZ.money(cur, 1) + ' through ' + AZ.MON[lm] + (was ? ', ' + AZ.pct(cur / was - 1, 1, true) + ' on ' + (ly - 1) + ' to the same month' : '') : '',
+  subtitle: data.length ? 'Cumulative sales by month, one line per year.' + (part.length ? ' ' + part.join('; ') + '.' : '') : '',
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 0 } },
+  titles: { Sales: 'Sales to date' },
+  colors: years.length <= 8 ? colors : undefined,
+  text: { noData: 'No rows yet. Bind the search [sales] [date].monthly (a year needs at least 3 months)' },
+  data
 });

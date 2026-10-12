@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,97 +243,26 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [quantity purchased] [date].monthly
-// One file, four tiles. The tile picks its KPI with data-kpi on #chart in chart.html:
-//   sales | units | asp | best
-// Interactions: YTD / All toggle, hover the sparkline for the month, its value and the change on a year earlier.
-const KPI = (document.getElementById('chart') && document.getElementById('chart').getAttribute('data-kpi')) || 'sales';
-let mode = 'ytd';
-
-const DEF = {
-  sales: { label: 'Sales', agg: (a) => a.reduce((x, r) => x + r.s, 0), month: (r) => r.s, fmt: (v) => AZ.money(v, 1), fmtM: (v) => AZ.money(v, 2) },
-  units: { label: 'Units sold', agg: (a) => a.reduce((x, r) => x + r.u, 0), month: (r) => r.u, fmt: (v) => AZ.int(v), fmtM: (v) => Math.round(v).toLocaleString('en-US') },
-  asp: { label: 'Average selling price', agg: (a) => { const s = a.reduce((x, r) => x + r.s, 0), u = a.reduce((x, r) => x + r.u, 0); return u ? s / u : 0; }, month: (r) => (r.u ? r.s / r.u : 0), fmt: (v) => '$' + v.toFixed(2), fmtM: (v) => '$' + v.toFixed(2) },
-  best: { label: 'Best month', agg: (a) => a.reduce((x, r) => Math.max(x, r.s), 0), month: (r) => r.s, fmt: (v) => AZ.money(v, 1), fmtM: (v) => AZ.money(v, 2) }
-}[KPI] || null;
-
-AZ.boot({
-  need: 'sales, quantity purchased and date at monthly grain, e.g. [sales] [quantity purchased] [date].monthly',
-  render: async ({ el, rows, schema, redraw }) => {
-    if (!DEF) throw new Error('data-kpi must be sales, units, asp or best (got ' + KPI + ')');
-    const dK = AZ.col(schema, /date|month/i), sK = AZ.col(schema, /sales/i, { optional: KPI === 'units' }), uK = AZ.col(schema, /quantity|units/i, { optional: KPI === 'sales' || KPI === 'best' });
-    const M = rows.map((r) => ({ t: AZ.ms(r[dK]), s: sK ? AZ.num(r[sK]) : 0, u: uK ? AZ.num(r[uK]) : 0 })).filter((r) => isFinite(r.t)).sort((a, b) => a.t - b.t);
-    if (!M.length) throw new Error('No months in the result');
-    const last = M[M.length - 1].t, ly = AZ.year(last), lm = new Date(last).getUTCMonth();
-    const inYtd = (r, y) => AZ.year(r.t) === y && new Date(r.t).getUTCMonth() <= lm;
-    const cur = M.filter((r) => inYtd(r, ly)), prev = M.filter((r) => inYtd(r, ly - 1));
-    const scope = mode === 'ytd' ? cur : M;
-    const hero = DEF.agg(scope);
-    const comparable = mode === 'ytd' && prev.length === cur.length && prev.length > 0;
-    const base = comparable ? DEF.agg(prev) : null;
-
-    // Delta line
-    let delta = '';
-    if (KPI === 'best') {
-      const mean = scope.length ? scope.reduce((x, r) => x + r.s, 0) / scope.length : 0;
-      const top = scope.reduce((b, r) => (r.s > b.s ? r : b), scope[0]);
-      delta = '<b>' + AZ.monthLabel(top.t) + '</b>, ' + (mean ? (hero / mean).toFixed(1) + 'x the average month' : '');
-    } else if (base) {
-      const p = base ? hero / base - 1 : 0;
-      delta = '<b class="' + (p >= 0 ? 'up' : 'dn') + '">' + AZ.pct(p, 1, true) + '</b> on the same months a year earlier';
-    } else {
-      delta = mode === 'ytd' ? 'No full prior year in the current filter' : M.length + ' months in the current filter';
-    }
-    const cap = mode === 'ytd'
-      ? AZ.MON[0] + ' to ' + AZ.monthLabel(last) + (comparable ? ' against ' + AZ.MON[0] + ' to ' + AZ.MON[lm] + ' ' + (ly - 1) : '')
-      : AZ.monthLabel(M[0].t) + ' to ' + AZ.monthLabel(last);
-
-    el.innerHTML =
-      '<div class="kp-top"><div class="kp-label">' + AZ.esc(DEF.label + (KPI === 'best' ? '' : mode === 'ytd' ? ', YTD' : ', all months')) + '</div>'
-      + '<div class="kp-seg" role="group" aria-label="Period"><button type="button" data-m="ytd" class="' + (mode === 'ytd' ? 'on' : '') + '">YTD</button><button type="button" data-m="all" class="' + (mode === 'all' ? 'on' : '') + '">All</button></div></div>'
-      + '<div class="kp-hero">' + AZ.esc(DEF.fmt(hero)) + '</div>'
-      + '<div class="kp-delta">' + delta + '</div>'
-      + '<div class="kp-spark" id="kp-spark"></div>'
-      + '<div class="kp-cap">' + AZ.esc(cap) + '</div>';
-
-    el.querySelectorAll('.kp-seg button').forEach((b) => b.addEventListener('click', () => { mode = b.getAttribute('data-m'); redraw(); }));
-
-    // Sparkline over the scope (whole history in All mode, last 24 months otherwise)
-    const series = (mode === 'ytd' ? M.slice(-24) : M);
-    const box = document.getElementById('kp-spark'), W = Math.max(60, box.clientWidth), H = Math.max(30, box.clientHeight);
-    const vals = series.map((r) => DEF.month(r)), lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
-    const pad = 4, x = (i) => pad + (series.length < 2 ? 0 : (i / (series.length - 1)) * (W - 2 * pad)), y = (v) => H - pad - (hi === lo ? 0.5 : (v - lo) / (hi - lo)) * (H - 2 * pad);
-    const NS = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('preserveAspectRatio', 'none');
-    const area = document.createElementNS(NS, 'path'), line = document.createElementNS(NS, 'path');
-    const pts = series.map((r, i) => [x(i), y(DEF.month(r))]);
-    line.setAttribute('d', pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' '));
-    line.setAttribute('fill', 'none'); line.setAttribute('stroke', AZ.T.ink); line.setAttribute('stroke-width', 1.75); line.setAttribute('vector-effect', 'non-scaling-stroke'); line.setAttribute('stroke-linejoin', 'round');
-    area.setAttribute('d', line.getAttribute('d') + ' L' + pts[pts.length - 1][0].toFixed(1) + ' ' + H + ' L' + pts[0][0].toFixed(1) + ' ' + H + ' Z');
-    area.setAttribute('fill', AZ.T.slate[0]);
-    svg.appendChild(area); svg.appendChild(line); box.appendChild(svg);
-    const dot = document.createElement('div'); dot.className = 'kp-dot'; box.appendChild(dot);
-    // Resting marker on the latest point
-    const rest = document.createElementNS(NS, 'circle'); rest.setAttribute('cx', pts[pts.length - 1][0]); rest.setAttribute('cy', pts[pts.length - 1][1]); rest.setAttribute('r', 3); rest.setAttribute('fill', AZ.T.ink); svg.appendChild(rest);
-    if (KPI === 'best') { // mark the peak
-      const k = vals.indexOf(hi), pk = document.createElementNS(NS, 'circle'); pk.setAttribute('cx', pts[k][0]); pk.setAttribute('cy', pts[k][1]); pk.setAttribute('r', 3.5); pk.setAttribute('fill', '#fff'); pk.setAttribute('stroke', AZ.T.ink); pk.setAttribute('stroke-width', 2); svg.appendChild(pk);
-    }
-
-    const tip = AZ.tip(box), byT = new Map(M.map((r) => [r.t, r]));
-    box.addEventListener('mousemove', (e) => {
-      const r = box.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * W;
-      let k = 0, bd = 1e9; pts.forEach((p, i) => { const d = Math.abs(p[0] - px); if (d < bd) { bd = d; k = i; } });
-      const rec = series[k], d0 = new Date(rec.t); d0.setUTCFullYear(d0.getUTCFullYear() - 1);
-      const py = byT.get(d0.getTime());
-      dot.style.left = (pts[k][0] / W * r.width) + 'px'; dot.style.top = (pts[k][1] / H * r.height) + 'px'; dot.style.opacity = 1;
-      let h = '<b>' + AZ.monthLabel(rec.t) + '</b>' + AZ.row(DEF.label, DEF.fmtM(DEF.month(rec)), '#FFFFFF');
-      if (py) { const pv = DEF.month(py); h += AZ.row('A year earlier', DEF.fmtM(pv), AZ.T.slate[3]) + (pv ? AZ.row('Change', AZ.pct(DEF.month(rec) / pv - 1, 1, true)) : ''); }
-      tip.show(h, dot.offsetLeft, dot.offsetTop);
-    });
-    box.addEventListener('mouseleave', () => { dot.style.opacity = 0; tip.hide(); });
-  }
+// Interactions: hover or arrow keys for each month's sales, drag to zoom into a span of months (double-click or Escape resets).
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month', S = AZ.col(schema, /sales/i, { optional: true }) ?? 'Sales';
+const data = rows.map((r) => ({ Month: AZ.ms(r[D]), Sales: AZ.num(r[S]) })).filter((r) => isFinite(r.Month)).sort((a, b) => a.Month - b.Month);
+// How far above normal: the best month over the average month in this view. The value axis keeps 15% headroom so
+// the Best label above the peak has room (0.16.0 drops an annotation that would sit above the plot).
+const mean = data.reduce((a, r) => a + r.Sales, 0) / (data.length || 1), best = data.reduce((a, r) => Math.max(a, r.Sales), 0);
+const step = best > 0 ? 10 ** Math.floor(Math.log10(best)) / 2 : 1, top = Math.ceil(best * 1.15 / step) * step;
+AZ.maya({
+  type: 'line', x: 'Month', y: 'Sales', xType: 'time', zoom: true, yDomain: best > 0 ? [0, top] : undefined, rules: [{ y: 'mean', label: 'Average' }],
+  title: data.length ? 'Best month {max.x}, {max.y}' : 'Best month',
+  subtitle: data.length && mean ? (best / mean).toFixed(1) + 'x the average month, ' + data.length + ' months' : '',
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Month: { month: 'short', year: 'numeric', timeZone: 'UTC' } },
+  text: { noData: 'No rows yet. Bind the search [sales] [quantity purchased] [date].monthly' },
+  theme: { series1: '#1E1E24' },
+  annotate: data.length ? [{ x: data.find((r) => r.Sales === best).Month, text: 'Best' }] : undefined,
+  data
 });

@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,81 +243,30 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [store] [date].quarterly
-// Bullet-style rows: each store's sales in the year-to-date quarters against the same quarters a year earlier.
-// Bar runs from last year (the zero line) to this year's change; the shaded band is everything below the threshold.
-// Interactions: threshold slider flags stores below it, hover for numbers, click a row to pin its detail.
-let thr = -0.05;
-let pinned = null;
-
-const qOf = (t) => Math.floor(new Date(t).getUTCMonth() / 3);
-
-AZ.boot({
-  need: 'sales, store and date at quarterly grain, e.g. [sales] [store] [date].quarterly (quantity purchased is used when present)',
-  render: async ({ el, rows, schema }) => {
-    const nK = AZ.col(schema, /store/i), dK = AZ.col(schema, /date|quarter|month/i), sK = AZ.col(schema, /sales/i), uK = AZ.col(schema, /quantity|units/i, { optional: true });
-    const R = rows.map((r) => ({ n: String(r[nK]), t: AZ.ms(r[dK]), s: AZ.num(r[sK]), u: uK ? AZ.num(r[uK]) : 0 })).filter((r) => isFinite(r.t));
-    if (!R.length) { AZ.paint(el, '<div class="az-empty"><b>No rows in the current filter</b><span>Needs: [sales] [store] [date].quarterly</span></div>'); return; }
-    const last = Math.max.apply(null, R.map((r) => r.t)), ly = AZ.year(last), lq = qOf(last);
-    const cur = R.filter((r) => AZ.year(r.t) === ly && qOf(r.t) <= lq), prev = R.filter((r) => AZ.year(r.t) === ly - 1 && qOf(r.t) <= lq);
-    const per = 'Q1 to Q' + (lq + 1) + ' ' + ly, perP = 'Q1 to Q' + (lq + 1) + ' ' + (ly - 1);
-    const by = {};
-    cur.forEach((r) => { const o = by[r.n] = by[r.n] || { n: r.n, s: 0, u: 0, ps: 0, pu: 0 }; o.s += r.s; o.u += r.u; });
-    prev.forEach((r) => { if (by[r.n]) { by[r.n].ps += r.s; by[r.n].pu += r.u; } });
-    const all = Object.keys(by).map((k) => by[k]);
-    const S = all.filter((o) => o.ps > 0).map((o) => { o.chg = o.s / o.ps - 1; o.uchg = o.pu > 0 ? o.u / o.pu - 1 : null; return o; }).sort((a, b) => a.chg - b.chg);
-    if (!S.length) { AZ.paint(el, '<div class="az-empty"><b>No year-earlier quarters to compare</b><span>The current filter has no ' + perP + ' rows for these stores.</span></div>'); return; }
-    const skipped = all.length - S.length;
-    const lo = Math.min(S[0].chg, -0.06) - 0.005, hi = Math.max(S[S.length - 1].chg, 0.02) + 0.005;
-    const pos = (v) => (v - lo) / (hi - lo) * 100;
-
-    el.innerHTML =
-      '<div class="sr-top"><div><div class="sr-title">Stores against last year</div><div class="sr-sub">' + 'Sales, ' + AZ.esc(per) + ' against ' + AZ.esc(perP) + '</div></div>'
-      + '<div class="sr-count"><div class="n" id="sr-n">0</div><div class="l" id="sr-l"></div></div></div>'
-      + '<div class="sr-ctl"><label for="sr-in">Flag stores below</label><input id="sr-in" type="range" min="-6" max="2" step="0.5" value="' + (thr * 100) + '" aria-label="Threshold, percent change on last year"><span class="sr-val" id="sr-v"></span></div>'
-      + '<div class="sr-msg" id="sr-m"></div>'
-      + '<div class="sr-list"><div class="sr-rows" id="sr-rows"><div class="sr-overlay"><div class="sr-band" id="sr-band"></div><div class="sr-thr" id="sr-thr"></div></div>'
-      + S.map((o, i) => '<div class="sr-row" data-i="' + i + '"><span class="k" title="' + AZ.esc(o.n) + '">' + AZ.esc(o.n) + '</span><div class="sr-track"><div class="sr-zero" style="left:' + pos(0).toFixed(2) + '%"></div><div class="sr-bar" style="left:' + pos(Math.min(0, o.chg)).toFixed(2) + '%;width:' + Math.max(0.8, Math.abs(pos(o.chg) - pos(0))).toFixed(2) + '%"></div></div><span class="v">' + AZ.pct(o.chg, 1, true) + '</span></div>').join('')
-      + '</div></div>'
-      + '<div class="sr-pinbox" id="sr-pin"></div>';
-
-    const $ = (id) => document.getElementById(id), rowsEl = Array.prototype.slice.call(el.querySelectorAll('.sr-row'));
-    const tip = AZ.tip(el);
-    const detail = (o) => '<b>' + AZ.esc(o.n) + '</b>: ' + AZ.money(o.s, 2) + ' against ' + AZ.money(o.ps, 2) + ' (' + AZ.pct(o.chg, 1, true) + ')' + (o.uchg != null ? ', units ' + AZ.pct(o.uchg, 1, true) : '') + '.';
-    function paintPin() {
-      const o = S.find((x) => x.n === pinned);
-      $('sr-pin').innerHTML = o ? detail(o) + ' Click the row again to unpin.' : 'Click a store to pin its numbers here.';
-      rowsEl.forEach((r) => r.classList.toggle('pin', !!o && S[+r.getAttribute('data-i')].n === o.n));
-    }
-    function update() {
-      const t = thr, flagged = S.filter((o) => o.chg < t - 1e-9);
-      $('sr-n').textContent = flagged.length;
-      $('sr-l').textContent = (flagged.length === 1 ? 'store' : 'stores') + ' of ' + S.length + ' below ' + AZ.pct(t, 1, true);
-      $('sr-v').textContent = AZ.pct(t, 1, true);
-      $('sr-in').setAttribute('aria-valuetext', AZ.pct(t, 1, true));
-      const worst = S[0];
-      $('sr-m').innerHTML = flagged.length
-        ? 'Furthest below: <b>' + AZ.esc(worst.n) + '</b> at ' + AZ.pct(worst.chg, 1, true) + '.'
-        : 'No store is below ' + AZ.pct(t, 1, true) + '. The lowest is <b>' + AZ.esc(worst.n) + '</b> at ' + AZ.pct(worst.chg, 1, true) + '. Move the slider to explore.'
-        + (skipped ? ' ' + skipped + ' with no year-earlier quarters left out.' : '');
-      rowsEl.forEach((r) => { const o = S[+r.getAttribute('data-i')], f = o.chg < t - 1e-9; r.classList.toggle('flag', f); });
-      $('sr-thr').style.left = pos(t).toFixed(2) + '%';
-      $('sr-band').style.width = Math.max(0, pos(t)).toFixed(2) + '%';
-    }
-    $('sr-in').addEventListener('input', (e) => { thr = Number(e.target.value) / 100; update(); });
-    rowsEl.forEach((r) => {
-      const o = S[+r.getAttribute('data-i')];
-      const move = (e) => {
-        const b = el.getBoundingClientRect();
-        tip.show('<b>' + AZ.esc(o.n) + '</b>' + AZ.row(per, AZ.money(o.s, 2)) + AZ.row(perP, AZ.money(o.ps, 2)) + AZ.row('Change', AZ.pct(o.chg, 1, true)) + (o.uchg != null ? AZ.row('Units change', AZ.pct(o.uchg, 1, true)) : '') + AZ.row('Against threshold', o.chg < thr - 1e-9 ? 'below' : 'not below'), e.clientX - b.left, e.clientY - b.top);
-      };
-      r.addEventListener('mousemove', move); r.addEventListener('mouseleave', () => tip.hide());
-      r.addEventListener('click', () => { pinned = pinned === o.n ? null : o.n; paintPin(); });
-    });
-    update(); paintPin();
-  }
+// Interactions: hover a store for sales this year and last, and the change; click stores to select them (Escape clears); arrow keys step through stores.
+const THRESHOLD = -0.05; // stores below this change on last year are flagged red; edit to move the line
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, N = c(/store/i, 'store'), D = c(/date|quarter|month/i, 'Quarter(date)'), V = c(/sales/i, 'Total sales');
+// Year to date: the quarters of the latest year up to the latest quarter, against the same quarters a year earlier.
+const qOf = (t) => Math.floor(new Date(t).getUTCMonth() / 3), R = rows.map((r) => ({ n: String(r[N]), t: AZ.ms(r[D]), s: AZ.num(r[V]) }));
+const last = R.length ? Math.max(...R.map((r) => r.t)) : 0, ly = AZ.year(last), lq = qOf(last), by = {};
+R.forEach((r) => { const y = AZ.year(r.t); if (qOf(r.t) > lq || (y !== ly && y !== ly - 1)) return; const o = by[r.n] = by[r.n] ?? { s: 0, ps: 0 }; if (y === ly) o.s += r.s; else o.ps += r.s; });
+const data = Object.entries(by).filter(([, o]) => o.ps > 0 && o.s > 0).map(([n, o]) => ({ Store: n, Change: o.s / o.ps - 1, Gap: o.s - o.ps, Sales: o.s, 'Last year': o.ps }));
+const low = [...data].sort((a, b) => a.Change - b.Change)[0], flagged = data.filter((r) => r.Change < THRESHOLD).length, per = 'Q' + (lq + 1);
+const pct1 = { style: 'percent', maximumFractionDigits: 1, signDisplay: 'exceptZero' }, usd = { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 };
+AZ.maya({
+  type: 'bar', horizontal: true, x: 'Store', y: 'Change', sort: 'asc', select: 'multi', aggregate: { ratio: ['Gap', 'Last year'] }, colorBy: { target: THRESHOLD }, legend: false, tooltip: { fields: ['Sales', 'Last year'] },
+  rules: [THRESHOLD], yDomain: data.length ? [Math.floor(Math.min(THRESHOLD - 0.01, ...data.map((r) => r.Change)) / 0.02) * 0.02, Math.ceil(Math.max(0.02, ...data.map((r) => r.Change)) / 0.02) * 0.02] : undefined, // even steps keep the end ticks apart
+  title: data.length ? (flagged ? flagged + ' of ' + data.length + ' stores are below ' + AZ.pct(THRESHOLD, 0) + ' on last year' : 'No store is below ' + AZ.pct(THRESHOLD, 0) + '; the lowest is ' + low.Store + ' at ' + AZ.pct(low.Change, 1, true)) : '',
+  subtitle: data.length ? 'Sales, Q1 to ' + per + ' ' + ly + ' against Q1 to ' + per + ' ' + (ly - 1) + ', lowest first' : '',
+  titles: { Change: 'Sales change on last year', Sales: 'Sales Q1 to ' + per + ' ' + ly, 'Last year': 'Sales Q1 to ' + per + ' ' + (ly - 1) },
+  format: { Change: pct1, Sales: usd, 'Last year': usd },
+  text: { above: 'above the line', below: 'below the line', noData: 'No rows yet. Bind the search [sales] [store] [date].quarterly' },
+  theme: { good: '#8E9AAB', bad: '#B3261E' },
+  data
 });

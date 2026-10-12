@@ -32,34 +32,4 @@ body { background: var(--az-surface); color: var(--az-ink); font-family: var(--a
 .az-sep { color: var(--az-muted); }
 /* ==== end amuzing core css ==== */
 
-#chart { display: flex; flex-direction: column; padding: 14px 16px 10px; gap: 6px; }
-.bs-head { flex: none; }
-.bs-title { font-size: 14px; line-height: 1.3; font-weight: 600; }
-.bs-sub { font-size: 12px; line-height: 1.4; color: var(--az-ink2); margin-top: 2px; }
-.bs-sub b { color: var(--az-ink); font-weight: 600; }
-.bs-chips { flex: none; display: flex; flex-wrap: wrap; gap: 4px 6px; }
-.bs-chip { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1; padding: 5px 8px; border: 1px solid var(--az-grid); border-radius: 6px; color: var(--az-ink2); }
-.bs-chip i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-.bs-chip em { font-style: normal; color: var(--az-muted); }
-.bs-chip:hover { background: #F1F2F4; color: var(--az-ink); }
-.bs-chip.on { border-color: var(--az-ink); color: var(--az-ink); }
-.bs-chip.dim { opacity: .5; }
-.bs-chip:focus-visible { outline: 2px solid var(--az-ink); outline-offset: 1px; }
-.bs-plot { flex: 1 1 auto; min-height: 90px; position: relative; overflow: hidden; }
-.bs-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.bs-ax { font-size: 11px; fill: var(--az-muted); }
-.bs-axt { font-size: 11px; fill: var(--az-ink2); }
-.bs-avg { font-size: 11px; font-weight: 600; fill: var(--az-ink); paint-order: stroke; stroke: #fff; stroke-width: 3px; }
-.bs-dot { outline: none; transition: opacity .25s ease; }
-.bs-dot:focus-visible { stroke: var(--az-ink); stroke-width: 2.4; }
-.bs-card { flex: none; overflow: hidden; border-top: 1px solid var(--az-grid); display: flex; flex-direction: column; }
-.bs-cbar { flex: none; display: flex; align-items: center; gap: 8px; padding-top: 6px; }
-.bs-back { all: unset; cursor: pointer; margin-left: auto; font-size: 12px; line-height: 1; padding: 5px 10px; border: 1px solid var(--az-grid); border-radius: 6px; color: var(--az-ink2); }
-.bs-back:hover { background: #F1F2F4; color: var(--az-ink); }
-.bs-back:focus-visible { outline: 2px solid var(--az-ink); outline-offset: 1px; }
-.bs-cbody { flex: 1 1 auto; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 10px; align-content: start; padding-top: 6px; }
-.bs-stat span { display: block; font-size: 11px; color: var(--az-muted); }
-.bs-stat b { display: block; font-size: 16px; line-height: 1.25; font-weight: 600; }
-.bs-stat i { display: block; font-style: normal; font-size: 11px; color: var(--az-ink2); }
-.bs-stat i.up { color: var(--az-good); }
-.bs-stat i.dn { color: var(--az-bad); }
+#chart { display: block; height: 100%; color-scheme: light; }

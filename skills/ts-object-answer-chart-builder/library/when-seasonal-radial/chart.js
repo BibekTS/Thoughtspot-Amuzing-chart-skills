@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,124 +243,24 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [date].monthly
-// Radial chart: 12 months around a clock, one line per calendar year with at least 6 months of data
-// (the latest year is always drawn). Hover a spoke for every year's value; click a year in the key to isolate it.
-let iso = null;
-
-AZ.boot({
-  need: 'sales and date at monthly grain, e.g. [sales] [date].monthly',
-  render: async ({ el, rows, schema, redraw }) => {
-    const dK = AZ.col(schema, /date|month/i), sK = AZ.col(schema, /sales/i);
-    const M = rows.map((r) => ({ t: AZ.ms(r[dK]), v: AZ.num(r[sK]) })).filter((r) => isFinite(r.t));
-    if (!M.length) { AZ.paint(el, '<div class="az-empty"><b>No months in the result</b><span>The search needs [sales] [date].monthly</span></div>'); return; }
-
-    // year -> 12 slots (null where the month has no data)
-    const byY = new Map();
-    M.forEach((r) => {
-      const y = AZ.year(r.t), m = new Date(r.t).getUTCMonth();
-      if (!byY.has(y)) byY.set(y, new Array(12).fill(null));
-      byY.get(y)[m] = (byY.get(y)[m] || 0) + r.v;
-    });
-    const latest = Math.max.apply(null, Array.from(byY.keys()));
-    const years = Array.from(byY.keys()).filter((y) => y === latest || byY.get(y).filter((v) => v != null).length >= 6).sort((a, b) => b - a);
-    const cnt = (y) => byY.get(y).filter((v) => v != null).length;
-    const partial = (y) => cnt(y) < 12;
-    const lastMonth = (y) => { const a = byY.get(y); for (let i = 11; i >= 0; i--) if (a[i] != null) return i; return 0; };
-    const firstMonth = (y) => byY.get(y).findIndex((v) => v != null);
-    const rangeLbl = (y) => AZ.MON[firstMonth(y)] + '-' + AZ.MON[lastMonth(y)];
-    if (iso != null && years.indexOf(iso) < 0) iso = null;
-
-    const INK = AZ.T.ink, S = AZ.T.slate;
-    const styleOf = (y) => {
-      const k = years.indexOf(y);
-      if (k === 0) return { c: INK, w: 3.2 };
-      const cols = [S[5], S[4], S[3], S[2], S[2], S[2]], ws = [2, 1.7, 1.5, 1.3, 1.3, 1.3];
-      if (dashOf(y)) return { c: S[4], w: 1.5 };
-      return { c: cols[Math.min(k - 1, 5)], w: ws[Math.min(k - 1, 5)] };
-    };
-    const dashOf = (y) => (partial(y) && y !== latest ? '5 3' : '');
-
-    // Header: peak and trough months of the latest year, from the rows
-    const la = byY.get(latest);
-    let pk = -1, tr = -1;
-    la.forEach((v, i) => { if (v == null) return; if (pk < 0 || v > la[pk]) pk = i; if (tr < 0 || v < la[tr]) tr = i; });
-    const sub = cnt(latest) < 2
-      ? AZ.MON[pk] + ' ' + latest + ': ' + AZ.money(la[pk], 1) + ' (one month in the current filter)'
-      : '<b>' + latest + '</b>' + (partial(latest) ? ' (' + rangeLbl(latest) + ')' : '') + ': peak in <b>' + AZ.MON[pk] + '</b> at ' + AZ.money(la[pk], 1) + ', low in <b>' + AZ.MON[tr] + '</b> at ' + AZ.money(la[tr], 1);
-
-    const chips = years.map((y) => {
-      const st = styleOf(y), on = iso === y, dim = iso != null && !on;
-      return '<button type="button" class="rd-chip' + (on ? ' on' : '') + (dim ? ' dim' : '') + '" data-y="' + y + '" aria-pressed="' + on + '" title="Click to isolate ' + y + '">'
-        + '<svg viewBox="0 0 18 6"><line x1="0" y1="3" x2="18" y2="3" stroke="' + st.c + '" stroke-width="' + Math.min(st.w, 3.2) + '"' + (dashOf(y) ? ' stroke-dasharray="4 2"' : '') + '/></svg>'
-        + y + (partial(y) ? ' (' + rangeLbl(y) + (y === latest ? '' : ', partial') + ')' : '') + '</button>';
-    }).join('');
-
-    el.innerHTML = '<div class="rd-head"><div class="rd-title">Monthly sales around the year</div><div class="rd-sub">' + sub + '</div></div>'
-      + '<div class="rd-plot" id="rd-plot"></div><div class="rd-key">' + chips + '</div>';
-    el.querySelectorAll('.rd-chip').forEach((b) => b.addEventListener('click', () => { const y = Number(b.getAttribute('data-y')); iso = iso === y ? null : y; redraw(); }));
-
-    const box = document.getElementById('rd-plot'), W = Math.max(120, box.clientWidth), H = Math.max(120, box.clientHeight);
-    const cx = W / 2, cy = H / 2, R = Math.max(40, Math.min(W, H) / 2 - 24), r0 = R * 0.1;
-    let vmax = 0; years.forEach((y) => byY.get(y).forEach((v) => { if (v != null && v > vmax) vmax = v; }));
-    const raw = vmax / 4, pw = Math.pow(10, Math.floor(Math.log10(raw))), nice = [1, 2, 2.5, 5, 10].find((n) => n * pw >= raw) * pw;
-    const top = nice * 4, rr = (v) => r0 + (R - r0) * (v / top);
-    const ang = (m) => (m / 12) * Math.PI * 2 - Math.PI / 2;
-    const pt = (m, v) => [cx + rr(v) * Math.cos(ang(m)), cy + rr(v) * Math.sin(ang(m))];
-
-    let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Radial chart of monthly sales by year">';
-    for (let i = 1; i <= 4; i++) s += '<circle cx="' + cx + '" cy="' + cy + '" r="' + rr(nice * i).toFixed(1) + '" fill="none" stroke="' + AZ.T.grid + '" stroke-width="1"/>';
-    for (let m = 0; m < 12; m++) {
-      const a = ang(m), lx = cx + (R + 13) * Math.cos(a), ly = cy + (R + 13) * Math.sin(a);
-      s += '<line x1="' + (cx + r0 * Math.cos(a)).toFixed(1) + '" y1="' + (cy + r0 * Math.sin(a)).toFixed(1) + '" x2="' + (cx + R * Math.cos(a)).toFixed(1) + '" y2="' + (cy + R * Math.sin(a)).toFixed(1) + '" stroke="' + AZ.T.grid + '" stroke-width="1"/>';
-      s += '<text class="rd-lbl" x="' + lx.toFixed(1) + '" y="' + (ly + 4).toFixed(1) + '" text-anchor="middle">' + AZ.MON[m] + '</text>';
-    }
-    s += '<line id="rd-spoke" x1="0" y1="0" x2="0" y2="0" stroke="' + INK + '" stroke-width="1.5" opacity="0"/>';
-    // draw oldest first so the latest year sits on top
-    years.slice().reverse().forEach((y) => {
-      const a = byY.get(y), st = styleOf(y), dim = iso != null && iso !== y;
-      const pts = []; a.forEach((v, m) => { if (v != null) pts.push(pt(m, v)); });
-      if (!pts.length) return;
-      const closed = !partial(y);
-      const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ') + (closed ? ' Z' : '');
-      s += '<g opacity="' + (dim ? 0.2 : 1) + '">';
-      if (pts.length > 1) s += '<path d="' + d + '" fill="none" stroke="' + st.c + '" stroke-width="' + st.w + '" stroke-linejoin="round"' + (dashOf(y) ? ' stroke-dasharray="' + dashOf(y) + '"' : '') + '/>';
-      else s += '<circle cx="' + pts[0][0].toFixed(1) + '" cy="' + pts[0][1].toFixed(1) + '" r="3.5" fill="' + st.c + '"/>';
-      s += '</g>';
-    });
-    s += '<g id="rd-dots"></g>';
-    // ring labels last, above the lines, just right of the top spoke
-    for (let i = 1; i <= 4; i++) s += '<text class="rd-ringlbl" text-anchor="end" x="' + (cx - 3) + '" y="' + (cy - rr(nice * i) + 11).toFixed(1) + '">' + AZ.money(nice * i, 0) + '</text>';
-    s += '</svg>';
-    box.innerHTML = s;
-
-    const svg = box.querySelector('svg'), spoke = svg.querySelector('#rd-spoke'), dots = svg.querySelector('#rd-dots'), tip = AZ.tip(box);
-    const NS = 'http://www.w3.org/2000/svg';
-    const clear = () => { spoke.setAttribute('opacity', 0); dots.innerHTML = ''; tip.hide(); };
-    box.addEventListener('mousemove', (e) => {
-      const b = box.getBoundingClientRect(), px = (e.clientX - b.left) / b.width * W, py = (e.clientY - b.top) / b.height * H;
-      const dx = px - cx, dy = py - cy, dist = Math.hypot(dx, dy);
-      if (dist > R + 22 || dist < r0 * 0.5) return clear();
-      let th = Math.atan2(dx, -dy); if (th < 0) th += Math.PI * 2;
-      const m = Math.round(th / (Math.PI * 2 / 12)) % 12, a = ang(m);
-      spoke.setAttribute('x1', cx + r0 * Math.cos(a)); spoke.setAttribute('y1', cy + r0 * Math.sin(a));
-      spoke.setAttribute('x2', cx + R * Math.cos(a)); spoke.setAttribute('y2', cy + R * Math.sin(a)); spoke.setAttribute('opacity', 0.35);
-      dots.innerHTML = '';
-      let h = '<b>' + AZ.MON[m] + '</b>';
-      years.forEach((y) => {
-        const v = byY.get(y)[m];
-        if (v == null || (iso != null && iso !== y)) return;
-        const st = styleOf(y), p = pt(m, v), c = document.createElementNS(NS, 'circle');
-        c.setAttribute('cx', p[0]); c.setAttribute('cy', p[1]); c.setAttribute('r', y === latest ? 4.5 : 3.2); c.setAttribute('fill', '#fff'); c.setAttribute('stroke', st.c); c.setAttribute('stroke-width', 2);
-        dots.appendChild(c);
-        h += AZ.row(String(y) + (partial(y) && y !== latest ? ' (partial)' : ''), AZ.money(v, 2), y === latest ? '#FFFFFF' : st.c === S[5] || st.c === S[4] ? '#8E9AAB' : st.c === S[2] ? '#B4BDC9' : st.c);
-      });
-      tip.show(h, e.clientX - b.left, e.clientY - b.top);
-    });
-    box.addEventListener('mouseleave', clear);
-  }
-});
+// Interactions: hover a segment for that month and year; click a segment or a year in the legend to select that year (Escape clears); arrow keys step through months and years.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const opt = { optional: true }, D = AZ.col(schema, /date|month/i, opt) ?? 'Month', V = AZ.col(schema, /sales/i, opt) ?? 'Sales';
+// One series per year over the calendar months, filled Jan to Dec (missing months null) so every year shares the month axis.
+const byT = new Map(rows.map((r) => [AZ.ms(r[D]), AZ.num(r[V])])), yrs = [...new Set([...byT.keys()].map(AZ.year))].sort();
+const pts = yrs.flatMap((y) => AZ.MON.map((m, i) => ({ Month: m, Year: String(y), Sales: byT.get(Date.UTC(y, i, 1)) ?? null })));
+AZ.maya({
+  type: 'radial', x: 'Month', y: 'Sales', series: 'Year', select: true,
+  // The latest year is ink, older years step back through the slate ramp (colour is never a family here).
+  colors: Object.fromEntries(yrs.slice(-8).reverse().map((y, i) => [String(y), ['#1E1E24', '#2F3B54', '#4A5872', '#6A7891', '#8E9AAB', '#B4BDC9', '#B4BDC9', '#D5DAE1'][i]])),
+  title: pts.length ? 'Monthly sales around the year' : '',
+  subtitle: pts.length ? 'Each month stacks its years, latest outermost in ink' : '',
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
+  text: { noData: 'No rows yet. Bind the search [sales] [date].monthly' },
+  data: pts
+}, 'maya.global.js');

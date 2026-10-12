@@ -252,11 +252,11 @@ skill as a sibling folder (or through `TS_ANSWER_CHART_SKILL`), so install both 
 **(Sample) Retail - Apparel**, and 50 of them are arranged as the Liveboard **Amuzing chart samples**:
 seven numbered tabs (About, Pulse, Where, What, When, Who, Next), each answering one question, custom
 charts only, three Liveboard filters (date, region, item type). Every chart reads only what its search
-returns, is interactive, survives a filtered view, and was checked in a real cluster, except nine that are marked
-*preview only* until they have been on a tile: a pivot table, a store league table and a volume-and-price growth split
-(rebuilt from the older `examples/`), and six MayaCharts charts rebuilt on synthetic data (monthly line against last
-year, sales against units by state, premium or volume by item type, and the drill-down sunburst, treemap and
-sankey).
+returns, is interactive and survives a filtered view. 48 of the 58 are MayaCharts 0.16.0 specs drawn through one shared
+`AZ.maya(spec)` call; the other ten are the eight text tiles (banners and About), `next-action-list` and
+`next-what-if`, which MayaCharts cannot express yet (BbekShr/mayacharts#78, #79). The MayaCharts charts were rebuilt
+on synthetic data and are marked *preview only* until they have been on a cluster tile; each README says what the
+move dropped, and the gaps are filed upstream as BbekShr/mayacharts#78 to #93.
 `references/library.md` indexes them by tab, library and search; the "Start here" table in
 `references/examples.md` maps chart shapes to the one to copy. The library is one worked Liveboard on
 that model rather than 58 model-agnostic templates: the shared core knows the apparel item families and
@@ -322,7 +322,7 @@ Verified on macOS (2026-09-29):
 Verified on macOS (2026-10-12), on MayaCharts 0.16.0:
 
 - The doctor reports the latest MayaCharts release (0.16.0) and the core and full build URLs.
-- The 3-line adapter tile, `examples/maya-was-bars` and the six MayaCharts library charts pass every data mode,
+- The 3-line adapter tile, `examples/maya-was-bars` and the 48 MayaCharts library charts pass every data mode,
   280x300 and 1400x500 tiles and the hover sweep; the adapter tile also passes an empty HTML tab, a missing column, a
   failing CDN and a 130 px tall tile. The smoke fixture and the hand-built SVG KPI still pass.
 - Not yet checked: the rebuilt charts on a real cluster tile.

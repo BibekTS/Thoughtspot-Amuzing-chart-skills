@@ -32,35 +32,4 @@ body { background: var(--az-surface); color: var(--az-ink); font-family: var(--a
 .az-sep { color: var(--az-muted); }
 /* ==== end amuzing core css ==== */
 
-#chart { display: flex; flex-direction: column; padding: 14px 16px 12px; gap: 8px; }
-.wf-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.wf-head { font-size: 13px; line-height: 1.35; font-weight: 500; color: var(--az-ink); }
-.wf-head b { font-weight: 600; }
-.wf-seg { display: inline-flex; border: 1px solid var(--az-grid); border-radius: 6px; overflow: hidden; flex: none; }
-.wf-seg button { all: unset; cursor: pointer; font-size: 11px; line-height: 1; padding: 6px 9px; color: var(--az-muted); }
-.wf-seg button + button { border-left: 1px solid var(--az-grid); }
-.wf-seg button.on { background: var(--az-ink); color: #fff; }
-.wf-seg button:not(.on):hover { background: #F1F2F4; color: var(--az-ink); }
-.wf-seg button:focus-visible { outline: 2px solid var(--az-ink); outline-offset: -2px; }
-.wf-main { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; gap: 14px; }
-.wf-grid { flex: none; cursor: pointer; display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; }
-.wf-c { pointer-events: none; border-radius: 2px; transition: opacity .18s ease; cursor: pointer; }
-.wf-grid.dim .wf-c:not(.on) { opacity: .2; }
-.wf-side { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.wf-k { all: unset; cursor: pointer; box-sizing: border-box; display: grid; grid-template-columns: 10px 1fr auto; align-items: center; column-gap: 6px; padding: 5px 4px; border-radius: 6px; font-size: 12px; line-height: 1.2; transition: opacity .18s ease, background .18s ease; }
-.wf-k i { width: 10px; height: 10px; border-radius: 2px; display: block; }
-.wf-k span { color: var(--az-ink); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wf-k em { font-style: normal; font-weight: 600; }
-.wf-k small { grid-column: 2 / 4; font-size: 11px; color: var(--az-muted); display: none; }
-.wf-k.on { background: #F1F2F4; }
-.wf-k.on small { display: block; }
-.wf-side.dim .wf-k:not(.on) { opacity: .35; }
-.wf-k:focus-visible, .wf-back:focus-visible { outline: 2px solid var(--az-ink); outline-offset: 1px; }
-.wf-back { all: unset; cursor: pointer; align-self: flex-start; font-size: 11px; color: var(--az-ink2); padding: 3px 6px; border: 1px solid var(--az-grid); border-radius: 6px; margin-bottom: 4px; }
-.wf-back:hover { background: #F1F2F4; }
-.wf-it { display: grid; grid-template-columns: 1fr auto; column-gap: 8px; font-size: 12px; padding: 2px 6px; line-height: 1.25; }
-.wf-it span { color: var(--az-ink); }
-.wf-it em { font-style: normal; font-weight: 600; }
-.wf-it u { grid-column: 1 / 3; display: block; height: 4px; border-radius: 2px; background: var(--az-slate-6, #2F3B54); text-decoration: none; margin: 2px 0 3px; }
-.wf-ft { font-size: 11px; line-height: 1.3; color: var(--az-muted); }
-.wf-ft b { color: var(--az-ink); font-weight: 600; }
+#chart { display: block; height: 100%; color-scheme: light; }

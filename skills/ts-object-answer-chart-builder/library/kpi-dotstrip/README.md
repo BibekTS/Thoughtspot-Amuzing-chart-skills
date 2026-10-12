@@ -6,16 +6,16 @@ Where does the latest month rank among all months in view?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [quantity purchased] [date].monthly` |
-| Library | HTML and inline SVG (no chart library) |
+| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
 | Tile | 3x4 grid units (02 Pulse tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | none |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
 
 ## Interactions
-Sales, Units, Price toggle. Dots fade in left to right. Hover a dot for the month and its rank. Click a dot to pin it against the latest month; click again to unpin.
+Hover a dot for its month and sales. Click a dot to select it and dim the rest (Escape clears). Click a legend key to select that whole group (below, above or the latest month). The chart is keyboard navigable.
 
 ## Notes
-One dot per month in the filter, oldest to newest, height is the value; a dashed line at the latest level shows how many months sit above it.
+Built on MayaCharts 0.16.0 as a `scatter` of every month in the filter, oldest to newest, height the sales. The body ranks the latest month and groups each dot as the latest month (ink), above it (dark slate) or below it (light slate) through `series` and a `colors` map; a dashed `rules` line runs at the latest level and the title names the rank (for example 36th of 64). `theme.series1` is left out because it would override the colours map. Dropped from the old chart: the Sales, Units, Price toggle (the latest-level rule and the rank are in sales, so a `y` array toggle would not move them), the left-to-right fade-in and the pin-against-latest comparison (select now dims the other months instead). Preview-verified on synthetic data, not yet re-checked on a cluster.
 
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.

@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,137 +243,29 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
-
-// Search: [sales] [quantity purchased] [item type]
-// Bubble chart of item types: x = units, y = average selling price (sales / units), bubble area = sales, colour = family.
-// Reference lines: units-weighted average price of all sales, and the median units across item types.
-// Family is an editorial grouping (AZ.familyOf), not a model column.
-// Interactions: hover a bubble; click a bubble or a family in the key to isolate that family; click the background to clear.
-let selFam = null;
-const FAMS = ['Outerwear', 'Tops and dresses', 'Bottoms', 'Swim and basics', 'Accessories'];
-const NS = 'http://www.w3.org/2000/svg';
-
-AZ.boot({
-  need: 'sales, quantity purchased and item type, e.g. [sales] [quantity purchased] [item type]',
-  render: async ({ el, rows, schema, w, h, redraw }) => {
-    const iK = AZ.col(schema, /item/i), sK = AZ.col(schema, /sales/i), uK = AZ.col(schema, /quantity|units/i);
-    const map = new Map();
-    rows.forEach((r) => {
-      const k = String(r[iK]), o = map.get(k) || { item: k, s: 0, u: 0 };
-      o.s += AZ.num(r[sK]); o.u += AZ.num(r[uK]); map.set(k, o);
-    });
-    const D = Array.from(map.values()).filter((d) => d.u > 0 && d.s > 0);
-    if (D.length < 2) { AZ.paint(el, '<div class="az-empty"><b>Not enough item types to compare</b><span>The current filter leaves ' + D.length + ' item type with units and sales. Widen the filters, or the search needs: [sales] [quantity purchased] [item type].</span></div>'); return; }
-    D.forEach((d) => { d.p = d.s / d.u; d.fam = AZ.familyOf(d.item); d.col = AZ.T.family[d.fam] || AZ.T.muted; });
-    const S = D.reduce((a, d) => a + d.s, 0), U = D.reduce((a, d) => a + d.u, 0), avgP = S / U;
-    const us = D.map((d) => d.u).sort((a, b) => a - b), medU = us.length % 2 ? us[(us.length - 1) / 2] : (us[us.length / 2 - 1] + us[us.length / 2]) / 2;
-    const top = D.slice().sort((a, b) => b.s - a.s)[0];
-    if (selFam && !D.some((d) => d.fam === selFam)) selFam = null;
-
-    const fams = FAMS.filter((f) => D.some((d) => d.fam === f));
-    el.innerHTML = '<div class="pv-head"><p class="pv-lead"></p><div class="pv-key" role="group" aria-label="Family"></div></div><div class="pv-plot" id="pv-plot"></div>';
-    el.querySelector('.pv-lead').textContent = top.item + ' sell at ' + '$' + top.p.toFixed(0) + ' a unit against a $' + avgP.toFixed(0) + ' average, on ' + AZ.int(top.u) + ' units';
-    const key = el.querySelector('.pv-key');
-    fams.forEach((f) => {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'pv-k' + (selFam === f ? ' on' : '') + (selFam && selFam !== f ? ' off' : '');
-      b.innerHTML = '<i style="background:' + AZ.T.family[f] + '"></i>' + AZ.esc(f);
-      b.addEventListener('click', () => { selFam = selFam === f ? null : f; redraw(); });
-      key.appendChild(b);
-    });
-    const plot = el.querySelector('#pv-plot');
-    const W = Math.max(200, plot.clientWidth), H = Math.max(140, plot.clientHeight);
-    const m = { l: 52, r: 14, t: 8, b: 34 };
-    const iw = W - m.l - m.r, ih = H - m.t - m.b;
-    const nice = (mx, n) => { const raw = mx / n, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p, s = f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10; return s * p; };
-    const maxU = Math.max.apply(null, D.map((d) => d.u)), maxP = Math.max.apply(null, D.map((d) => d.p));
-    const stepX = nice(maxU * 1.1, W < 420 ? 3 : 5), stepY = nice(maxP * 1.1, 6);
-    const xMax = Math.ceil(maxU * 1.08 / stepX) * stepX, yMax = Math.ceil(maxP * 1.06 / stepY) * stepY;
-    const x = (v) => m.l + v / xMax * iw, y = (v) => m.t + ih - v / yMax * ih;
-    const rMax = Math.max(10, Math.min(28, Math.min(iw, ih) / 9)), maxS = Math.max.apply(null, D.map((d) => d.s));
-    const rad = (s) => Math.max(4, rMax * Math.sqrt(s / maxS));
-
-    const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
-    const add = (parent, tag, attrs, text) => { const e = document.createElementNS(NS, tag); Object.keys(attrs).forEach((k) => e.setAttribute(k, attrs[k])); if (text != null) e.textContent = text; parent.appendChild(e); return e; };
-    // grid + ticks
-    for (let v = 0; v <= yMax + 1e-9; v += stepY) {
-      add(svg, 'line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: AZ.T.grid, 'stroke-width': 1 });
-      add(svg, 'text', { x: m.l - 6, y: y(v) + 4, 'text-anchor': 'end', fill: AZ.T.muted, 'font-size': 11 }, '$' + v.toFixed(0));
-    }
-    for (let v = 0; v <= xMax + 1e-9; v += stepX) {
-      add(svg, 'text', { x: x(v), y: H - m.b + 15, 'text-anchor': v === 0 ? 'start' : 'middle', fill: AZ.T.muted, 'font-size': 11 }, AZ.int(v));
-    }
-    add(svg, 'text', { x: m.l + iw / 2, y: H - 4, 'text-anchor': 'middle', fill: AZ.T.ink2, 'font-size': 11 }, 'Units sold');
-    const yt = add(svg, 'text', { x: 0, y: 0, 'text-anchor': 'middle', fill: AZ.T.ink2, 'font-size': 11, transform: 'translate(10 ' + (m.t + ih / 2) + ') rotate(-90)' }, 'Average selling price');
-    // reference lines
-    const rl = { stroke: AZ.T.slate[4], 'stroke-width': 1, 'stroke-dasharray': '4 3' };
-    add(svg, 'line', Object.assign({ x1: m.l, x2: W - m.r, y1: y(avgP), y2: y(avgP) }, rl));
-    add(svg, 'line', Object.assign({ x1: x(medU), x2: x(medU), y1: m.t, y2: m.t + ih }, rl));
-    const medLeft = x(medU) > W * 0.62;
-    add(svg, 'text', { x: x(medU) + (medLeft ? -4 : 4), y: m.t + 10, 'text-anchor': medLeft ? 'end' : 'start', fill: AZ.T.ink2, 'font-size': 11 }, 'Median units ' + AZ.int(medU));
-
-    // bubbles, biggest first so small ones stay on top
-    const order = D.slice().sort((a, b) => b.s - a.s);
-    const placed = [];
-    const circles = order.map((d) => ({ cx: x(d.u), cy: y(d.p), r: rad(d.s), d }));
-    const hitsCircle = (bx, skip) => circles.some((c) => c.d !== skip && Math.hypot(Math.max(bx.x - c.cx, 0, c.cx - bx.x - bx.w), Math.max(bx.y - c.cy, 0, c.cy - bx.y - bx.h)) < c.r);
-    const avgTxt = 'Average price $' + avgP.toFixed(2), avgW = avgTxt.length * 6 + 4, avgY = y(avgP);
-    const avgCands = [
-      { x: W - m.r - 2 - avgW, y: avgY - 16, a: 'end', tx: W - m.r - 2 }, { x: m.l + 2, y: avgY - 16, a: 'start', tx: m.l + 2 },
-      { x: W - m.r - 2 - avgW, y: avgY + 3, a: 'end', tx: W - m.r - 2 }, { x: m.l + 2, y: avgY + 3, a: 'start', tx: m.l + 2 }
-    ];
-    const ac = avgCands.find((c) => !hitsCircle({ x: c.x, y: c.y, w: avgW, h: 13 }, null) && !(c.x < x(medU) + 3 && c.x + avgW > x(medU) - 3)) || avgCands[0];
-    placed.push({ x: ac.x, y: ac.y, w: avgW, h: 13 });
-    add(svg, 'text', { x: ac.tx, y: ac.y + 10.5, 'text-anchor': ac.a, fill: AZ.T.ink2, 'font-size': 11 }, avgTxt);
-    const g = add(svg, 'g', {});
-    const nodes = new Map();
-    order.forEach((d) => {
-      const dim = selFam && d.fam !== selFam;
-      const c = add(g, 'circle', { cx: x(d.u), cy: y(d.p), r: rad(d.s), fill: d.col, 'fill-opacity': dim ? 0.12 : 0.62, stroke: d.col, 'stroke-width': dim ? 1 : 1.5, 'stroke-opacity': dim ? 0.3 : 1, tabindex: 0, role: 'img', 'aria-label': d.item + ', ' + AZ.money(d.s, 1) + ', ' + AZ.int(d.u) + ' units, $' + d.p.toFixed(2) });
-      c.style.cursor = 'pointer'; c.style.outline = 'none';
-      nodes.set(d.item, c); c._d = d;
-    });
-    // direct labels for the largest few, placed greedily so they never collide
-    const boxes = (bx) => placed.some((q) => bx.x < q.x + q.w && bx.x + bx.w > q.x && bx.y < q.y + q.h && bx.y + bx.h > q.y);
-    (selFam ? order.filter((d) => d.fam === selFam) : order.slice(0, 6)).forEach((d) => {
-      if (selFam && d.fam !== selFam) return;
-      const cx = x(d.u), cy = y(d.p), r = rad(d.s), tw = d.item.length * 6.4 + 2, th = 13;
-      const cands = [
-        { x: cx + r + 4, y: cy - th / 2, a: 'start' }, { x: cx - r - 4 - tw, y: cy - th / 2, a: 'end' },
-        { x: cx - tw / 2, y: cy - r - th - 2, a: 'middle' }, { x: cx - tw / 2, y: cy + r + 2, a: 'middle' }
-      ];
-      for (const cnd of cands) {
-        const bx = { x: cnd.x, y: cnd.y, w: tw, h: th };
-        if (bx.x < m.l || bx.x + bx.w > W - 2 || bx.y < m.t - 2 || bx.y + bx.h > m.t + ih) continue;
-        if (boxes(bx)) continue;
-        if (circles.some((c) => c.d !== d && bx.x < c.cx + c.r && bx.x + bx.w > c.cx - c.r && bx.y < c.cy + c.r && bx.y + bx.h > c.cy - c.r && Math.hypot(Math.max(bx.x - c.cx, 0, c.cx - bx.x - bx.w), Math.max(bx.y - c.cy, 0, c.cy - bx.y - bx.h)) < c.r)) continue;
-        placed.push(bx);
-        add(svg, 'text', { x: cnd.a === 'start' ? bx.x : cnd.a === 'end' ? bx.x + bx.w : bx.x + bx.w / 2, y: bx.y + 10.5, 'text-anchor': cnd.a, fill: AZ.T.ink, 'font-size': 11, 'font-weight': 600, 'pointer-events': 'none', stroke: '#fff', 'stroke-width': 3, 'paint-order': 'stroke' }, d.item);
-        break;
-      }
-    });
-    plot.appendChild(svg);
-    const tip = AZ.tip(plot);
-    const showTip = (d, ev) => {
-      const r = plot.getBoundingClientRect();
-      tip.show('<b>' + AZ.esc(d.item) + '</b>' + AZ.row(d.fam, '', d.col) + AZ.row('Sales', AZ.money(d.s, 1)) + AZ.row('Units', Math.round(d.u).toLocaleString('en-US')) + AZ.row('Average price', '$' + d.p.toFixed(2)) + AZ.row('Vs average price', AZ.pct(d.p / avgP - 1, 0, true)), ev.clientX - r.left, ev.clientY - r.top);
-    };
-    svg.addEventListener('mousemove', (ev) => {
-      const t = ev.target;
-      nodes.forEach((c) => c.setAttribute('stroke-width', (c._d.fam === selFam || !selFam) ? 1.5 : 1));
-      if (t && t._d) { t.setAttribute('stroke-width', 3); showTip(t._d, ev); } else tip.hide();
-    });
-    svg.addEventListener('mouseleave', () => { tip.hide(); nodes.forEach((c) => c.setAttribute('stroke-width', (c._d.fam === selFam || !selFam) ? 1.5 : 1)); });
-    svg.addEventListener('click', (ev) => {
-      const t = ev.target;
-      if (t && t._d) selFam = selFam === t._d.fam ? null : t._d.fam; else selFam = null;
-      redraw();
-    });
-    svg.addEventListener('keydown', (ev) => { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target._d) { ev.preventDefault(); selFam = selFam === ev.target._d.fam ? null : ev.target._d.fam; redraw(); } });
-  }
-});
+// Search: [sales] [quantity purchased] [item type]   (Family is an editorial grouping of Item Type, derived here)
+// Interactions: hover a bubble for units, price and sales; click a family in the legend to hide or show it; click a bubble to select it (Escape clears); drag to zoom (double-click or Escape resets).
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, I = c(/item/i, 'Item Type'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
+// Price is sales over units per item type. Reference lines: the units-weighted average price and the median units.
+const FO = Object.keys(AZ.T.family);
+const data = rows.filter((r) => AZ.num(r[Q]) > 0 && AZ.num(r[V]) > 0).map((r) => ({ [I]: r[I], Family: AZ.familyOf(r[I]), Units: AZ.num(r[Q]), Price: AZ.num(r[V]) / AZ.num(r[Q]), Sales: AZ.num(r[V]) })).sort((a, b) => FO.indexOf(a.Family) - FO.indexOf(b.Family));
+const S = data.reduce((a, r) => a + r.Sales, 0), U = data.reduce((a, r) => a + r.Units, 0), avg = U ? S / U : 0;
+const us = data.map((r) => r.Units).sort((a, b) => a - b), med = us.length ? (us[(us.length - 1) >> 1] + us[us.length >> 1]) / 2 : 0;
+const lead = data.reduce((a, r) => (r.Price > avg && r.Units > med && (!a || r.Sales > a.Sales) ? r : a), null);
+const money2 = (v) => '$' + v.toFixed(0);
+AZ.maya(Object.assign({
+  type: 'scatter', x: 'Units', y: 'Price', size: 'Sales', series: 'Family', name: I, colors: AZ.T.family, select: true, zoom: true, legend: 'top',
+  title: lead ? lead[I] + ' sell at ' + money2(lead.Price) + ' a unit against a ' + money2(avg) + ' average, on ' + AZ.int(lead.Units) + ' units' : '',
+  titles: { Units: 'Units sold', Price: 'Average selling price', [I]: 'Item type' },
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Units: { notation: 'compact', maximumFractionDigits: 1 }, Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 2 } },
+  text: { noData: 'No rows yet: bind [sales] [quantity purchased] [item type]' },
+  data
+}, data.length ? {
+  rules: [{ y: avg, label: 'Average price' }, { x: med, label: 'Median units' }],
+  annotate: data.slice().sort((a, b) => b.Sales - a.Sales).slice(0, 4).map((r) => ({ x: r.Units, text: r[I] })) // name the 4 largest bubbles
+} : {}));

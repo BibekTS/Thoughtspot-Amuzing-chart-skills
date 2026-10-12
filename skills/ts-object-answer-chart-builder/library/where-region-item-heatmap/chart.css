@@ -32,31 +32,4 @@ body { background: var(--az-surface); color: var(--az-ink); font-family: var(--a
 .az-sep { color: var(--az-muted); }
 /* ==== end amuzing core css ==== */
 
-#chart { display: flex; flex-direction: column; padding: 14px 14px 10px; gap: 8px; overflow: hidden; }
-.hm-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none; }
-.hm-title { font-size: 13px; line-height: 1.3; font-weight: 600; }
-.hm-line { font-size: 12px; line-height: 1.4; color: var(--az-ink2); flex: none; margin-top: -4px; }
-.hm-line b { color: var(--az-ink); font-weight: 600; }
-.hm-seg { display: inline-flex; border: 1px solid var(--az-grid); border-radius: 6px; overflow: hidden; flex: none; }
-.hm-seg button { all: unset; cursor: pointer; font-size: 11px; line-height: 1; padding: 6px 8px; color: var(--az-muted); white-space: nowrap; }
-.hm-seg button + button { border-left: 1px solid var(--az-grid); }
-.hm-seg button.on { background: var(--az-ink); color: #fff; }
-.hm-seg button:not(.on):hover { background: #F1F2F4; color: var(--az-ink); }
-.hm-seg button:focus-visible { outline: 2px solid var(--az-ink); outline-offset: -2px; }
-.hm-grid { flex: 1 1 auto; min-height: 0; display: grid; gap: 2px; align-items: stretch; }
-.hm-fam { height: 6px; border-radius: 2px; align-self: end; }
-.hm-ch { all: unset; cursor: pointer; box-sizing: border-box; writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px; line-height: 1; color: var(--az-ink2); text-align: left; display: flex; align-items: center; justify-content: flex-start; padding: 2px 0; white-space: nowrap; min-height: 0; }
-.hm-rh { all: unset; cursor: pointer; box-sizing: border-box; font-size: 12px; font-weight: 500; color: var(--az-ink); display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; }
-.hm-ch:hover, .hm-rh:hover, .hm-ch.on, .hm-rh.on { color: var(--az-ink); font-weight: 600; }
-.hm-ch:focus-visible, .hm-rh:focus-visible { outline: 2px solid var(--az-ink); outline-offset: 1px; }
-.hm-c { border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 11px; line-height: 1; overflow: hidden; min-height: 0; transition: opacity .15s ease; box-sizing: border-box; }
-.hm-c:hover { outline: 2px solid var(--az-ink); outline-offset: -1px; }
-.hm-c.none { background: transparent; border: 1px dashed var(--az-grid); }
-.hm-dim { opacity: .25; }
-.hm-key { flex: none; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; line-height: 1.3; color: var(--az-muted); align-items: center; }
-.hm-key span { display: inline-flex; align-items: center; gap: 5px; }
-.hm-key i { width: 12px; height: 6px; border-radius: 2px; display: inline-block; }
-.hm-ramp { display: inline-flex; }
-.hm-ramp i { width: 9px; height: 10px; border-radius: 0; }
-.hm-clear { all: unset; cursor: pointer; margin-left: auto; font-size: 11px; color: var(--az-ink); border: 1px solid var(--az-grid); border-radius: 6px; padding: 3px 7px; visibility: hidden; }
-.hm-clear:focus-visible { outline: 2px solid var(--az-ink); outline-offset: 1px; }
+#chart { display: block; height: 100%; min-height: 0; color-scheme: light; }

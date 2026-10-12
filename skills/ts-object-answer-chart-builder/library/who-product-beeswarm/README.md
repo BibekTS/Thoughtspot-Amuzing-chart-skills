@@ -6,16 +6,16 @@ Where does each of the 345 products sit on price per unit, and how does one comp
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[product] [item type] [sales] [quantity purchased]` |
-| Library | d3@7 force simulation and scales (cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js, fallback unpkg.com) |
+| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
 | Tile | 6x6 grid units (06 Who tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js, https://unpkg.com/d3@7/dist/d3.min.js |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
 
 ## Interactions
-dots settle from the price line into a force-simulation swarm; family chips filter (others dim); hover a dot; click a dot (Enter/Space on the 12 largest) to open its card (sales, units, price vs item type average, rank) with item type peers highlighted and the average marked; Back, crumbs and Escape close
+Hover a dot for the product, its item type and its price per unit. Click dots to select several (the rest dim); Escape clears. Click a family in the key to hide or show its lane. Arrow keys step through the dots.
 
 ## Notes
-Log price axis because prices bunch between 15 and 60 dollars. Price is sales / units per product, so it is an average selling price. Family grouping is editorial.
+Built on MayaCharts 0.16.0 as a `beeswarm` with one lane per family (`x` and `series` both Family, coloured by `AZ.T.family`), price per unit (sales over units, so an average selling price) on a linear axis, and `select: 'multi'`. The body computes the price, puts the item type into the dot's name (beeswarm takes no extra tooltip rows) and orders the lanes by the house family order. Dropped against the old chart: the log price axis (beeswarm refuses `yScale`), dot area by sales (no `size` on beeswarm), the settle-in animation from a price line, the product card with item type peers highlighted and the item type average marked, and Back/crumbs. Dense ties (many products at the same price) clamp to their lane and overlap a little. Preview-verified on synthetic data, not yet re-checked on a cluster.
 
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.

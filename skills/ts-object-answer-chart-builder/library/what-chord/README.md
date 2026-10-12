@@ -6,16 +6,16 @@ Which regions buy which product families?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [region] [item type]` |
-| Library | d3@7 (d3-hierarchy, d3-shape, d3-chord) from https://cdn.jsdelivr.net/npm/d3@7 (fallback https://unpkg.com/d3@7) |
+| Library | MayaCharts 0.16.0 (maya.global.js from jsDelivr) |
 | Tile | 6x7 grid units (04 What tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | https://cdn.jsdelivr.net/npm/d3@7, https://unpkg.com/d3@7 |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js` |
 
 ## Interactions
-Hover a ribbon or arc to highlight it and dim the rest; click a family arc to open its item types (animated morph); crumbs, Back, Escape.
+Hover or arrow-key to a region or family arc for its sales; the ribbons it touches stay lit and the rest dim. Hover a ribbon for that region-to-family flow. Click a region arc (or focus it and press Enter) to drill into it: the region stays on the left and its flows fan out to the families. The breadcrumb reads Back > region, and Back, Escape or a click on empty space goes back up.
 
 ## Notes
-Family is an editorial grouping. Region arcs slate, family arcs family hues; item-type view uses tints of the family hue.
+Built on MayaCharts 0.16.0 as a single `chord` spec over the path region > family with `drill: true`. Family is an editorial grouping derived from Item type with `AZ.familyOf`. Colours come from `colors: AZ.T.family`, a map keyed by node name: family arcs and their ribbons take the family hues, and regions are left out of the map so their arcs stay neutral grey. The title names the largest region-to-family flow and its share of sales, computed in the body. What changed against the D3 chart: the drill now opens a region, not a family; the old click on a family arc that split it into its item types is gone, because a chord path takes exactly two levels (`invalid-option`: "spec.path needs exactly two levels for a chord"), so family arcs do not drill. The centre total and the slate ramp on the region arcs are dropped. On narrow tiles (under about 300 px) the labels of the two smallest arcs can overlap, and some thin arcs go unlabelled; the tooltip names them. Render-complete fires on `maya-settled`. Preview-verified on synthetic data, not yet re-checked on a cluster.
 
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.

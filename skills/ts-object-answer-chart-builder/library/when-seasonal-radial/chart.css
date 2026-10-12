@@ -32,20 +32,4 @@ body { background: var(--az-surface); color: var(--az-ink); font-family: var(--a
 .az-sep { color: var(--az-muted); }
 /* ==== end amuzing core css ==== */
 
-#chart { display: flex; flex-direction: column; padding: 14px 16px 10px; gap: 6px; }
-.rd-head { flex: none; }
-.rd-title { font-size: 14px; line-height: 1.3; font-weight: 600; }
-.rd-sub { font-size: 12px; line-height: 1.4; color: var(--az-ink2); margin-top: 2px; }
-.rd-sub b { color: var(--az-ink); font-weight: 600; }
-.rd-plot { flex: 1 1 auto; min-height: 0; position: relative; }
-.rd-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.rd-key { flex: none; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
-.rd-chip { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1; padding: 5px 8px; border: 1px solid var(--az-grid); border-radius: 6px; color: var(--az-ink2); }
-.rd-chip svg { width: 18px; height: 6px; overflow: visible; }
-.rd-chip:hover { background: #F1F2F4; color: var(--az-ink); }
-.rd-chip.on { border-color: var(--az-ink); color: var(--az-ink); }
-.rd-chip.dim { opacity: .45; }
-.rd-chip:focus-visible { outline: 2px solid var(--az-ink); outline-offset: 1px; }
-.rd-note { font-size: 11px; color: var(--az-muted); margin-left: auto; }
-.rd-lbl { font-size: 11px; fill: var(--az-ink2); }
-.rd-ringlbl { font-size: 10px; fill: var(--az-muted); paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+#chart { display: block; height: 100%; color-scheme: light; }
