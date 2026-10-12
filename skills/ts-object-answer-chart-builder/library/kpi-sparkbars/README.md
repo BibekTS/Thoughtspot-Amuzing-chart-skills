@@ -1,4 +1,4 @@
-# Monthly columns, drill to a month
+# Monthly columns against a year earlier
 
 How do the last 24 months compare, and how does one month compare with a year ago?
 
@@ -6,16 +6,16 @@ How do the last 24 months compare, and how does one month compare with a year ag
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [quantity purchased] [date].monthly` |
-| Library | HTML and inline SVG (no chart library) |
+| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
 | Tile | 3x4 grid units (02 Pulse tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | none |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
 
 ## Interactions
-Sales, Units, Price toggle. Columns rise in staggered. Hover a column for the month. Click a column or use arrow keys and Enter to compare that month with the same month a year earlier; Escape or Back closes.
+Hover, or use the arrow keys, for a month's sales and the same month a year earlier. Click a column (or Enter) to select it; Escape clears. Click the legend key to hide the year-earlier ghosts.
 
 ## Notes
-Latest calendar year in ink, earlier months in slate. Bars start at zero.
+Built on MayaCharts 0.16.0 as a `bar` over the last 24 months with `was`: each column carries a dashed ghost at the same month a year earlier, so the old click-to-compare view is now on every column at once. The title is the year-to-date headline against the same months last year, computed in the body. `tooltip.fields` adds the year-earlier value because 0.16.0 leaves the `was` value out of the tooltip, and the value axis is fixed to cover the ghosts because 0.16.0 scales it to the bars only. Dropped against the old tile: the Sales, Units and Price toggle (`was` cannot be combined with a `y` array), the ink-for-this-year and slate-for-earlier colouring (`was` cannot be combined with `stack`, which a year series would need), and the drill-in comparison panel. Preview-verified on synthetic data, not yet re-checked on a cluster.
 
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.

@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,227 +243,28 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [quantity purchased] [date].monthly
-// Year x month grid on the slate ramp. Toggle Sales / Units / Price per unit (cells re-colour with a tween).
-// Hover a cell for its value and the change on the same month a year earlier; click a cell (or a month name)
-// to highlight that calendar month across every year. Click a year label to open that year: the grid morphs into
-// twelve monthly columns with the previous year as a slate outline. Back, the crumb or Escape returns.
-let mode = 'sales', selMonth = null, openYear = null;
-
-const HM = {
-  sales: { label: 'Sales', get: (r) => r.s, fmt: (v) => AZ.money(v, 1), fmtL: (v) => AZ.money(v, 1) },
-  units: { label: 'Units', get: (r) => r.u, fmt: (v) => AZ.int(v), fmtL: (v) => AZ.int(v) },
-  price: { label: 'Price per unit', get: (r) => (r.u ? r.s / r.u : null), fmt: (v) => '$' + v.toFixed(2), fmtL: (v) => '$' + v.toFixed(0) }
-};
-
-AZ.boot({
-  need: 'sales, quantity purchased and date at monthly grain, e.g. [sales] [quantity purchased] [date].monthly',
-  render: async ({ el, rows, schema }) => {
-    const dK = AZ.col(schema, /date|month/i), sK = AZ.col(schema, /sales/i), uK = AZ.col(schema, /quantity|units/i);
-    const M = rows.map((r) => ({ t: AZ.ms(r[dK]), s: AZ.num(r[sK]), u: AZ.num(r[uK]) })).filter((r) => isFinite(r.t)).sort((a, b) => a.t - b.t);
-    if (!M.length) { AZ.paint(el, '<div class="az-empty"><b>No months in the result</b><span>The search needs [sales] [quantity purchased] [date].monthly</span></div>'); return; }
-    const key = (y, m) => y * 12 + m;
-    const cell = new Map();
-    M.forEach((r) => { const d = new Date(r.t), k = key(d.getUTCFullYear(), d.getUTCMonth()); const c = cell.get(k) || { s: 0, u: 0, t: r.t }; c.s += r.s; c.u += r.u; cell.set(k, c); });
-    const ys = Array.from(new Set(M.map((r) => AZ.year(r.t)))).sort((a, b) => a - b);
-    const S = AZ.T.slate;
-    const hex = (h) => [1, 3, 5].map((i) => parseInt(h.substr(i, 2), 16));
-    const rampA = (t) => { const p = Math.max(0, Math.min(1, t)) * (S.length - 1), i = Math.min(S.length - 2, Math.floor(p)), f = p - i, a = hex(S[i]), b = hex(S[i + 1]); return a.map((x, k) => x + (b[k] - x) * f).concat([1]); };
-    const rgba = (c) => 'rgba(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ',' + c[3].toFixed(3) + ')';
-    if (openYear != null && ys.indexOf(openYear) < 0) openYear = null;
-    const anyIn = (m) => ys.some((y) => cell.has(key(y, m)));
-    if (selMonth != null && !anyIn(selMonth)) selMonth = null;
-
-    // Everything that depends on the measure.
-    const calc = () => {
-      const D = HM[mode];
-      const val = (y, m) => { const c = cell.get(key(y, m)); return c ? D.get(c) : null; };
-      const all = []; ys.forEach((y) => { for (let m = 0; m < 12; m++) { const v = val(y, m); if (v != null) all.push({ y, m, v }); } });
-      const lo = Math.min.apply(null, all.map((c) => c.v)), hi = Math.max.apply(null, all.map((c) => c.v));
-      const shade = (v) => rampA(hi === lo ? 0.5 : (v - lo) / (hi - lo));
-      return { D, val, all, lo, hi, shade };
-    };
-    const ml = (c) => AZ.MON[c.m] + ' ' + c.y;
-    const subFor = (C) => {
-      const D = C.D, all = C.all;
-      if (!all.length) return '';
-      if (openYear != null) {
-        const y = openYear, mine = all.filter((c) => c.y === y);
-        const top = mine.reduce((b, c) => (c.v > b.v ? c : b), mine[0]), bot = mine.reduce((b, c) => (c.v < b.v ? c : b), mine[0]);
-        let s = mine.length < 2 ? D.label + ' in ' + ml(mine[0]) + ': ' + D.fmt(mine[0].v) : '<b>' + y + '</b> ' + D.label.toLowerCase() + ' peaked in <b>' + AZ.MON[top.m] + '</b> at ' + D.fmt(top.v) + ', lowest in <b>' + AZ.MON[bot.m] + '</b> at ' + D.fmt(bot.v) + '.';
-        const ms2 = mine.map((c) => c.m), same = ms2.every((m) => cell.has(key(y - 1, m)));
-        if (same && ms2.length) {
-          const agg = (yy) => { let s1 = 0, u1 = 0; ms2.forEach((m) => { const c = cell.get(key(yy, m)); s1 += c.s; u1 += c.u; }); return mode === 'sales' ? s1 : mode === 'units' ? u1 : (u1 ? s1 / u1 : 0); };
-          const a = agg(y), b = agg(y - 1), rng = ms2.length === 12 ? '' : AZ.MON[ms2[0]] + ' to ' + AZ.MON[ms2[ms2.length - 1]] + ' ';
-          if (b) s += ' ' + (mode === 'price' ? 'Average price is' : rng ? rng + D.label.toLowerCase() + ' are' : 'Full-year ' + D.label.toLowerCase() + ' is') + ' ' + AZ.pct(a / b - 1, 1, true) + ' against ' + rng + (y - 1) + '.';
-        }
-        return s;
-      }
-      const first = all[0], last = all[all.length - 1], top = all.reduce((b, c) => (c.v > b.v ? c : b), all[0]), bot = all.reduce((b, c) => (c.v < b.v ? c : b), all[0]);
-      if (all.length < 2) return 'One month in the current filter: ' + ml(first) + ', ' + D.fmt(first.v);
-      if (mode === 'price') return 'Price per unit went from <b>' + D.fmt(first.v) + '</b> in ' + ml(first) + ' to <b>' + D.fmt(last.v) + '</b> in ' + ml(last) + ' (' + AZ.pct(last.v / first.v - 1, 0, true) + ')';
-      return D.label + ' peaked in <b>' + ml(top) + '</b> at ' + D.fmt(top.v) + ', lowest in <b>' + ml(bot) + '</b> at ' + D.fmt(bot.v);
-    };
-
-    const seg = ['sales', 'units', 'price'].map((k) => '<button type="button" data-k="' + k + '" class="' + (k === mode ? 'on' : '') + '">' + HM[k].label + '</button>').join('');
-    el.innerHTML = '<div class="hm-top"><div class="hm-title"></div><div class="hm-seg" role="group" aria-label="Measure">' + seg + '</div></div><div class="hm-sub"></div><div class="hm-crumbrow"></div>'
-      + '<div class="hm-wrap" id="hm-wrap"></div><div class="hm-leg"></div>';
-    const titleEl = el.querySelector('.hm-title'), subEl = el.querySelector('.hm-sub'), crumbEl = el.querySelector('.hm-crumbrow'), legEl = el.querySelector('.hm-leg');
-    const wrap = document.getElementById('hm-wrap');
-    const flash = (n) => { n.classList.remove('hm-fade'); void n.offsetWidth; n.classList.add('hm-fade'); };
-    let goTo = () => {}, C = calc(), update = () => {};
-    const head = (fade) => {
-      const D = C.D;
-      titleEl.textContent = openYear != null ? D.label + ', ' + openYear : D.label + ' by month';
-      subEl.innerHTML = subFor(C);
-      if (openYear != null) {
-        crumbEl.innerHTML = AZ.crumbs(['All years', String(openYear)]) + '<span class="hm-key"><i class="sol"></i>' + openYear + (ys.indexOf(openYear - 1) >= 0 ? ' <i class="out"></i>' + (openYear - 1) : '') + '</span><button type="button" class="hm-back">Back</button>';
-        AZ.wireCrumbs(crumbEl, () => goTo(null));
-        crumbEl.querySelector('.hm-back').addEventListener('click', () => goTo(null));
-      } else crumbEl.innerHTML = '<span class="hm-hint">Click a year to open its months</span>';
-      legEl.innerHTML = '<span>' + AZ.esc(D.fmtL(C.lo)) + '</span><div class="hm-ramp" style="background:linear-gradient(90deg,' + S.join(',') + ')"></div><span>' + AZ.esc(D.fmtL(C.hi)) + '</span>'
-        + '<span class="hm-hint">' + (selMonth != null ? AZ.MON[selMonth] + ' highlighted, click to clear' : 'Click a cell to compare a month') + '</span>';
-      if (fade) { flash(titleEl); flash(subEl); flash(crumbEl); }
-    };
-
-    head(false);
-    // ---- geometry ----------------------------------------------------------------------------
-    const Ww = wrap.clientWidth, Wh = wrap.clientHeight, n = ys.length;
-    const X0 = 37, GAP = 3, cw = Math.max(4, (Ww - X0 - 11 * GAP) / 12), HDR = 18, Y0 = HDR + GAP;
-    const rowH = Math.max(6, Math.min(52, (Wh - Y0 - GAP * (n - 1)) / n));
-    const cx = (m) => X0 + m * (cw + GAP), ry = (i) => Y0 + i * (rowH + GAP);
-    const T1 = HDR + GAP + 16, B1 = Math.max(T1 + 20, Wh - 4);
-    const showVals = cw >= 34;
-
-    // ---- items: every animated element carries a current record; update() tweens to the new target ----
-    const items = [];
-    const mk = (cls, html, apply) => { const d = document.createElement('div'); d.className = cls; if (html) d.innerHTML = html; wrap.appendChild(d); const it = { el: d, rec: null, apply, s: null, t: null }; items.push(it); return it; };
-    const px = (v) => v.toFixed(2) + 'px';
-    const applyCell = (it) => { const r = it.rec, e = it.el.style; e.left = px(r.x); e.top = px(r.y); e.width = px(r.w); e.height = px(r.h); e.backgroundColor = rgba(r.bg); e.opacity = r.op; e.zIndex = r.z || 0; if (!it.blank) e.borderColor = 'rgba(74,88,114,' + r.bd.toFixed(3) + ')'; };
-    const applyTxt = (it) => { const r = it.rec, e = it.el.style; e.left = px(r.x); e.top = px(r.y); e.opacity = r.op; };
-    const hdrs = [];
-    for (let m = 0; m < 12; m++) {
-      const it = mk('hm-mh', cw < 24 ? AZ.MON[m].charAt(0) : AZ.MON[m], applyTxt); it.el.setAttribute('data-m', m); it.el.style.width = px(cw); it.mh = m; hdrs.push(it);
-      it.el.addEventListener('click', () => toggleMonth(m));
-    }
-    const yls = {};
-    ys.forEach((y) => {
-      const it = mk('hm-yh', String(y), applyTxt); it.el.setAttribute('data-y', y); it.el.tabIndex = 0; it.el.setAttribute('role', 'button'); it.el.setAttribute('aria-label', 'Open ' + y);
-      it.el.addEventListener('click', () => goTo(y));
-      it.el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goTo(y); } });
-      yls[y] = it;
-    });
-    const cells = {};
-    ys.forEach((y) => { for (let m = 0; m < 12; m++) { const has = cell.has(key(y, m)); const it = mk('hm-c' + (has ? '' : ' blank'), '', applyCell); it.blank = !has; it.el.setAttribute('data-y', y); it.el.setAttribute('data-m', m); cells[key(y, m)] = it; } });
-    const vls = [];
-    for (let m = 0; m < 12; m++) vls.push(mk('hm-vl', '', applyTxt));
-    const base = mk('hm-base', '', (it) => { const r = it.rec, e = it.el.style; e.left = px(r.x); e.top = px(r.y); e.width = px(r.w); e.opacity = r.op; });
-    const axT = mk('hm-ax', '', applyTxt), axB = mk('hm-ax', '0', applyTxt);
-    axB.el.style.width = px(X0 - 8);
-
-    // target records for the current state
-    const targets = () => {
-      const D = C.D, val = C.val, sh = C.shade;
-      const T = new Map();
-      const dimOp = (m) => (selMonth != null && selMonth !== m ? 0.25 : 1);
-      const clear = [0, 0, 0, 0];
-      hdrs.forEach((h) => T.set(h, { x: cx(h.mh), y: 0, op: selMonth != null && selMonth !== h.mh ? 0.25 : 1 }));
-      const l0 = openYear == null;
-      ys.forEach((y, i) => { T.set(yls[y], { x: 0, y: ry(i) + rowH / 2 - 8, op: l0 ? 1 : 0 }); });
-      let maxV = 0;
-      if (!l0) for (let m = 0; m < 12; m++) [openYear, openYear - 1].forEach((yy) => { const v = val(yy, m); if (v != null && v > maxV) maxV = v; });
-      const hOf = (v) => (maxV ? Math.max(1, v / maxV * (B1 - T1)) : 1);
-      ys.forEach((y, i) => {
-        for (let m = 0; m < 12; m++) {
-          const it = cells[key(y, m)], v = val(y, m);
-          const flat = { x: cx(m), y: ry(i), w: cw, h: rowH };
-          if (l0) {
-            if (v == null) T.set(it, Object.assign(flat, { bg: clear, bd: 0, op: 1, z: 0 }));
-            else T.set(it, Object.assign(flat, { bg: sh(v), bd: 0, op: dimOp(m), z: 0 }));
-          } else if (v != null && y === openYear) {
-            const h = hOf(v); T.set(it, { x: cx(m), y: B1 - h, w: cw, h: h, bg: sh(v), bd: 0, op: dimOp(m), z: 1 });
-          } else if (v != null && y === openYear - 1) {
-            const h = hOf(v); T.set(it, { x: cx(m), y: B1 - h, w: cw, h: h, bg: [255, 255, 255, 0], bd: 1, op: dimOp(m), z: 2 });
-          } else T.set(it, Object.assign(flat, { bg: v == null ? clear : sh(v), bd: 0, op: 0, z: 0 }));
-        }
-      });
-      const ay = openYear == null ? ys.length - 1 : ys.indexOf(openYear);
-      for (let m = 0; m < 12; m++) {
-        const v = l0 ? null : val(openYear, m);
-        const vl = vls[m];
-        vl.text = v == null ? '' : D.fmtL(v);
-        T.set(vl, { x: cx(m) - 6, y: v == null ? ry(ay) : B1 - hOf(v) - 15, op: !l0 && v != null && showVals ? 1 : 0 });
-      }
-      T.set(base, { x: X0, y: B1, w: 12 * cw + 11 * GAP, op: l0 ? 0 : 1 });
-      axT.text = D.fmtL(maxV || 0);
-      T.set(axT, { x: 0, y: T1 - 17, op: l0 ? 0 : 1 });
-      T.set(axB, { x: 0, y: B1 - 8, op: l0 ? 0 : 1 });
-      return T;
-    };
-    const NUM = (a, b, k) => (Array.isArray(b) ? b.map((v, i) => AZ.lerp(a[i], v, k)) : typeof b === 'number' ? AZ.lerp(a, b, k) : b);
-    let cancelT = null;
-    update = (animate, ms) => {
-      if (cancelT) { cancelT(); cancelT = null; }
-      const T = targets();
-      items.forEach((it) => {
-        it.t = T.get(it);
-        if (it.text != null) it.el.textContent = it.text;
-        const first = !it.rec;
-        it.s = first || !animate ? Object.assign({}, it.t) : Object.assign({}, it.rec);
-        if (first) it.rec = Object.assign({}, it.t);
-      });
-      cancelT = AZ.tween(animate ? (ms || 480) : 0, (k) => {
-        items.forEach((it) => {
-          const r = {}; Object.keys(it.t).forEach((f) => { r[f] = NUM(it.s[f], it.t[f], k); });
-          it.rec = r; it.apply(it);
-        });
-      }, () => { cancelT = null; }, AZ.EASE.inOut);
-      wrap.classList.toggle('open', openYear != null);
-    };
-
-    // ---- interaction -------------------------------------------------------------------------
-    const toggleMonth = (m) => { selMonth = selMonth === m ? null : m; head(false); update(true, 320); };
-    goTo = (y) => { if (y === openYear) return; openYear = y; head(true); update(true, 520); };
-    const onKey = (e) => { if (e.key === 'Escape' && openYear != null) { e.preventDefault(); goTo(null); } };
-    document.addEventListener('keydown', onKey);
-    el.querySelectorAll('.hm-seg button').forEach((b) => b.addEventListener('click', () => {
-      mode = b.getAttribute('data-k'); C = calc();
-      el.querySelectorAll('.hm-seg button').forEach((o) => o.classList.toggle('on', o === b));
-      head(false); flash(subEl); flash(titleEl); update(true, 480);
-    }));
-    update(false);
-
-    const tip = AZ.tip(wrap);
-    let onCell = null;
-    const hit = (e) => {
-      const b = wrap.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top;
-      if (x < X0 - 2 || y < Y0 - 2) return null;
-      const m = Math.max(0, Math.min(11, Math.round((x - X0 - cw / 2) / (cw + GAP))));
-      if (openYear != null) return { m, y: openYear, px: x, py: y, b };
-      const i = Math.round((y - Y0 - rowH / 2) / (rowH + GAP));
-      if (i < 0 || i >= n) return null;
-      return { m, y: ys[i], px: x, py: y, b };
-    };
-    wrap.addEventListener('mousemove', (e) => {
-      const h = hit(e);
-      if (onCell) { onCell.el.classList.remove('hov'); onCell = null; }
-      if (!h) { tip.hide(); return; }
-      const v = C.val(h.y, h.m), pv = C.val(h.y - 1, h.m);
-      if (v == null && openYear == null) { tip.hide(); return; }
-      const c = cells[key(h.y, h.m)];
-      if (v != null) { onCell = c; c.el.classList.add('hov'); }
-      const D = C.D;
-      let t = '<b>' + AZ.MON[h.m] + ' ' + h.y + '</b>' + (v != null ? AZ.row(D.label, D.fmt(v), '#FFFFFF') : AZ.row(D.label, 'no data'));
-      if (pv != null) t += AZ.row(AZ.MON[h.m] + ' ' + (h.y - 1), D.fmt(pv), S[3]) + (pv && v != null ? AZ.row('Change', AZ.pct(v / pv - 1, 1, true)) : '');
-      else t += AZ.row('A year earlier', 'no data');
-      tip.show(t, e.clientX - h.b.left, e.clientY - h.b.top);
-    });
-    wrap.addEventListener('mouseleave', () => { if (onCell) { onCell.el.classList.remove('hov'); onCell = null; } tip.hide(); });
-    wrap.addEventListener('click', (e) => { const h = hit(e); if (h && C.val(h.y, h.m) != null) toggleMonth(h.m); });
-    return () => { if (cancelT) cancelT(); document.removeEventListener('keydown', onKey); };
-  }
+// Interactions: toggle Sales / Units / Price per unit; hover a cell for its value; click a cell to select it (Escape clears); arrow keys move between months and years.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const opt = { optional: true }, D = AZ.col(schema, /date|month/i, opt) ?? 'Month', V = AZ.col(schema, /sales/i, opt) ?? 'Sales', U = AZ.col(schema, /quantity|units/i, opt) ?? 'Units';
+// One cell per month: a year row and a calendar-month column; price per unit is that month's sales over its units.
+// The grid is filled Jan to Dec for every year (missing months null) so the columns and rows keep calendar order.
+const byT = new Map(rows.map((r) => [AZ.ms(r[D]), r])), yrs = [...new Set([...byT.keys()].map(AZ.year))].sort();
+const pts = AZ.MON.flatMap((m, i) => yrs.map((y) => {
+  const r = byT.get(Date.UTC(y, i, 1)), s = r ? AZ.num(r[V]) : null, u = r ? AZ.num(r[U]) : null;
+  return { Month: m, Year: String(y), Sales: s, Units: u, Price: u > 0 ? s / u : null };
+}));
+AZ.maya({
+  type: 'heatmap', x: 'Month', series: 'Year', y: ['Sales', 'Units', 'Price'], select: true, labels: false,
+  title: pts.length ? 'Monthly sales, units and price by year' : '',
+  subtitle: pts.length ? 'Each row is a year; darker is higher' : '',
+  titles: { Price: 'Price per unit' },
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Units: { notation: 'compact', maximumFractionDigits: 1 }, Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 2 } },
+  text: { noData: 'No rows yet. Bind the search [sales] [quantity purchased] [date].monthly' },
+  theme: { accent: '#1E293B' },
+  data: pts
 });

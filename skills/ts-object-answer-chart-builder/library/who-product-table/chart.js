@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,185 +243,30 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
 // Search: [product] [item type] [sales] [quantity purchased]
-// Sortable, searchable product table with family chips and a share bar.
-// Interactions: click a header to sort (rows glide to their new place), type to search product names, family chips filter,
-// Show more pages the list. Click a row to open a detail row: sales, units and price against its item type's average,
-// and its rank inside the item type, with bars that grow in. One row open at a time; click again or Escape closes.
-let sortKey = 'sales', sortDir = -1, query = '', fams = new Set(), limit = 25, openKey = null;
-
-AZ.boot({
-  need: 'product, item type, sales and quantity purchased, e.g. [product] [item type] [sales] [quantity purchased]',
-  render: async ({ el, rows, schema, w }) => {
-    const pK = AZ.col(schema, /product/i), tK = AZ.col(schema, /item type|type/i), sK = AZ.col(schema, /sales/i), uK = AZ.col(schema, /quantity|units/i);
-    const agg = new Map();
-    rows.forEach((r) => {
-      const k = String(r[pK]) + '||' + String(r[tK]);
-      const o = agg.get(k) || { product: String(r[pK]), type: String(r[tK]), sales: 0, units: 0 };
-      o.sales += AZ.num(r[sK]); o.units += AZ.num(r[uK]); agg.set(k, o);
-    });
-    const all = Array.from(agg.values());
-    if (!all.length) throw new Error('No products in the result. Search: [product] [item type] [sales] [quantity purchased]');
-    const total = all.reduce((a, r) => a + r.sales, 0) || 1;
-    all.sort((a, b) => b.sales - a.sales);
-    all.forEach((r, i) => { r.key = r.product + '||' + r.type; r.rank = i + 1; r.share = r.sales / total; r.fam = AZ.familyOf(r.type); r.color = AZ.familyColor(r.type); r.avg = r.units ? r.sales / r.units : null; });
-    // Item-type peers, computed from the same rows.
-    const TY = {};
-    all.forEach((r) => { const t = TY[r.type] || (TY[r.type] = { n: 0, s: 0, u: 0, list: [] }); t.n++; t.s += r.sales; t.u += r.units; t.list.push(r); });
-    Object.keys(TY).forEach((k) => {
-      const t = TY[k]; t.avgS = t.s / t.n; t.avgU = t.u / t.n; t.avgP = t.u ? t.s / t.u : null;
-      const rk = (f, key) => t.list.slice().sort((a, b) => (f(b) == null ? -1e18 : f(b)) - (f(a) == null ? -1e18 : f(a))).forEach((r, i) => { r[key] = i + 1; });
-      rk((r) => r.sales, 'rkS'); rk((r) => r.units, 'rkU'); rk((r) => r.avg, 'rkP');
-    });
-    const maxShare = all[0].share || 1;
-    const top25 = all.slice(0, 25).reduce((a, r) => a + r.share, 0);
-    const famNames = Object.keys(AZ.T.family);
-    fams = new Set(Array.from(fams).filter((f) => famNames.indexOf(f) >= 0));
-    const narrow = w < 560;
-
-    const COLS = [
-      { k: 'rank', t: '#', w: 38, num: 1, dir: 1 }, { k: 'product', t: 'Product', w: 0, dir: 1 }, { k: 'type', t: 'Item type', w: narrow ? 100 : 130, dir: 1 },
-      { k: 'sales', t: 'Sales', w: 64, num: 1, dir: -1 }, { k: 'share', t: 'Share', w: 52, num: 1, dir: -1 },
-      { k: 'units', t: 'Units', w: 62, num: 1, dir: -1, hide: narrow }, { k: 'avg', t: 'Avg price', w: 74, num: 1, dir: -1, hide: narrow },
-      { k: 'bar', t: '', w: 84, dir: -1, nosort: 1, hide: narrow }
-    ].filter((c) => !c.hide);
-
-    el.innerHTML =
-      '<div class="pt-head"><b>' + AZ.esc(all[0].product) + '</b> is the top product at ' + AZ.money(all[0].sales, 1) + ', ' + AZ.pct(all[0].share, 1) + ' of sales.' + (all.length > 25 ? ' The top 25 of ' + all.length + ' products hold ' + AZ.pct(top25, 0) + '.' : (all.length === 1 ? ' It is the only product' : ' These are all ' + all.length + ' products') + ' in the current filter.') + '</div>'
-      + '<div class="pt-ctl"><input class="pt-search" type="search" placeholder="Search products" aria-label="Search products by name" value="' + AZ.esc(query) + '">'
-      + '<div class="pt-chips" role="group" aria-label="Filter by family">'
-      + famNames.map((f) => '<button type="button" class="pt-chip" data-f="' + AZ.esc(f) + '" aria-label="' + AZ.esc(f) + '" title="' + AZ.esc(f) + '" aria-pressed="' + (fams.has(f) ? 'true' : 'false') + '"><i style="background:' + AZ.T.family[f] + '"></i>' + (narrow ? '' : AZ.esc(f)) + '</button>').join('') + '</div></div>'
-      + '<div class="pt-wrap" tabindex="0" aria-label="Product table, scrollable"><table class="pt"><colgroup>' + COLS.map((c) => '<col' + (c.w ? ' style="width:' + c.w + 'px"' : '') + '>').join('') + '</colgroup><thead><tr>'
-      + COLS.map((c) => '<th class="' + (c.num ? 'num' : '') + '" data-k="' + c.k + '">' + (c.nosort ? '' : '<button type="button" data-k="' + c.k + '">' + AZ.esc(c.t) + '<span class="ar"></span></button>') + '</th>').join('')
-      + '</tr></thead><tbody></tbody></table></div>'
-      + '<div class="pt-foot"><span class="pt-cnt"></span><button type="button" class="pt-more"></button></div>';
-    const body = el.querySelector('tbody'), cnt = el.querySelector('.pt-cnt'), more = el.querySelector('.pt-more'), wrap = el.querySelector('.pt-wrap');
-
-    const cmp = (a, b) => {
-      const A = a[sortKey], B = b[sortKey];
-      if (A == null && B == null) return 0; if (A == null) return 1; if (B == null) return -1;
-      const d = typeof A === 'string' ? A.localeCompare(B) : A - B;
-      return (d || a.rank - b.rank) * sortDir;
-    };
-    let shownRows = [], cancels = [];
-    const stop = () => { cancels.forEach((c) => c()); cancels = []; };
-    const metrics = (r) => {
-      const t = TY[r.type];
-      return [
-        { name: 'Sales', v: r.sales, a: t.avgS, f: (v) => AZ.money(v, v >= 1e6 ? 2 : 0), rk: r.rkS },
-        { name: 'Units', v: r.units, a: t.avgU, f: (v) => Math.round(v).toLocaleString('en-US'), rk: r.rkU },
-        { name: 'Price per unit', v: r.avg, a: t.avgP, f: (v) => '$' + v.toFixed(2), rk: r.rkP }
-      ];
-    };
-    const detailHTML = (r) => {
-      const t = TY[r.type], ms = metrics(r), solo = t.n < 2;
-      let h = '<div class="pt-d"><div class="pt-dh"><i style="background:' + r.color + '"></i><b>' + AZ.esc(r.product) + '</b> in ' + AZ.esc(r.type) + ': '
-        + (solo ? 'the only product of this item type in the current result.' : '#' + r.rkS + ' of ' + t.n + ' by sales, #' + r.rkU + ' by units' + (r.rkP ? ', #' + r.rkP + ' by price' : '') + '.') + '</div><div class="pt-dm">';
-      ms.forEach((m) => {
-        if (m.v == null) return;
-        const mx = Math.max(m.v, m.a || 0) || 1;
-        h += '<div class="pt-mr"><span class="pt-mn">' + m.name + '</span><div class="pt-bars">'
-          + '<div class="pt-bt"><span class="pt-bar me" data-w="' + (m.v / mx * 100).toFixed(2) + '" style="background:' + r.color + '"></span><em>' + AZ.esc(m.f(m.v)) + '</em></div>'
-          + '<div class="pt-bt"><span class="pt-bar av" data-w="' + ((m.a || 0) / mx * 100).toFixed(2) + '"></span><em>' + AZ.esc(m.a == null ? '-' : m.f(m.a)) + ' type avg</em></div></div>'
-          + '<span class="pt-md">' + (solo || !m.a ? '' : AZ.pct(m.v / m.a - 1, 0, true)) + '</span></div>';
-      });
-      return h + '</div></div>';
-    };
-    const openDetail = (tr, r, animate) => {
-      const d = document.createElement('tr'); d.className = 'pt-detail';
-      d.innerHTML = '<td colspan="' + COLS.length + '"><div class="pt-dw">' + detailHTML(r) + '</div></td>';
-      tr.parentNode.insertBefore(d, tr.nextSibling);
-      const dw = d.querySelector('.pt-dw'), bars = Array.from(d.querySelectorAll('.pt-bar'));
-      const H = dw.scrollHeight, fin = (k) => bars.forEach((b) => { b.style.width = (parseFloat(b.getAttribute('data-w')) * k).toFixed(2) + '%'; });
-      if (!animate) { fin(1); return; }
-      fin(0); dw.style.height = '0px';
-      const sc0 = wrap.scrollTop, need = tr.offsetTop + tr.offsetHeight + H - (sc0 + wrap.clientHeight), sc1 = need > 0 ? Math.min(sc0 + need, Math.max(0, tr.offsetTop - 30)) : sc0;
-      cancels.push(AZ.tween(420, (k) => { dw.style.height = (H * k).toFixed(1) + 'px'; if (sc1 !== sc0) wrap.scrollTop = AZ.lerp(sc0, sc1, k); }, () => { dw.style.height = 'auto'; }, AZ.EASE.inOut));
-      cancels.push(AZ.tween(620, (k) => fin(k), null, AZ.EASE.out));
-    };
-    const closeDetail = (d, animate) => {
-      if (!d) return;
-      const dw = d.querySelector('.pt-dw'), H = dw.offsetHeight;
-      if (!animate) { d.remove(); return; }
-      dw.style.height = H + 'px';
-      cancels.push(AZ.tween(320, (k) => { dw.style.height = (H * (1 - k)).toFixed(1) + 'px'; }, () => d.remove(), AZ.EASE.inOut));
-    };
-    const rowFor = (key) => Array.from(body.querySelectorAll('tr[data-key]')).find((t) => t.getAttribute('data-key') === key);
-    const toggle = (r) => {
-      const old = body.querySelector('.pt-detail');
-      if (openKey === r.key) { openKey = null; el.querySelectorAll('tr[aria-expanded="true"]').forEach((t) => t.setAttribute('aria-expanded', 'false')); closeDetail(old, true); return; }
-      openKey = r.key;
-      el.querySelectorAll('tr[aria-expanded="true"]').forEach((t) => t.setAttribute('aria-expanded', 'false'));
-      closeDetail(old, true);
-      const tr = rowFor(r.key); if (!tr) return;
-      tr.setAttribute('aria-expanded', 'true'); openDetail(tr, r, true);
-    };
-    const tipRoot = document.createElement('div'); tipRoot.style.cssText = 'position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none'; el.style.position = 'relative'; el.appendChild(tipRoot);
-    const tip = AZ.tip(tipRoot);
-    body.addEventListener('mousemove', (e) => {
-      const tr = e.target.closest && e.target.closest('tr[data-i]'), r = tr && shownRows[Number(tr.getAttribute('data-i'))];
-      if (!r) return tip.hide();
-      const b = el.getBoundingClientRect();
-      tip.show('<b>' + AZ.esc(r.product) + '</b>' + AZ.row('Rank by sales', '#' + r.rank + ' of ' + all.length) + AZ.row(r.type + ' (' + r.fam + ')', '', r.color) + AZ.row('Sales', AZ.money(r.sales, 2)) + AZ.row('Share of total', AZ.pct(r.share, 2)) + AZ.row('Units', Math.round(r.units).toLocaleString('en-US')) + AZ.row('Average price', r.avg == null ? '-' : '$' + r.avg.toFixed(2)), e.clientX - b.left, e.clientY - b.top);
-    });
-    body.addEventListener('mouseleave', () => tip.hide());
-    body.addEventListener('click', (e) => { const tr = e.target.closest && e.target.closest('tr[data-i]'); if (tr && shownRows[Number(tr.getAttribute('data-i'))]) toggle(shownRows[Number(tr.getAttribute('data-i'))]); });
-    body.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('tr[data-i]')) { e.preventDefault(); toggle(shownRows[Number(e.target.getAttribute('data-i'))]); } });
-    const onKey = (e) => { if (e.key === 'Escape' && openKey) { e.preventDefault(); const r = all.find((x) => x.key === openKey); if (r) toggle(r); } };
-    document.addEventListener('keydown', onKey);
-    function paint(opt) {
-      stop();
-      const anim = !!(opt && opt.animate), before = {};
-      if (anim) body.querySelectorAll('tr[data-key]').forEach((t) => { before[t.getAttribute('data-key')] = t.getBoundingClientRect().top; });
-      if (opt && opt.reset) wrap.scrollTop = 0;
-      const q = query.trim().toLowerCase();
-      const list = all.filter((r) => (!fams.size || fams.has(r.fam)) && (!q || r.product.toLowerCase().indexOf(q) >= 0)).sort(cmp);
-      const vis = list.slice(0, limit);
-      body.innerHTML = vis.map((r, i) => '<tr data-i="' + i + '" data-key="' + AZ.esc(r.key) + '" tabindex="0" aria-expanded="false">' + COLS.map((c) => {
-        if (c.k === 'rank') return '<td class="num rk">' + r.rank + '</td>';
-        if (c.k === 'product') return '<td class="pn" title="' + AZ.esc(r.product) + '">' + AZ.esc(r.product) + '</td>';
-        if (c.k === 'type') return '<td class="ty"><i style="background:' + r.color + '" title="' + AZ.esc(r.fam) + '"></i>' + AZ.esc(r.type) + '</td>';
-        if (c.k === 'sales') return '<td class="num">' + AZ.money(r.sales, r.sales >= 1e6 ? 2 : 0) + '</td>';
-        if (c.k === 'share') return '<td class="num">' + AZ.pct(r.share, 1) + '</td>';
-        if (c.k === 'units') return '<td class="num">' + Math.round(r.units).toLocaleString('en-US') + '</td>';
-        if (c.k === 'avg') return '<td class="num">' + (r.avg == null ? '-' : '$' + r.avg.toFixed(2)) + '</td>';
-        return '<td title="' + AZ.pct(r.share, 2) + ' of sales"><span class="sb" style="width:' + Math.max(1, Math.round(r.share / maxShare * 100)) + '%"></span></td>';
-      }).join('') + '</tr>').join('') || '<tr><td colspan="' + COLS.length + '" class="pt-none">No product matches. Clear the search or a family chip.</td></tr>';
-      shownRows = vis;
-      if (openKey && !vis.some((r) => r.key === openKey)) openKey = null;
-      if (openKey) { const tr = rowFor(openKey); if (tr) { tr.setAttribute('aria-expanded', 'true'); openDetail(tr, all.find((x) => x.key === openKey), false); } }
-      if (anim) {
-        const mv = [];
-        body.querySelectorAll('tr[data-key]').forEach((t) => { const k = t.getAttribute('data-key'); if (before[k] == null) mv.push({ t, dy: 0, fresh: true }); else { const dy = before[k] - t.getBoundingClientRect().top; if (Math.abs(dy) > 1) mv.push({ t, dy, fresh: false }); } });
-        mv.forEach((m) => { m.t.style.position = 'relative'; if (m.fresh) m.t.style.opacity = 0; else m.t.style.transform = 'translateY(' + m.dy + 'px)'; });
-        if (mv.length) cancels.push(AZ.tween(380, (k) => mv.forEach((m) => { if (m.fresh) m.t.style.opacity = k; else m.t.style.transform = 'translateY(' + (m.dy * (1 - k)).toFixed(1) + 'px)'; }), () => mv.forEach((m) => { m.t.style.transform = ''; m.t.style.opacity = ''; m.t.style.position = ''; }), AZ.EASE.inOut));
-      }
-      el.querySelectorAll('th[data-k]').forEach((th) => {
-        const on = th.getAttribute('data-k') === sortKey;
-        if (on) th.setAttribute('aria-sort', sortDir < 0 ? 'descending' : 'ascending'); else th.removeAttribute('aria-sort');
-        const ar = th.querySelector('.ar'); if (ar) ar.textContent = on ? (sortDir < 0 ? String.fromCharCode(8595) : String.fromCharCode(8593)) : '';
-      });
-      const filt = list.length !== all.length;
-      cnt.textContent = 'Showing ' + vis.length + ' of ' + list.length + (filt ? ' matching' : '') + ' products, sorted by ' + (COLS.find((c) => c.k === sortKey) || {}).t.toLowerCase();
-      more.style.display = list.length > vis.length ? '' : 'none';
-      more.textContent = 'Show ' + Math.min(25, list.length - vis.length) + ' more';
-    }
-    el.querySelectorAll('th button').forEach((b) => b.addEventListener('click', () => {
-      const k = b.getAttribute('data-k'), c = COLS.find((x) => x.k === k);
-      if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = c.dir; }
-      limit = 25; paint({ animate: true, reset: true });
-    }));
-    el.querySelector('.pt-search').addEventListener('input', (e) => { query = e.target.value; limit = 25; paint({ animate: true, reset: true }); });
-    el.querySelectorAll('.pt-chip').forEach((b) => b.addEventListener('click', () => {
-      const f = b.getAttribute('data-f'); if (fams.has(f)) fams.delete(f); else fams.add(f);
-      b.setAttribute('aria-pressed', fams.has(f) ? 'true' : 'false'); limit = 25; paint({ animate: true, reset: true });
-    }));
-    more.addEventListener('click', () => { limit += 25; paint({ animate: true }); });
-    paint();
-    return () => { stop(); document.removeEventListener('keydown', onKey); };
-  }
+// Interactions: click a column header (or Enter / Space on it) to sort; hover a row for its values; click a row to select it, Escape clears; arrow keys move between rows.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, P = c(/product/i, 'Product'), I = c(/item/i, 'Item Type'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
+// Share of all sales, price per unit, and the price against the product's item type average (its sales over its units).
+const it = new Map();
+rows.forEach((r) => { const o = it.get(r[I]) ?? it.set(r[I], { s: 0, u: 0 }).get(r[I]); o.s += AZ.num(r[V]); o.u += AZ.num(r[Q]); });
+const S = rows.reduce((a, r) => a + AZ.num(r[V]), 0);
+const data = rows.map((r) => {
+  const s = AZ.num(r[V]), u = AZ.num(r[Q]), o = it.get(r[I]), p = u ? s / u : null, avg = o.u ? o.s / o.u : null;
+  return { Product: r[P] + ' (' + r[I] + ')', Sales: s, Share: S ? s / S : 0, Units: u, Price: p, 'Vs type': p != null && avg ? p / avg - 1 : null };
+});
+const top = [...data].sort((a, b) => b.Sales - a.Sales), t25 = top.slice(0, 25).reduce((a, r) => a + r.Share, 0);
+AZ.maya({
+  type: 'table', x: 'Product', y: ['Sales', 'Units', 'Price', 'Vs type'], sort: 'desc', select: true,
+  title: top.length ? top[0].Product.replace(/ \(.*/, '') + ' is the top product at ' + AZ.money(top[0].Sales) + ', ' + AZ.pct(top[0].Share) + ' of sales' : '',
+  subtitle: top.length > 25 ? 'The top 25 of ' + top.length + ' products hold ' + AZ.pct(t25, 0) + '. Avg price is sales per unit; vs type compares it with the item type average' : '',
+  titles: { Product: 'Product (item type)', Price: 'Avg price', 'Vs type': 'vs type' },
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Units: { notation: 'compact', maximumFractionDigits: 1 }, Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }, 'Vs type': { style: 'percent', maximumFractionDigits: 0, signDisplay: 'exceptZero' } },
+  text: { noData: 'No rows yet: bind [product] [item type] [sales] [quantity purchased]' },
+  theme: { series1: '#1E1E24' },
+  data
 });

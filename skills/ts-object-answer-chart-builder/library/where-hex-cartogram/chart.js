@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,119 +243,24 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [state]
-// Hex-tile cartogram: one equal-sized hex per US state at a fixed, pseudo-geographic position (layout idea from
-// examples/State-hex-cartogram, rebuilt on the board core). States with sales are filled on the slate ramp by
-// sales rank (the totals are very skewed, so rank keeps the middle readable); states without sales are outlines.
-// Interactions: Sales / Share of total toggle changes the figure shown; hover for the numbers; click a hex to pin it.
-const GRID = {
-  AK: [0, 0], ME: [10, 0], VT: [9, 1], NH: [10, 1],
-  WA: [0, 2], ID: [1, 2], MT: [2, 2], ND: [3, 2], MN: [4, 2], WI: [5, 2], MI: [6, 2], NY: [8, 2], MA: [9, 2], RI: [10, 2],
-  OR: [0, 3], NV: [1, 3], WY: [2, 3], SD: [3, 3], IA: [4, 3], IL: [5, 3], IN: [6, 3], OH: [7, 3], PA: [8, 3], NJ: [9, 3], CT: [10, 3],
-  CA: [0, 4], UT: [1, 4], CO: [2, 4], NE: [3, 4], MO: [4, 4], KY: [5, 4], WV: [6, 4], VA: [7, 4], MD: [8, 4], DE: [9, 4],
-  AZ: [1, 5], NM: [2, 5], KS: [3, 5], AR: [4, 5], TN: [5, 5], NC: [6, 5], SC: [7, 5], DC: [8, 5],
-  OK: [3, 6], LA: [4, 6], MS: [5, 6], AL: [6, 6], GA: [7, 6],
-  HI: [0, 7], TX: [3, 7], FL: [7, 7]
-};
-const NAMES = {
-  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia',
-  HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
-  MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire',
-  NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania',
-  RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington',
-  WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming', DC: 'D.C.'
-};
-const CODE = {};
-Object.keys(NAMES).forEach((k) => { CODE[NAMES[k].toLowerCase()] = k; CODE[k.toLowerCase()] = k; });
-CODE['district of columbia'] = 'DC';
-let mode = 'sales';
-let pinned = null;
-
-AZ.boot({
-  need: 'sales by state, e.g. [sales] [state]',
-  render: async ({ el, rows, schema, w, redraw }) => {
-    const tK = AZ.col(schema, /state/i), vK = AZ.col(schema, /sales/i);
-    const D = new Map();
-    let total = 0, unknown = 0;
-    rows.forEach((r) => {
-      const c = CODE[String(r[tK]).trim().toLowerCase()], v = AZ.num(r[vK]);
-      if (!c) { unknown++; return; }
-      D.set(c, (D.get(c) || 0) + v); total += v;
-    });
-    if (!D.size || total <= 0) {
-      AZ.paint(el, '<div class="az-empty"><b>No US states to draw</b><span>The current filter returns no state rows. Search: [sales] [state]</span></div>');
-      return;
-    }
-    const ranked = Array.from(D.keys()).sort((a, b) => D.get(b) - D.get(a));
-    const rank = {}; ranked.forEach((k, i) => { rank[k] = i + 1; });
-    const n = ranked.length, S = AZ.T.slate;
-    const bin = (k) => (n === 1 ? S.length - 1 : Math.min(S.length - 1, Math.round((1 - (rank[k] - 1) / (n - 1)) * (S.length - 1))));
-    if (pinned && !D.has(pinned)) pinned = null;
-    const shareOf = (k) => D.get(k) / total;
-    const fig = (k) => (mode === 'sales' ? AZ.money(D.get(k), 0) : AZ.pct(shareOf(k), 0));
-    const top = ranked[0], top5 = ranked.slice(0, 5).reduce((t, k) => t + shareOf(k), 0);
-    const t3 = ranked.slice(0, 3).map((k) => AZ.esc(NAMES[k]) + ' ' + AZ.pct(shareOf(k), 1)).join(', ');
-    const line = n === 1
-      ? '<b>' + AZ.esc(NAMES[top]) + '</b> is the only state in the current filter: ' + AZ.money(D.get(top), 1) + '.'
-      : mode === 'sales'
-        ? '<b>' + AZ.esc(NAMES[top]) + '</b> leads with ' + AZ.money(D.get(top), 1) + '. ' + n + ' of ' + Object.keys(GRID).length + ' states have sales; the top ' + Math.min(5, n) + ' hold ' + AZ.pct(top5, 0) + '.'
-        : 'Largest shares of total sales: <b>' + t3 + '</b>. ' + n + ' of ' + Object.keys(GRID).length + ' states have sales.';
-
-    el.innerHTML =
-      '<div class="hx-top"><div class="hx-title">Sales by state, hex map</div><div class="hx-seg" role="group" aria-label="Measure"><button type="button" data-m="sales" class="' + (mode === 'sales' ? 'on' : '') + '">Sales</button><button type="button" data-m="share" class="' + (mode === 'share' ? 'on' : '') + '">Share of total</button></div></div>'
-      + '<div class="hx-line">' + line + '</div>'
-      + '<div class="hx-map" id="hx-map"></div>'
-      + '<div class="hx-key"><span>Rank: low</span><span class="hx-ramp">' + S.map((c) => '<i style="background:' + c + '"></i>').join('') + '</span><span>high</span><span class="hx-none"></span><span>No sales</span></div>'
-      + '<div class="hx-read" id="hx-read"></div>';
-    el.querySelectorAll('.hx-seg button').forEach((b) => b.addEventListener('click', () => { mode = b.getAttribute('data-m'); redraw(); }));
-
-    const map = document.getElementById('hx-map'), read = document.getElementById('hx-read');
-    const W = Math.max(160, map.clientWidth), H = Math.max(120, map.clientHeight);
-    const wd = Math.min(W / 11.5, H / 7.2), R = wd / Math.sqrt(3), ox = (W - wd * 11.5) / 2 + wd / 2, oy = (H - wd * 7.2) / 2 + R;
-    const showVal = wd >= 46, fs = 11;
-    const pts = (cx, cy, r) => [0, 1, 2, 3, 4, 5].map((i) => { const a = Math.PI / 180 * (60 * i - 30); return (cx + r * Math.cos(a)).toFixed(1) + ',' + (cy + r * Math.sin(a)).toFixed(1); }).join(' ');
-    let s = '';
-    Object.keys(GRID).forEach((k) => {
-      const g = GRID[k], cx = ox + g[0] * wd + (g[1] % 2 ? wd / 2 : 0), cy = oy + g[1] * 1.5 * R, has = D.has(k);
-      const fill = has ? S[bin(k)] : 'transparent', tc = has ? (bin(k) >= 4 ? '#fff' : AZ.T.ink) : AZ.T.muted;
-      s += '<g class="hx-h' + (has ? ' has' : '') + '" data-k="' + k + '"' + (has ? ' tabindex="0" role="button" aria-label="' + AZ.esc(NAMES[k] + ' ' + fig(k)) + '"' : '') + '>'
-        + '<polygon points="' + pts(cx, cy, R * 0.96) + '" fill="' + fill + '" stroke="' + (has ? '#fff' : AZ.T.grid) + '" stroke-width="' + (has ? 1.5 : 1) + '"' + (has ? '' : ' stroke-dasharray="3 2"') + '/>'
-        + '<text class="hx-t" x="' + cx.toFixed(1) + '" y="' + (cy + (has && showVal ? -1 : 4)).toFixed(1) + '" font-size="' + fs + '" font-weight="' + (has ? 600 : 400) + '" fill="' + tc + '">' + k + '</text>'
-        + (has && showVal ? '<text class="hx-t" x="' + cx.toFixed(1) + '" y="' + (cy + 12).toFixed(1) + '" font-size="11" fill="' + tc + '">' + AZ.esc(fig(k)) + '</text>' : '')
-        + '</g>';
-    });
-    map.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '">' + s + '</svg>';
-
-    const hs = Array.from(map.querySelectorAll('.hx-h.has'));
-    const paintRead = () => {
-      if (!pinned) { read.innerHTML = '<div>Click a state to pin it.' + (unknown ? ' ' + unknown + ' row(s) skipped: state not recognised.' : '') + '</div>'; return; }
-      read.innerHTML = '<div><b>' + AZ.esc(NAMES[pinned]) + '</b>: ' + (mode === 'sales' ? AZ.money(D.get(pinned), 1) + ', ' + AZ.pct(shareOf(pinned), 1) + ' of sales' : AZ.pct(shareOf(pinned), 1) + ' of sales, ' + AZ.money(D.get(pinned), 1)) + ', rank ' + rank[pinned] + ' of ' + n + '</div><button type="button" class="hx-x" id="hx-x">Unpin</button>';
-      document.getElementById('hx-x').addEventListener('click', () => { pinned = null; paint(); });
-    };
-    const paint = () => {
-      hs.forEach((g) => { const k = g.getAttribute('data-k'); g.classList.toggle('pin', pinned === k); g.classList.toggle('dim', !!pinned && pinned !== k); if (pinned === k) g.parentNode.appendChild(g); });
-      paintRead();
-    };
-    paint();
-    const tip = AZ.tip(el), pick = (k) => { pinned = pinned === k ? null : k; paint(); };
-    Array.from(map.querySelectorAll('.hx-h:not(.has)')).forEach((g) => {
-      const k = g.getAttribute('data-k');
-      g.addEventListener('mousemove', (e) => { const b = el.getBoundingClientRect(); tip.show('<b>' + AZ.esc(NAMES[k]) + '</b>' + AZ.row('Sales', 'none in this search'), e.clientX - b.left, e.clientY - b.top); });
-      g.addEventListener('mouseleave', () => tip.hide());
-    });
-    hs.forEach((g) => {
-      const k = g.getAttribute('data-k');
-      g.addEventListener('mousemove', (e) => {
-        const b = el.getBoundingClientRect();
-        tip.show('<b>' + AZ.esc(NAMES[k]) + '</b>' + (mode === 'sales' ? AZ.row('Sales', AZ.money(D.get(k), 2), '#FFFFFF') + AZ.row('Share of total', AZ.pct(shareOf(k), 1)) : AZ.row('Share of total', AZ.pct(shareOf(k), 1), '#FFFFFF') + AZ.row('Sales', AZ.money(D.get(k), 2))) + AZ.row('Rank', rank[k] + ' of ' + n), e.clientX - b.left, e.clientY - b.top);
-      });
-      g.addEventListener('mouseleave', () => tip.hide());
-      g.addEventListener('click', () => pick(k));
-      g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(k); } });
-    });
-  }
-});
+// Interactions: Sales / Share of total toggle; hover or arrow-key to a hex for its state, sales and share; click hexes to select several, Escape clears.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const S = AZ.col(schema, /state/i, { optional: true }) ?? 'state', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Total sales';
+// Share of total for the measure toggle.
+const tot = rows.reduce((a, r) => a + AZ.num(r[V]), 0);
+const data = rows.map((r) => ({ [S]: r[S], [V]: AZ.num(r[V]), Share: tot ? AZ.num(r[V]) / tot : 0 }));
+AZ.maya({
+  type: 'hexmap', x: S, y: [V, 'Share'], select: 'multi',
+  title: 'Sales by state, hex map',
+  subtitle: data.length ? '{max.x} leads with {max.y}; ' + data.length + ' states have sales' : '',
+  titles: { [S]: 'State', [V]: 'Sales', Share: 'Share of total' },
+  format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Share: { style: 'percent', maximumFractionDigits: 1 } },
+  text: { noData: 'No rows yet. Bind the search [sales] [state]' },
+  theme: { accent: '#6A7891', series1: '#6A7891' },
+  data
+}, 'maya.global.js');

@@ -6,16 +6,16 @@ How does each region's sales break down by product family, and where does price 
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [quantity purchased] [region] [state] [item type]` |
-| Library | Plain HTML table (no CDN) |
+| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
 | Tile | 12x7 grid units (03 Where tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | none |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
 
 ## Interactions
-Sales / Units / Price per unit toggle (share bars tween); click a region row to show its states and a family header to show its item types (height and column-width tweens); Expand all / Collapse all (one Expand/Collapse button below 360px); hover a cell to highlight its row and column with a tooltip giving sales, units, share of row, share of column and price per unit against the region
+Hover or arrow-key to a cell for its region (or state), family and price per unit. Click a cell, or focus it and press Enter, to drill into that region's states; the breadcrumb, Back, Escape or a click on empty space goes back up.
 
 ## Notes
-Price per unit is sum(sales) / sum(units) at every level (cells, family subtotals, region and state rows, grand total), never an average of ratios, so every total matches ThoughtSpot. Families are an editorial grouping of the 15 item types (AZ.familyOf), not a model column; family hue appears only as a swatch on the family headers, share bars are slate. Bars show share of row sales (units in Units mode), scaled to the longest share in view. The largest region opens by default when its states fit. Expand state and measure survive redraw and are re-resolved against the rows, so a filtered-out region or family simply drops. Header, first column and Total row are sticky; narrow tiles scroll sideways. Preview only: built on real search output and checked in the preview, but not yet on a Liveboard or seen in a real cluster tile.
+Built on MayaCharts 0.16.0 as a `heatmap` with `path: [Region, State]` and `drill: true` on the rows, product families across (in the Liveboard's fixed family order) and `y: 'Price'` with `aggregate: {ratio: [Sales, Units]}`, so price per unit is sum(sales) / sum(units) in every cell at both levels. The body derives Family from item type (AZ.familyOf) and computes the title (highest against lowest regional price per unit). Much was dropped from the old pivot table: the Sales / Units / Price per unit toggle (0.16.0 refuses a ratio aggregate with a `y` array), sales and units in the tooltip (heatmap takes no `tooltip.fields`), the family to item type column expand, the Total row and column, share bars and Expand all. The tile now answers where price per unit differs; the sales breakdown by family is no longer on it. Preview-verified on synthetic data, not yet re-checked on a cluster.
 
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.

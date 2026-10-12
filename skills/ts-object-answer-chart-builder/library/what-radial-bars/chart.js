@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,196 +243,26 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
-
-// Search: [sales] [item type] [product]
-// Radial bar chart: one bar per item type around a circle, longest first, family hues, growing out from the hub.
-// Click a bar to swap the chart for that item type's top 12 products (old bars retract, new bars grow).
-// Family is an editorial grouping (AZ.familyOf), not a model column. Bar length is proportional to sales.
-const D3 = ['https://cdn.jsdelivr.net/npm/d3@7', 'https://unpkg.com/d3@7'];
-const TOPP = 12, SVGNS = 'http://www.w3.org/2000/svg';
-let focusItem = null; // item type opened into; survives redraw
-
-const mk = (tag, attrs, parent) => { const n = document.createElementNS(SVGNS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; };
-const trunc = (s, n) => (n < 3 ? '' : s.length <= n ? s : s.slice(0, Math.max(1, n - 2)) + '..');
-
-AZ.boot({
-  need: 'sales by item type and product, e.g. [sales] [item type] [product]',
-  render: async ({ el, rows, schema }) => {
-    const iK = AZ.col(schema, /item/i), pK = AZ.col(schema, /product/i), sK = AZ.col(schema, /sales/i);
-    const R = rows.map((r) => ({ item: String(r[iK]), prod: String(r[pK]), v: AZ.num(r[sK]) })).filter((r) => r.v > 0);
-    if (!R.length) { AZ.paint(el, '<div class="az-empty"><b>No sales to draw</b><span>The current filter leaves no products. Widen the filters, or the search needs: [sales] [item type] [product].</span></div>'); return; }
-    await AZ.loadScript(D3, () => !!window.d3, 8000);
-
-    const total = R.reduce((a, r) => a + r.v, 0);
-    const itT = new Map(), byItem = new Map();
-    R.forEach((r) => { itT.set(r.item, (itT.get(r.item) || 0) + r.v); if (!byItem.has(r.item)) byItem.set(r.item, []); byItem.get(r.item).push(r); });
-    if (focusItem && !itT.has(focusItem)) focusItem = null;
-
-    el.innerHTML = '<div class="rb-head"><p class="rb-lead"></p></div><div class="rb-bar"><button type="button" class="rb-back" aria-label="Back to all item types">Back</button><div class="rb-crumbs"></div></div><div class="rb-plot"></div>';
-    const leadEl = el.querySelector('.rb-lead'), backEl = el.querySelector('.rb-back'), crumbsEl = el.querySelector('.rb-crumbs'), plot = el.querySelector('.rb-plot');
-    leadEl.textContent = 'x';
-    const W = Math.max(200, plot.clientWidth), H = Math.max(160, plot.clientHeight);
-    const cx = W / 2, cy = H / 2, RS = Math.max(60, Math.min(W, H) / 2 - 3), r0 = Math.max(24, RS * 0.24);
-    const GAPA = 0.3;
-    const svg = mk('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, class: 'rb-svg' }, plot);
-    const gridG = mk('g', {}, svg), barG = mk('g', {}, svg), labG = mk('g', {}, svg);
-    const hub = mk('circle', { cx, cy, r: r0 - 3, fill: '#FFFFFF' }, svg);
-    const cT = mk('text', { class: 'rb-c1', x: cx, y: cy + 1, 'text-anchor': 'middle' }, svg), cS = mk('text', { class: 'rb-c2', x: cx, y: cy + 15, 'text-anchor': 'middle' }, svg);
-    const meas = mk('text', { class: 'rb-l', visibility: 'hidden' }, svg);
-    const tw = (s, bold) => { meas.setAttribute('font-weight', bold ? 600 : 400); meas.textContent = s; try { return meas.getComputedTextLength(); } catch (e) { return s.length * 6.3; } };
-    const tip = AZ.tip(plot), arc = d3.arc();
-
-    // ---- state: bars for a focus ---------------------------------------------------
-    function build(item) {
-      let list;
-      if (!item) list = Array.from(itT.entries()).map((e) => ({ id: 'i:' + e[0], name: e[0], v: e[1], fam: AZ.familyOf(e[0]), drill: true }));
-      else list = byItem.get(item).slice().sort((a, b) => b.v - a.v).slice(0, TOPP).map((p, i) => ({ id: 'p:' + i + p.prod, name: p.prod, v: p.v, fam: AZ.familyOf(item), drill: false }));
-      list.sort((a, b) => b.v - a.v);
-      const max = list[0].v, n = list.length, band = (Math.PI * 2 - GAPA) / n;
-      list.forEach((b, i) => {
-        b.a0 = i * band + band * 0.06; b.a1 = (i + 1) * band - band * 0.06; b.r1 = r0 + (RS - r0) * b.v / max; b.i = i;
-      });
-      const focusTotal = item ? itT.get(item) : total, shownSum = list.reduce((a, b) => a + b.v, 0);
-      return { item, list, max, n, focusTotal, shownSum };
-    }
-    const nice = (max) => { const t = d3.ticks(0, max, 3).filter((x) => x > 0); return t; };
-
-    // ---- drawing ------------------------------------------------------------------------
-    const cancels = [];
-    let cur = null, hover = null, animating = false, els = [];
-    function clearBars() { els.forEach((e) => { e.p.remove(); e.l.remove(); }); els = []; }
-    function drawGrid(S) {
-      gridG.innerHTML = '';
-      nice(S.max).forEach((t) => {
-        const r = r0 + (RS - r0) * t / S.max;
-        mk('circle', { cx, cy, r, fill: 'none', stroke: AZ.T.grid, 'stroke-width': 1 }, gridG);
-        const tx = mk('text', { x: cx - 3, y: cy - r + 11, 'text-anchor': 'end', class: 'rb-ax' }, gridG); tx.textContent = AZ.money(t, t >= 1e6 ? 0 : 0);
-      });
-    }
-    function makeBars(S) {
-      clearBars();
-      S.list.forEach((b) => {
-        const p = mk('path', { fill: AZ.T.family[b.fam] || AZ.T.muted, class: 'rb-bar-p', tabindex: b.drill ? 0 : -1, role: b.drill ? 'button' : 'img', 'aria-label': b.name + ', ' + AZ.money(b.v, 1) + (b.drill ? ', press Enter to open products' : '') }, barG);
-        const l = mk('g', {}, labG);
-        const e = { b, p, l }; els.push(e);
-        p.addEventListener('mouseenter', (ev) => { if (!animating) { hover = b.id; dimAll(); showTip(ev, b); } });
-        p.addEventListener('mousemove', (ev) => { if (!animating && hover === b.id) showTip(ev, b); });
-        p.addEventListener('mouseleave', () => { hover = null; dimAll(); tip.hide(); });
-        p.addEventListener('click', () => { if (!animating && b.drill) openItem(b.name); });
-        p.addEventListener('keydown', (ev) => { if ((ev.key === 'Enter' || ev.key === ' ') && !animating && b.drill) { ev.preventDefault(); openItem(b.name); } });
-        p.style.cursor = b.drill ? 'pointer' : 'default';
-      });
-    }
-    function labelGeom(S, b) {
-      const bold = true, val = AZ.money(b.v, 1), vw = tw(val, true), room = b.r1 - r0 - 8;
-      const outside = RS - b.r1 - 6;
-      const mid = (b.a0 + b.a1) / 2, arcPx = (b.a1 - b.a0) * (r0 + 4);
-      if ((b.a1 - b.a0) * b.r1 < 11) return null;
-      const out = { name: '', val: '', nameAt: null, valAt: null, mid };
-      const nmMax = (avail) => { let s = b.name; while (s.length > 2 && tw(s) > avail) s = s.slice(0, -1); return s.length < b.name.length ? trunc(b.name, s.length) : s; };
-      if (outside >= vw + 2) {
-        out.val = val; out.valAt = { r: b.r1 + 4, dir: 1 };
-        if (room >= 24) { out.name = nmMax(room); out.nameAt = { r: r0 + 6, dir: 1 }; }
-      } else {
-        const nw = tw(b.name);
-        if (room >= nw + vw + 16) { out.val = val; out.valAt = { r: b.r1 - 5, dir: -1 }; out.name = b.name; out.nameAt = { r: r0 + 6, dir: 1 }; }
-        else if (room >= 24) { out.name = nmMax(room); out.nameAt = { r: r0 + 6, dir: 1 }; }
-        else if (room >= vw) { out.val = val; out.valAt = { r: b.r1 - 5, dir: -1 }; }
-      }
-      return (out.name || out.val) ? out : null;
-    }
-    function placeText(t, mid, at, text, bold) {
-      const sn = Math.sin(mid), cs = Math.cos(mid), left = sn < -0.001;
-      const px = cx + at.r * sn, py = cy - at.r * cs;
-      const ang = mid * 180 / Math.PI - 90 + (left ? 180 : 0);
-      const outward = at.dir > 0;
-      t.setAttribute('transform', 'translate(' + px.toFixed(1) + ',' + py.toFixed(1) + ') rotate(' + ang.toFixed(1) + ')');
-      t.setAttribute('text-anchor', outward !== left ? 'start' : 'end');
-      t.setAttribute('dy', '0.35em');
-      t.setAttribute('font-weight', bold ? 600 : 500);
-      t.textContent = text;
-    }
-    function paintBars(S, kOf) {
-      els.forEach((e) => {
-        const b = e.b, k = kOf(b), r = r0 + (b.r1 - r0) * k;
-        e.p.setAttribute('d', k <= 0.002 ? '' : arc.innerRadius(r0).outerRadius(r).startAngle(b.a0).endAngle(b.a1)({ }));
-        e.p.setAttribute('transform', 'translate(' + cx + ',' + cy + ')');
-        const lg = e.lg;
-        e.l.style.opacity = 0;
-      });
-    }
-    function paintLabels(S, op) {
-      els.forEach((e) => {
-        const lg = labelGeom(S, e.b);
-        e.l.innerHTML = '';
-        if (!lg) { e.l.style.display = 'none'; return; }
-        e.l.style.display = '';
-        const mkT = (at, text, bold, fill) => { const t = mk('text', { class: 'rb-l', fill }, e.l); placeText(t, lg.mid, at, text, bold); };
-        const dark = ['#D99A00'].indexOf(AZ.T.family[e.b.fam]) < 0;
-        if (lg.name) mkT(lg.nameAt, lg.name, false, dark ? '#FFFFFF' : AZ.T.ink);
-        if (lg.val) mkT(lg.valAt, lg.val, true, lg.valAt.dir < 0 ? (dark ? '#FFFFFF' : AZ.T.ink) : AZ.T.ink);
-        e.l.style.opacity = op * (hover && hover !== e.b.id ? 0.35 : 1);
-      });
-    }
-    function dimAll() {
-      els.forEach((e) => { e.p.style.opacity = hover && hover !== e.b.id ? 0.28 : 1; e.l.style.opacity = hover && hover !== e.b.id ? 0.3 : 1; });
-    }
-    function showTip(ev, b) {
-      const pr = plot.getBoundingClientRect();
-      let h = '<b>' + AZ.esc(b.name) + '</b>' + AZ.row('Sales', AZ.money(b.v, 1), AZ.T.family[b.fam]);
-      if (cur.item) h += AZ.row('Share of ' + cur.item, AZ.pct(b.v / cur.focusTotal, 1)) + AZ.row('Rank', '#' + (b.i + 1) + ' of ' + cur.n);
-      else h += AZ.row('Family', b.fam) + AZ.row('Share of all sales', AZ.pct(b.v / total, 1)) + AZ.row('Rank', '#' + (b.i + 1) + ' of ' + cur.n) + '<div class="rb-tipnote">Click to open its products</div>';
-      tip.show(h, ev.clientX - pr.left, ev.clientY - pr.top);
-    }
-
-    // ---- header ---------------------------------------------------------------------------------
-    let shown = 0;
-    function header(S, animate) {
-      const t = S.list[0];
-      if (S.item) {
-        const top = S.shownSum / S.focusTotal;
-        leadEl.textContent = S.item + ': ' + t.name + ' leads at ' + AZ.pct(t.v / S.focusTotal, 0) + ' of sales' + (byItem.get(S.item).length > S.n ? '; the top ' + S.n + ' products make up ' + AZ.pct(top, 0) : '');
-      } else {
-        const top3 = S.list.slice(0, 3).reduce((a, b) => a + b.v, 0);
-        leadEl.textContent = S.n >= 4 ? 'The top three item types, ' + S.list.slice(0, 3).map((b) => b.name).join(', ') + ', make up ' + AZ.pct(top3 / total, 0) + ' of sales' : t.name + ' leads with ' + AZ.pct(t.v / total, 0) + ' of sales';
-      }
-      crumbsEl.innerHTML = S.item ? AZ.crumbs(['All item types', S.item]) : '<span class="rb-hint">Click a bar to see its top products</span>';
-      AZ.wireCrumbs(crumbsEl, () => closeItem());
-      backEl.style.visibility = S.item ? 'visible' : 'hidden';
-      cS.textContent = S.item ? trunc(S.item, Math.floor((r0 * 2 - 8) / 6.2)) : 'total sales';
-      if (animate) cancels.push(AZ.countUp(cT, S.focusTotal, (n) => AZ.money(n, 1), 500, shown)); else cT.textContent = AZ.money(S.focusTotal, 1);
-      shown = S.focusTotal;
-    }
-    const growth = (S, k, staggerSpan) => (b) => { const d = (b.i / Math.max(1, S.n)) * staggerSpan; return AZ.EASE.out(Math.max(0, Math.min(1, (k - d) / (1 - staggerSpan)))); };
-    function show(S, animate, done) {
-      cur = S; hover = null; tip.hide();
-      drawGrid(S); makeBars(S); header(S, animate);
-      if (!animate) { paintBars(S, () => 1); paintLabels(S, 1); dimAll(); if (done) done(); return; }
-      animating = true; gridG.style.opacity = 0;
-      cancels.push(AZ.tween(440, (k) => { paintBars(S, growth(S, k, 0.4)); gridG.style.opacity = Math.min(1, k * 3); }, () => { animating = false; paintLabels(S, 0); fadeLabels(S); if (done) done(); }, (t) => t));
-    }
-    function fadeLabels(S) { cancels.push(AZ.tween(140, (k) => paintLabels(S, k), () => { paintLabels(S, 1); }, AZ.EASE.out)); }
-    function goTo(item) {
-      if (animating || item === cur.item) return;
-      focusItem = item; animating = true; hover = null; tip.hide();
-      const old = cur, next = build(item);
-      // old bars retract, then the new set grows
-      els.forEach((e) => { e.l.style.opacity = 0; });
-      cancels.push(AZ.tween(230, (k) => paintBars(old, () => 1 - k), () => {
-        animating = false; show(next, true);
-      }, AZ.EASE.inOut));
-      cS.textContent = ''; cT.textContent = '';
-    }
-    const openItem = (n) => goTo(n), closeItem = () => goTo(null);
-    backEl.addEventListener('click', closeItem);
-    const onKey = (e) => { if (e.key === 'Escape' && cur && cur.item) closeItem(); };
-    window.addEventListener('keydown', onKey);
-
-    show(build(focusItem), true);
-    return () => { cancels.forEach((c) => c()); window.removeEventListener('keydown', onKey); };
-  }
-});
+// Search: [sales] [item type] [product]   (Family is an editorial grouping of Item Type, derived here)
+// Interactions: hover a bar for its sales; click a bar to select it (Escape clears); click a family in the legend to select its item types.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const opt = { optional: true }, I = AZ.col(schema, /item/i, opt) ?? 'Item Type', P = AZ.col(schema, /product/i, opt) ?? 'Product', V = AZ.col(schema, /sales/i, opt) ?? 'Total Sales';
+// Product rows roll up to one bar per item type (MayaCharts sums them); families in house order for the legend.
+const FO = Object.keys(AZ.T.family);
+const data = rows.filter((r) => AZ.num(r[V]) > 0).map((r) => ({ [I]: r[I], Family: AZ.familyOf(r[I]), Sales: AZ.num(r[V]) })).sort((a, b) => FO.indexOf(a.Family) - FO.indexOf(b.Family));
+// Headline: the three largest item types and their share of all sales.
+const byI = new Map(); data.forEach((r) => byI.set(r[I], (byI.get(r[I]) || 0) + r.Sales));
+const rank = [...byI].sort((a, b) => b[1] - a[1]), tot = rank.reduce((a, e) => a + e[1], 0), t3 = rank.slice(0, 3);
+AZ.maya({
+  type: 'radial', x: I, y: 'Sales', series: 'Family', sort: 'desc', select: true, colors: AZ.T.family,
+  title: rank.length > 3 ? 'The top three item types, ' + t3.map((e) => e[0]).join(', ') + ', make up ' + AZ.pct(t3.reduce((a, e) => a + e[1], 0) / tot, 0) + ' of sales' : '',
+  subtitle: rank.length ? 'Bar length is sales; colour is the family' : '',
+  titles: { [I]: 'Item type' },
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
+  text: { noData: 'No rows yet: bind [sales] [item type] [product]' },
+  data
+}, 'maya.global.js');

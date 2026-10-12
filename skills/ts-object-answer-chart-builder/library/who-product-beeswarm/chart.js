@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,193 +243,26 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
-// Search: [product] [item type] [sales] [quantity purchased]
-// Beeswarm of every product along a price-per-unit axis, dot area = sales, hue = product family.
-// A d3 force simulation settles the dots and they animate into place. Family chips filter (the rest dim).
-// Hover a dot for the product; click one to open its card (price against its item type average, rank among
-// its item type) and highlight its item type peers; Back or Escape closes.
-let fam = null, selP = null, peerT = null, entered = false;
-const D3URLS = ['https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js', 'https://unpkg.com/d3@7/dist/d3.min.js'];
-
-AZ.boot({
-  need: 'product, item type, sales and quantity purchased, e.g. [product] [item type] [sales] [quantity purchased]',
-  render: async ({ el, rows, schema, w, h }) => {
-    await AZ.loadScript(D3URLS, () => !!window.d3, 8000);
-    const pK = AZ.col(schema, /product/i), iK = AZ.col(schema, /item/i), sK = AZ.col(schema, /sales/i), uK = AZ.col(schema, /quantity/i);
-    const agg = new Map();
-    rows.forEach((r) => {
-      const k = String(r[pK]) + '||' + String(r[iK]);
-      const o = agg.get(k) || { name: String(r[pK]), type: String(r[iK]), s: 0, u: 0 };
-      o.s += AZ.num(r[sK]); o.u += AZ.num(r[uK]); agg.set(k, o);
-    });
-    const P = Array.from(agg.values()).filter((o) => o.u > 0 && o.s > 0);
-    if (!P.length) { AZ.paint(el, '<div class="az-empty"><b>No products in the result</b><span>The search needs [product] [item type] [sales] [quantity purchased]</span></div>'); return; }
-    P.forEach((o) => { o.price = o.s / o.u; o.fam = AZ.familyOf(o.type); o.col = AZ.familyColor(o.type); });
-    // rank within item type, and item type averages (weighted: sales / units)
-    const T = new Map();
-    P.forEach((o) => { const t = T.get(o.type) || { n: 0, s: 0, u: 0, list: [] }; t.n++; t.s += o.s; t.u += o.u; t.list.push(o); T.set(o.type, t); });
-    T.forEach((t) => { t.avg = t.s / t.u; t.list.sort((a, b) => b.s - a.s).forEach((o, i) => { o.rank = i + 1; }); });
-    if (selP && !P.some((o) => o.name === selP.name && o.type === selP.type)) selP = null;
-    else if (selP) selP = P.find((o) => o.name === selP.name && o.type === selP.type);
-    if (peerT && !T.has(peerT)) peerT = null;
-    if (selP) peerT = selP.type;
-    const famList = Object.keys(AZ.T.family).filter((f) => P.some((o) => o.fam === f)).concat(P.some((o) => o.fam === 'Other') ? ['Other'] : []);
-    if (fam && famList.indexOf(fam) < 0) fam = null;
-    if (selP && fam && selP.fam !== fam) { selP = null; }
-
-    const dhFull = 108;
-    const median = (a) => { const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
-    el.innerHTML = '<div class="bs-head"><div class="bs-title">Every product by price per unit</div><div class="bs-sub" id="bs-sub"></div></div>'
-      + '<div class="bs-chips" id="bs-chips"></div>'
-      + '<div class="bs-plot" id="bs-plot"></div>'
-      + '<div class="bs-card" id="bs-card" style="height:0"><div class="bs-cbar" id="bs-cbar"></div><div class="bs-cbody" id="bs-cbody"></div></div>';
-    const plot = el.querySelector('#bs-plot'), card = el.querySelector('#bs-card'), cbar = el.querySelector('#bs-cbar'), cbody = el.querySelector('#bs-cbody'), chips = el.querySelector('#bs-chips'), subEl = el.querySelector('#bs-sub');
-    const tip = AZ.tip(el);
-    const NS = 'http://www.w3.org/2000/svg';
-    const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); Object.keys(attrs || {}).forEach((k) => e.setAttribute(k, attrs[k])); if (parent) parent.appendChild(e); return e; };
-
-    chips.innerHTML = famList.map((f) => '<button type="button" class="bs-chip" data-f="' + AZ.esc(f) + '" aria-pressed="false"><i style="background:' + (AZ.T.family[f] || AZ.T.muted) + '"></i>' + AZ.esc(f) + '</button>').join('');
-    chips.querySelectorAll('.bs-chip').forEach((b) => b.addEventListener('click', () => { const f = b.getAttribute('data-f'); fam = fam === f ? null : f; if (selP && fam && selP.fam !== fam) closeCard(); update(); }));
-
-    // ---- layout with the card at its final height first, so the plot measures its final size
-    let cardK = selP ? 1 : 0;
-    card.style.height = Math.round(cardK * dhFull) + 'px';
-    const W = Math.max(200, plot.clientWidth);
-    // the swarm is settled for the height left when the card is open; closed, it is stretched vertically (never overlaps)
-    const Hopen = Math.max(110, plot.clientHeight - (1 - cardK) * dhFull);
-    let Hc = Math.max(110, plot.clientHeight), ent = entered ? 1 : 0;
-    const narrow = W < 420, ML = 12, MR = 14, MT = 6, MB = 32;
-    let pmin = Infinity, pmax = 0; P.forEach((o) => { pmin = Math.min(pmin, o.price); pmax = Math.max(pmax, o.price); });
-    // log scale: prices bunch up between $15 and $60, and a linear axis would stack them into one column
-    const L0 = Math.log(Math.max(1, pmin * 0.92)), L1 = Math.log(pmax * 1.05);
-    const xs = (v) => ML + (Math.log(v) - L0) / (L1 - L0) * (W - ML - MR);
-    const cy = MT + (Hopen - MT - MB) / 2, halfH = (Hopen - MT - MB) / 2 - 3;
-    const smax = Math.max.apply(null, P.map((o) => o.s));
-    // settle with a force simulation; shrink the dots until the swarm fits the height
-    let rMax = narrow ? 12 : 16, nodes = [];
-    for (let attempt = 0; attempt < 6; attempt++) {
-      nodes = P.map((o) => ({ o: o, r: Math.max(2.2, rMax * Math.sqrt(o.s / smax)), x: xs(o.price), y: cy }));
-      const sim = d3.forceSimulation(nodes).force('x', d3.forceX((d) => xs(d.o.price)).strength(1)).force('y', d3.forceY(cy).strength(0.06)).force('c', d3.forceCollide((d) => d.r + 0.7).iterations(2)).stop();
-      for (let i = 0; i < 260; i++) sim.tick();
-      let ext = 0; nodes.forEach((d) => { ext = Math.max(ext, Math.abs(d.y - cy) + d.r); });
-      if (ext <= halfH) break;
-      rMax *= Math.max(0.55, halfH / ext * 0.95);
-    }
-    { let ext = 0; nodes.forEach((d) => { ext = Math.max(ext, Math.abs(d.y - cy) + d.r); }); if (ext > halfH) nodes.forEach((d) => { d.y = cy + (d.y - cy) * halfH / ext; }); }
-    nodes.forEach((d) => { d.o.node = d; d.dy = d.y - cy; });
-
-    // static layer: axis
-    const svg = mk('svg', { viewBox: '0 0 ' + W + ' ' + Hc, role: 'img', 'aria-label': 'Beeswarm of ' + P.length + ' products by price per unit' }, plot);
-    const gAx = mk('g', {}, svg);
-    const vLines = [], vTexts = [];
-    [10, 15, 20, 30, 40, 50, 75, 100, 150, 200].filter((v) => v >= pmin * 0.92 && v <= pmax * 1.05 && (!narrow || [15, 30, 50, 100, 150].indexOf(v) >= 0 || v === 20 && false)).forEach((v) => {
-      vLines.push(mk('line', { x1: xs(v), x2: xs(v), y1: MT, y2: Hc - MB, stroke: AZ.T.grid }, gAx));
-      vTexts.push(mk('text', { class: 'bs-ax', x: xs(v), y: Hc - MB + 13, 'text-anchor': 'middle' }, gAx)); vTexts[vTexts.length - 1].textContent = AZ.money(v, 0);
-    });
-    const axT = mk('text', { class: 'bs-axt', x: W - MR, y: Hc - 2, 'text-anchor': 'end' }, gAx); axT.textContent = narrow ? 'Log scale. Area is sales' : 'Price per unit, log scale. Dot area is sales';
-    const gAvg = mk('g', { 'pointer-events': 'none' }, svg), gD = mk('g', {}, svg), gSel = mk('g', { 'pointer-events': 'none' }, svg);
-    nodes.forEach((d) => {
-      const o = d.o;
-      d.c = mk('circle', { class: 'bs-dot', r: d.r, cx: d.x, cy: cy, fill: o.col, 'fill-opacity': 0.78, stroke: '#fff', 'stroke-width': 0.8 }, gD);
-    });
-    // focusable: the 12 largest, so the keyboard reaches the swarm
-    nodes.slice().sort((a, b) => b.o.s - a.o.s).slice(0, 12).forEach((d) => {
-      d.c.setAttribute('tabindex', 0); d.c.setAttribute('role', 'button'); d.c.setAttribute('aria-label', d.o.name + ', ' + d.o.type);
-      d.c.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCard(d.o); } });
-      d.c.addEventListener('focus', () => { const b = d.c.getBoundingClientRect(); showTip(d.o, { clientX: b.left + b.width / 2, clientY: b.top }); });
-      d.c.addEventListener('blur', () => tip.hide());
-    });
-
-    // place(): dots at their settled offset from the centre line, scaled to the current plot height
-    function place() {
-      Hc = Math.max(110, plot.clientHeight);
-      svg.setAttribute('viewBox', '0 0 ' + W + ' ' + Hc);
-      const cyC = MT + (Hc - MT - MB) / 2, sy = Math.max(1, ((Hc - MT - MB) / 2 - 3) / Math.max(1, halfH));
-      vLines.forEach((l) => l.setAttribute('y2', Hc - MB)); vTexts.forEach((t) => t.setAttribute('y', Hc - MB + 14)); axT.setAttribute('y', Hc - 2);
-      nodes.forEach((d) => { d.py = cyC + d.dy * sy * ent; d.c.setAttribute('cy', d.py.toFixed(1)); });
-    }
-    let hovO = null, cancel = () => {};
-    const inFam = (o) => !fam || o.fam === fam;
-    const state = (o) => {
-      if (!inFam(o)) return 0.08;
-      if (peerT) return o.type === peerT ? 1 : 0.12;
-      return 1;
-    };
-    function update() {
-      chips.querySelectorAll('.bs-chip').forEach((b) => { const on = b.getAttribute('data-f') === fam; b.classList.toggle('on', on); b.classList.toggle('dim', !!fam && !on); b.setAttribute('aria-pressed', String(on)); });
-      nodes.forEach((d) => {
-        const o = d.o, a = state(o), isSel = selP === o, isH = hovO === o;
-        d.c.setAttribute('opacity', a);
-        d.c.setAttribute('stroke', isSel || isH ? AZ.T.ink : '#fff'); d.c.setAttribute('stroke-width', isSel ? 2.4 : isH ? 1.8 : 0.8);
-        d.c.style.pointerEvents = inFam(o) ? '' : 'none';
-      });
-      const shown = P.filter(inFam), pr = shown.map((o) => o.price);
-      subEl.innerHTML = shown.length ? '<b>' + shown.length + '</b> product' + (shown.length === 1 ? '' : 's') + (fam ? ' in ' + AZ.esc(fam) : '') + ', priced <b>' + AZ.money(Math.min.apply(null, pr), 2) + '</b> to <b>' + AZ.money(Math.max.apply(null, pr), 2) + '</b> a unit, median <b>' + AZ.money(median(pr), 2) + '</b>' : 'No products in this family under the current filter';
-      // item type average marker
-      gAvg.innerHTML = ''; gSel.innerHTML = '';
-      if (peerT && T.has(peerT)) {
-        const t = T.get(peerT), x = xs(t.avg);
-        mk('line', { x1: x, x2: x, y1: MT, y2: Hc - MB, stroke: AZ.T.ink, 'stroke-width': 1.2, 'stroke-dasharray': '4 3' }, gAvg);
-        const tx = mk('text', { class: 'bs-avg', x: Math.min(W - MR, Math.max(ML, x)), y: MT + 10, 'text-anchor': x > W - 110 ? 'end' : 'start' }, gAvg);
-        tx.setAttribute('dx', x > W - 110 ? -5 : 5); tx.textContent = peerT + ' average ' + AZ.money(t.avg, 2);
-      }
-      if (selP) { const d = selP.node; mk('circle', { cx: d.x, cy: d.py, r: d.r + 3.5, fill: 'none', stroke: AZ.T.ink, 'stroke-width': 1.4 }, gSel); }
-    }
-
-    const showTip = (o, e) => {
-      const b = el.getBoundingClientRect();
-      tip.show('<b>' + AZ.esc(o.name) + '</b>' + AZ.row(o.type, o.fam, o.col) + AZ.row('Sales', AZ.money(o.s, 2)) + AZ.row('Units', AZ.int(o.u)) + AZ.row('Price per unit', AZ.money(o.price, 2)) + AZ.row('Click', 'open card'), e.clientX - b.left, e.clientY - b.top);
-    };
-    const pick = (e) => {
-      const b = plot.getBoundingClientRect(), px = (e.clientX - b.left) / b.width * W, py = (e.clientY - b.top) / b.height * Hc;
-      let best = null, bd = 1e9;
-      for (const d of nodes) { if (!inFam(d.o)) continue; const dd = Math.hypot(d.x - px, d.py - py) - d.r; if (dd < bd) { bd = dd; best = d; } }
-      if (bd > 6) best = null;
-      return best && inFam(best.o) ? best.o : null;
-    };
-    plot.addEventListener('mousemove', (e) => {
-      const o = pick(e);
-      if (o !== hovO) { hovO = o; update(); }
-      plot.style.cursor = o ? 'pointer' : '';
-      if (o) showTip(o, e); else tip.hide();
-    });
-    plot.addEventListener('mouseleave', () => { hovO = null; tip.hide(); update(); });
-    plot.addEventListener('click', (e) => { const o = pick(e); if (o) openCard(o); });
-
-    // ---- drill: product card
-    function fillCard() {
-      if (!selP) { cbar.innerHTML = ''; cbody.innerHTML = ''; return; }
-      const o = selP, t = T.get(o.type), diff = o.price / t.avg - 1;
-      cbar.innerHTML = AZ.crumbs(['All products', o.type, o.name]) + '<button type="button" class="bs-back" id="bs-back">Back</button>';
-      AZ.wireCrumbs(cbar, (i) => { if (i === 0) closeCard(); else { selP = null; cardTo(0); peerT = o.type; update(); } });
-      cbar.querySelector('#bs-back').addEventListener('click', closeCard);
-      cbody.innerHTML = '<div class="bs-stat"><span>Sales</span><b>' + AZ.money(o.s, 2) + '</b><i>' + AZ.pct(o.s / t.s, 1) + ' of ' + AZ.esc(o.type) + '</i></div>'
-        + '<div class="bs-stat"><span>Units</span><b>' + AZ.int(o.u) + '</b><i>' + AZ.pct(o.u / t.u, 1) + ' of ' + AZ.esc(o.type) + '</i></div>'
-        + '<div class="bs-stat"><span>Price per unit</span><b>' + AZ.money(o.price, 2) + '</b><i class="' + (diff > 0.005 ? 'up' : diff < -0.005 ? 'dn' : '') + '">' + AZ.pct(diff, 1, true) + ' vs avg ' + AZ.money(t.avg, 2) + '</i></div>'
-        + '<div class="bs-stat"><span>Rank by sales</span><b>#' + o.rank + '</b><i>of ' + t.n + ' in ' + AZ.esc(o.type) + '</i></div>';
-    }
-    function cardTo(k) {
-      cancel();
-      const from = cardK;
-      cancel = AZ.tween(420, (e) => { cardK = AZ.lerp(from, k, e); card.style.height = Math.round(cardK * dhFull) + 'px'; card.style.opacity = String(Math.min(1, cardK * 1.5)); place(); update(); }, () => { if (k === 0) { cbar.innerHTML = ''; cbody.innerHTML = ''; } }, AZ.EASE.inOut);
-    }
-    function openCard(o) { selP = o; peerT = o.type; tip.hide(); fillCard(); cardTo(1); update(); }
-    function closeCard() { selP = null; peerT = null; cardTo(0); update(); }
-    const onKey = (e) => { if (e.key === 'Escape' && (selP || peerT)) closeCard(); };
-    window.addEventListener('keydown', onKey);
-
-    card.style.opacity = selP ? '1' : '0';
-    fillCard(); place(); update();
-    if (!entered && !AZ.reduced()) {
-      // dots start on the price line and settle into the swarm
-      ent = 0; place(); update();
-      cancel = AZ.tween(620, (k) => { ent = k; place(); if (selP) update(); }, () => { ent = 1; place(); update(); }, AZ.EASE.out);
-    }
-    entered = true;
-    return () => { cancel(); window.removeEventListener('keydown', onKey); };
-  }
+// Search: [product] [item type] [sales] [quantity purchased]   (Family is an editorial grouping of Item Type, derived here)
+// Interactions: hover a dot for the product, its item type and price per unit; click dots to select several (Escape clears); click a family key to hide or show its lane.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, P = c(/product/i, 'Product'), I = c(/item/i, 'Item Type'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
+// Price per unit per product (its sales over its units). The tooltip names the product and its item type,
+// since beeswarm takes no extra tooltip rows; lanes run in the house family order.
+const FO = Object.keys(AZ.T.family).concat('Other');
+const data = rows.filter((r) => AZ.num(r[Q]) > 0).map((r) => ({ Product: r[P] + ' (' + r[I] + ')', Family: AZ.familyOf(r[I]), Price: AZ.num(r[V]) / AZ.num(r[Q]) }))
+  .sort((a, b) => FO.indexOf(a.Family) - FO.indexOf(b.Family));
+const ps = data.map((r) => r.Price).sort((a, b) => a - b), med = ps.length ? ps[Math.floor((ps.length - 1) / 2)] : 0, usd = (n) => '$' + n.toFixed(2);
+AZ.maya({
+  type: 'beeswarm', x: 'Family', y: 'Price', series: 'Family', name: 'Product', select: 'multi', colors: AZ.T.family,
+  title: 'Every product by price per unit',
+  subtitle: ps.length ? ps.length + ' products, ' + usd(ps[0]) + ' to ' + usd(ps[ps.length - 1]) + ' a unit, median ' + usd(med) : '',
+  titles: { Price: 'Price per unit' },
+  format: { Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 2 } },
+  text: { noData: 'No rows yet: bind [product] [item type] [sales] [quantity purchased]' },
+  data
 });

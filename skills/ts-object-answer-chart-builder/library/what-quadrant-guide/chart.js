@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,78 +243,29 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
-
-// Search: [sales] [quantity purchased] [item type]   (same search as what-price-volume)
-// How to read the price and volume bubble chart: four quadrants cut by the same two reference lines.
-// Price line = units-weighted average price of all sales. Units line = median units across item types.
-// Higher means strictly above the line. Family is an editorial grouping (AZ.familyOf), not a model column.
-// Interactions: click a quadrant to expand its members with units, price and sales; hover a row to see its family.
-let openQ = null;
-const QDEF = [
-  { id: 'hh', hp: true, hu: true, name: 'Higher price, higher units' },
-  { id: 'hl', hp: true, hu: false, name: 'Higher price, lower units' },
-  { id: 'lh', hp: false, hu: true, name: 'Lower price, higher units' },
-  { id: 'll', hp: false, hu: false, name: 'Lower price, lower units' }
-];
-
-AZ.boot({
-  need: 'sales, quantity purchased and item type, e.g. [sales] [quantity purchased] [item type]',
-  render: async ({ el, rows, schema, w, h, redraw }) => {
-    const iK = AZ.col(schema, /item/i), sK = AZ.col(schema, /sales/i), uK = AZ.col(schema, /quantity|units/i);
-    const map = new Map();
-    rows.forEach((r) => {
-      const k = String(r[iK]), o = map.get(k) || { item: k, s: 0, u: 0 };
-      o.s += AZ.num(r[sK]); o.u += AZ.num(r[uK]); map.set(k, o);
-    });
-    const D = Array.from(map.values()).filter((d) => d.u > 0 && d.s > 0);
-    if (D.length < 2) { AZ.paint(el, '<div class="az-empty"><b>Not enough item types to compare</b><span>The current filter leaves ' + D.length + ' item type with units and sales. Widen the filters, or the search needs: [sales] [quantity purchased] [item type].</span></div>'); return; }
-    D.forEach((d) => { d.p = d.s / d.u; d.fam = AZ.familyOf(d.item); d.col = AZ.T.family[d.fam] || AZ.T.muted; });
-    const S = D.reduce((a, d) => a + d.s, 0), U = D.reduce((a, d) => a + d.u, 0), avgP = S / U;
-    const us = D.map((d) => d.u).sort((a, b) => a - b), medU = us.length % 2 ? us[(us.length - 1) / 2] : (us[us.length / 2 - 1] + us[us.length / 2]) / 2;
-    QDEF.forEach((q) => { q.items = D.filter((d) => (d.p > avgP) === q.hp && (d.u > medU) === q.hu).sort((a, b) => b.s - a.s); });
-    const hh = QDEF[0].items, hlq = QDEF[1].items, lh = QDEF[2].items, ll = QDEF[3].items;
-    const names = (a, n) => a.slice(0, n).map((d) => d.item).join(', ') + (a.length > n ? ' and ' + (a.length - n) + ' more' : '');
-    const sh = (a) => AZ.pct(a.reduce((x, d) => x + d.s, 0) / S, 0);
-    let thesis;
-    if (hh.length) thesis = names(hh, 3) + (hh.length === 1 ? ' pairs' : ' pair') + ' above-average price with above-median units: ' + sh(hh) + ' of sales.';
-    else thesis = 'No item type pairs above-average price with above-median units.';
-    const under = '';
-
-    el.innerHTML = '<div class="qg-head"><p class="qg-thesis"></p><p class="qg-rule"></p></div><div class="qg-list"></div>';
-    el.querySelector('.qg-thesis').textContent = thesis + under;
-    el.querySelector('.qg-rule').textContent = 'Average price $' + avgP.toFixed(2) + '. Median units ' + AZ.int(medU) + '.';
-    const list = el.querySelector('.qg-list');
-    if (openQ && !QDEF.some((q) => q.id === openQ)) openQ = null;
-    QDEF.forEach((q) => {
-      const open = openQ === q.id, box = document.createElement('div');
-      box.className = 'qg-q' + (open ? ' open' : '');
-      const head = document.createElement('button');
-      head.type = 'button'; head.className = 'qg-h'; head.setAttribute('aria-expanded', open ? 'true' : 'false');
-      head.innerHTML = '<span class="qg-t">' + AZ.esc(q.name) + '</span><span class="qg-c">' + q.items.length + ' of ' + D.length + '</span><span class="qg-chev" aria-hidden="true"></span>';
-      head.addEventListener('click', () => { openQ = open ? null : q.id; redraw(); });
-      box.appendChild(head);
-      const rule = document.createElement('div'); rule.className = 'qg-r';
-      rule.textContent = (q.hp ? 'Above $' : 'At or below $') + avgP.toFixed(2) + ', ' + (q.hu ? 'above ' : 'at or below ') + AZ.int(medU) + ' units';
-      if (open) box.appendChild(rule);
-      if (!q.items.length) {
-        const e = document.createElement('div'); e.className = 'qg-none'; e.textContent = 'No item types in this corner.'; box.appendChild(e);
-      } else if (!open) {
-        const chips = document.createElement('div'); chips.className = 'qg-chips';
-        chips.innerHTML = q.items.map((d) => '<span class="qg-chip"><i style="background:' + d.col + '"></i>' + AZ.esc(d.item) + '</span>').join('');
-        box.appendChild(chips);
-      } else {
-        const t = document.createElement('div'); t.className = 'qg-tab';
-        t.innerHTML = '<div class="qg-tr qg-th"><span>Item type</span><span>Units</span><span>Price</span><span>Sales</span></div>'
-          + q.items.map((d) => '<div class="qg-tr" title="' + AZ.esc(d.fam) + '"><span class="qg-n"><i style="background:' + d.col + '"></i>' + AZ.esc(d.item) + '</span><span>' + AZ.int(d.u) + '</span><span>$' + d.p.toFixed(2) + '</span><span>' + AZ.money(d.s, 1) + '</span></div>').join('');
-        box.appendChild(t);
-      }
-      box.addEventListener('mouseenter', () => { list.classList.add('hov'); box.classList.add('hov'); });
-      box.addEventListener('mouseleave', () => { list.classList.remove('hov'); box.classList.remove('hov'); });
-      list.appendChild(box);
-    });
-  }
+// Search: [sales] [quantity purchased] [item type]   (Family is an editorial grouping of Item Type, derived here)
+// Interactions: hover a bar for its sales and units; click a quadrant to drill into its item types; Back, Escape or a click on empty space goes up; click a legend key to hide a family.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, I = c(/item/i, 'Item Type'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
+// Same two lines as what-price-volume: the units-weighted average price and the median units. Higher means strictly above.
+const live = rows.filter((r) => AZ.num(r[Q]) > 0);
+const S = live.reduce((a, r) => a + AZ.num(r[V]), 0), U = live.reduce((a, r) => a + AZ.num(r[Q]), 0), avg = U ? S / U : 0;
+const us = live.map((r) => AZ.num(r[Q])).sort((a, b) => a - b), med = us.length ? (us[(us.length - 1) >> 1] + us[us.length >> 1]) / 2 : 0;
+const QS = ['Stars', 'Premium', 'Volume', 'Long tail'], FO = Object.keys(AZ.T.family); // above both lines, price only, units only, neither
+const quad = (r) => QS[(AZ.num(r[V]) / AZ.num(r[Q]) > avg ? 0 : 2) + (AZ.num(r[Q]) > med ? 0 : 1)];
+const data = live.map((r) => ({ Quadrant: quad(r), [I]: r[I], Family: AZ.familyOf(r[I]), Sales: AZ.num(r[V]), Units: AZ.num(r[Q]) }))
+  .sort((a, b) => QS.indexOf(a.Quadrant) - QS.indexOf(b.Quadrant) || FO.indexOf(a.Family) - FO.indexOf(b.Family) || b.Sales - a.Sales);
+const top = data.filter((r) => r.Quadrant === QS[0]), share = S ? top.reduce((a, r) => a + r.Sales, 0) / S : 0;
+AZ.maya({
+  type: 'bar', horizontal: true, path: ['Quadrant', I], drill: true, y: 'Sales', series: 'Family', stack: true, colors: AZ.T.family, tooltip: { fields: ['Units'] },
+  title: top.length ? 'Stars: ' + top.map((r) => r[I]).join(', ') + ', ' + AZ.pct(share, 0) + ' of sales' : (data.length ? 'No item type beats both the average price and the median units' : ''),
+  subtitle: data.length ? 'Stars beat both the ' + AZ.money(avg, 2) + ' average price and ' + AZ.int(med) + ' median units; Premium beats price only, Volume units only.' : '',
+  titles: { [I]: 'Item type', Sales: 'Sales', Units: 'Units sold' },
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Units: { notation: 'compact', maximumFractionDigits: 1 } },
+  text: { noData: 'No rows yet: bind [sales] [quantity purchased] [item type]' },
+  data
 });

@@ -32,21 +32,4 @@ body { background: var(--az-surface); color: var(--az-ink); font-family: var(--a
 .az-sep { color: var(--az-muted); }
 /* ==== end amuzing core css ==== */
 
-#chart { display: flex; flex-direction: column; padding: 16px 18px 12px; gap: 6px; }
-.kp-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.kp-label { font-size: 12px; line-height: 1.3; color: var(--az-ink2); font-weight: 500; }
-.kp-seg { display: inline-flex; border: 1px solid var(--az-grid); border-radius: 6px; overflow: hidden; flex: none; }
-.kp-seg button { all: unset; cursor: pointer; font-size: 11px; line-height: 1; padding: 5px 8px; color: var(--az-muted); }
-.kp-seg button + button { border-left: 1px solid var(--az-grid); }
-.kp-seg button.on { background: var(--az-ink); color: #fff; }
-.kp-seg button:not(.on):hover { background: #F1F2F4; color: var(--az-ink); }
-.kp-seg button:focus-visible { outline: 2px solid var(--az-ink); outline-offset: -2px; }
-.kp-hero { font-size: 40px; line-height: 1.05; font-weight: 600; letter-spacing: -0.02em; margin-top: 2px; }
-.kp-delta { font-size: 13px; line-height: 1.35; font-weight: 500; color: var(--az-ink2); }
-.kp-delta b { font-weight: 600; }
-.kp-delta .up { color: var(--az-good); }
-.kp-delta .dn { color: var(--az-bad); }
-.kp-spark { flex: 1 1 auto; min-height: 36px; position: relative; margin-top: 4px; }
-.kp-spark svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.kp-cap { font-size: 11px; line-height: 1.3; color: var(--az-muted); }
-.kp-dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #fff; border: 2px solid var(--az-ink); box-sizing: border-box; opacity: 0; pointer-events: none; }
+#chart { display: block; height: 100%; min-height: 0; color-scheme: light; }

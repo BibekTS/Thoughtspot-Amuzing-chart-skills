@@ -6,16 +6,16 @@ Which item types combine high price with high volume?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [quantity purchased] [item type]` |
-| Library | Hand-built inline SVG, no external library |
+| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
 | Tile | 8x6 grid units (04 What tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | none |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
 
 ## Interactions
-Hover a bubble for details; click a bubble or a family in the key to isolate that family; click background to clear
+Hover or arrow-key to a bubble for its item type, family, units, price and sales, with crosshair values on both axes. Click a bubble (or Enter) to select it; click a family in the legend to select (isolate) that family; Escape clears. Drag across the plot to zoom; double-click or Escape resets.
 
 ## Notes
-Bubble area is sales; x is units; y is sales/units. Reference lines: units-weighted average price and median units. Family is an editorial grouping.
+Built on MayaCharts 0.16.0 as a `scatter` with x units, y price, `size` sales (bubble area), `series` family and `name` item type. The body derives price (sales over units per item type), the units-weighted average price and the median units; these draw as two `rules` (`{ y }` and `{ x }`). Family is an editorial grouping derived with `AZ.familyOf`; colours come from `colors: AZ.T.family`. The four largest bubbles are named with `annotate` (`{ x, text }`; one can drop when labels collide); every other bubble is named in its tooltip. The headline (the largest item type above both lines, its price against the average and its units) is computed in the body, since 0.16.0 does not fill title tokens on scatter. Changed against the hand-built SVG: bubble labels are on the four largest only, and a size legend now shows above the plot. On tiles under about 300 px the rule labels overlap the annotations. Render-complete fires on `maya-settled`. Preview-verified on synthetic data, not yet re-checked on a cluster.
 
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.

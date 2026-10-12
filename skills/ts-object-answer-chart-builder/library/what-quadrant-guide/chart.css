@@ -32,30 +32,4 @@ body { background: var(--az-surface); color: var(--az-ink); font-family: var(--a
 .az-sep { color: var(--az-muted); }
 /* ==== end amuzing core css ==== */
 
-
-#chart { display: flex; flex-direction: column; padding: 14px 16px 10px; gap: 8px; overflow-y: auto; }
-.qg-head { flex: none; display: flex; flex-direction: column; gap: 6px; }
-.qg-thesis { margin: 0; font-size: 13px; line-height: 1.4; font-weight: 600; color: var(--az-ink); }
-.qg-rule { margin: 0; font-size: 12px; line-height: 1.4; color: var(--az-ink2); }
-.qg-list { display: flex; flex-direction: column; gap: 6px; }
-.qg-q { border: 1px solid var(--az-grid); border-radius: 6px; padding: 0 10px 8px; }
-.qg-q.open { border-color: var(--az-ink); }
-.qg-h { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 8px 0 4px; font-size: 12px; color: var(--az-ink); border-radius: 6px; }
-.qg-h:focus-visible { outline: 2px solid var(--az-ink); outline-offset: 2px; }
-.qg-t { flex: 1 1 auto; font-weight: 600; }
-.qg-c { flex: none; font-size: 12px; color: var(--az-muted); }
-.qg-chev { flex: none; width: 6px; height: 6px; border-right: 1.5px solid var(--az-muted); border-bottom: 1.5px solid var(--az-muted); transform: rotate(45deg); margin: -3px 2px 0 0; }
-.qg-q.open .qg-chev { transform: rotate(225deg); margin-top: 3px; }
-.qg-r { font-size: 11px; line-height: 1.4; color: var(--az-muted); margin: 2px 0 6px; }
-.qg-chips { display: flex; flex-wrap: wrap; gap: 3px 10px; }
-.qg-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--az-ink2); }
-.qg-chip i, .qg-n i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; flex: none; }
-.qg-none { font-size: 12px; color: var(--az-muted); }
-.qg-tab { display: flex; flex-direction: column; }
-.qg-tr { display: grid; grid-template-columns: minmax(0, 1.5fr) 0.7fr 0.8fr 0.8fr; gap: 6px; padding: 3px 0; font-size: 12px; color: var(--az-ink); border-top: 1px solid var(--az-grid); }
-.qg-tr span:not(.qg-n) { text-align: right; }
-.qg-th { font-size: 11px; color: var(--az-muted); border-top: 0; }
-.qg-n { display: inline-flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.qg-list.hov .qg-q:not(.hov) { opacity: .55; }
-.qg-q { transition: opacity .12s ease; }
+#chart { display: block; height: 100%; color-scheme: light; }

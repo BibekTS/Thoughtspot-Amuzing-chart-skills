@@ -32,26 +32,4 @@ body { background: var(--az-surface); color: var(--az-ink); font-family: var(--a
 .az-sep { color: var(--az-muted); }
 /* ==== end amuzing core css ==== */
 
-#chart { display: flex; flex-direction: column; padding: 14px 16px 10px; gap: 8px; }
-.gm-head { display: flex; flex-direction: column; gap: 4px; }
-.gm-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.gm-title { font-size: 14px; line-height: 1.3; font-weight: 600; }
-.gm-sub { font-size: 12px; line-height: 1.45; color: var(--az-ink2); }
-.gm-sub b { color: var(--az-ink); font-weight: 600; }
-.gm-cap { font-size: 11px; line-height: 1.3; color: var(--az-muted); }
-.gm-seg { display: inline-flex; border: 1px solid var(--az-grid); border-radius: 6px; overflow: hidden; flex: none; }
-.gm-seg button { all: unset; cursor: pointer; font-size: 11px; line-height: 1; padding: 6px 9px; color: var(--az-muted); white-space: nowrap; }
-.gm-seg button + button { border-left: 1px solid var(--az-grid); }
-.gm-seg button.on { background: var(--az-ink); color: #fff; }
-.gm-seg button:not(.on):not(:disabled):hover { background: #F1F2F4; color: var(--az-ink); }
-.gm-seg button:disabled { cursor: default; opacity: .45; }
-.gm-seg button:focus-visible, .gm-key button:focus-visible { outline: 2px solid var(--az-ink); outline-offset: -2px; }
-.gm-plot { flex: 1 1 auto; min-height: 120px; position: relative; }
-.gm-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; font-family: var(--az-font); }
-.gm-key { display: flex; flex-wrap: wrap; gap: 4px 6px; }
-.gm-key button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1; padding: 5px 7px; border: 1px solid var(--az-grid); border-radius: 6px; color: var(--az-ink2); transition: opacity .12s; }
-.gm-key button i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-.gm-key button.on { border-color: var(--az-ink); color: var(--az-ink); }
-.gm-key button.dim { opacity: .4; }
-.gm-key button:hover { background: #F1F2F4; }
-.gm-bub { cursor: pointer; transition: opacity .12s; }
+#chart { display: block; height: 100%; color-scheme: light; }

@@ -6,16 +6,16 @@ Which stores are furthest below last year on the same quarters, against a thresh
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [store] [date].quarterly` |
-| Library | HTML and CSS (no CDN) |
+| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
 | Tile | 6x6 grid units (07 Next tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | none |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
 
 ## Interactions
-threshold slider (default -5%) flags stores below it; hover a row for numbers; click a row to pin its detail
+Hover a store for its change on last year (with an above or below the line tone), sales this year and sales last year. Click stores to select them (Escape clears). Arrow keys step through stores. The threshold is the `THRESHOLD` constant at the top of the body (default -5%), not a slider.
 
 ## Notes
-At the default -5% no store is flagged (range is -2.9% to +4.5%); the chart says so and the slider explores. Units change comes from quantity purchased when the search includes it.
+Built on MayaCharts 0.16.0: a horizontal `bar` sorted lowest first, with `colorBy: { target: THRESHOLD }` (stores below it turn red, the rest are slate), a `rules` line at the threshold and `aggregate: { ratio }`. The ratio keeps the change right in the Other bucket that MayaCharts makes on small tiles. The body still sums the year-to-date quarters per store against the same quarters a year earlier. The title counts the flagged stores, or names the lowest store when none is flagged. Dropped against the old chart: the threshold slider, which MayaCharts has no input control for, so the threshold is now a constant in the code; the pinned detail box (selection replaces it); and the units change. Preview-verified on synthetic data, not yet re-checked on a cluster.
 
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.

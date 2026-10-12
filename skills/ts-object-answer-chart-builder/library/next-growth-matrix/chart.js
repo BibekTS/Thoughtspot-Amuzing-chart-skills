@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,165 +243,31 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [quantity purchased] [item type] [date].quarterly
-// Item types as bubbles, area = sales in the year-to-date quarters, colour = editorial product family.
-// x = share of sales. y = sales per unit (default) or change on the same quarters a year earlier.
-// Interactions: hover for a tooltip, click a bubble or a family key to isolate, toggle the y measure.
-let ymode = null;
-let sel = null;
-
-const qOf = (t) => Math.floor(new Date(t).getUTCMonth() / 3);
-const niceTicks = (lo, hi, n) => {
-  const span = hi - lo || 1, raw = span / n, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
-  const st = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p, out = [];
-  for (let v = Math.ceil(lo / st - 1e-9) * st; v <= hi + 1e-9; v += st) out.push(+v.toFixed(10));
-  return out;
-};
-
-AZ.boot({
-  need: 'sales, quantity purchased, item type and date at quarterly grain, e.g. [sales] [quantity purchased] [item type] [date].quarterly',
-  render: async ({ el, rows, schema, redraw }) => {
-    const iK = AZ.col(schema, /item/i), dK = AZ.col(schema, /date|quarter|month/i), sK = AZ.col(schema, /sales/i), uK = AZ.col(schema, /quantity|units/i);
-    const R = rows.map((r) => ({ item: String(r[iK]), t: AZ.ms(r[dK]), s: AZ.num(r[sK]), u: AZ.num(r[uK]) })).filter((r) => isFinite(r.t));
-    if (!R.length) { AZ.paint(el, '<div class="az-empty"><b>No rows in the current filter</b><span>Needs: [sales] [quantity purchased] [item type] [date].quarterly</span></div>'); return; }
-    const last = Math.max.apply(null, R.map((r) => r.t)), ly = AZ.year(last), lq = qOf(last);
-    const cur = R.filter((r) => AZ.year(r.t) === ly && qOf(r.t) <= lq), prev = R.filter((r) => AZ.year(r.t) === ly - 1 && qOf(r.t) <= lq);
-    const nq = (a) => new Set(a.map((r) => r.t)).size;
-    const comparable = prev.length > 0 && nq(prev) === nq(cur);
-    const per = 'Q1 to Q' + (lq + 1) + ' ' + ly;
-    const perPrev = 'Q1 to Q' + (lq + 1) + ' ' + (ly - 1);
-
-    const by = {};
-    cur.forEach((r) => { const o = by[r.item] = by[r.item] || { item: r.item, s: 0, u: 0, ps: 0, pu: 0 }; o.s += r.s; o.u += r.u; });
-    prev.forEach((r) => { if (by[r.item]) { by[r.item].ps += r.s; by[r.item].pu += r.u; } });
-    const I = Object.keys(by).map((k) => by[k]).filter((o) => o.s > 0);
-    if (I.length < 2) { AZ.paint(el, '<div class="az-empty"><b>Only ' + I.length + ' item type in the current filter</b><span>The matrix needs at least two to compare.</span></div>'); return; }
-    const totS = I.reduce((a, o) => a + o.s, 0), totU = I.reduce((a, o) => a + o.u, 0), totPS = I.reduce((a, o) => a + o.ps, 0);
-    I.forEach((o) => {
-      o.share = o.s / totS; o.ushare = totU ? o.u / totU : 0; o.price = o.u ? o.s / o.u : 0;
-      o.chg = comparable && o.ps > 0 ? o.s / o.ps - 1 : null; o.fam = AZ.familyOf(o.item); o.col = AZ.familyColor(o.item);
-    });
-    const valid = I.filter((o) => o.chg != null), canChange = valid.length >= 2;
-    const cLo = canChange ? Math.min.apply(null, valid.map((o) => o.chg)) : 0, cHi = canChange ? Math.max.apply(null, valid.map((o) => o.chg)) : 0;
-    const spread = cHi - cLo, bands = canChange && spread >= 0.05;
-    const totChg = comparable && totPS > 0 ? totS / totPS - 1 : null;
-    if (ymode == null || (ymode === 'change' && !canChange)) ymode = bands ? 'change' : 'price';
-    const M = ymode;
-    const yOf = (o) => (M === 'price' ? o.price : o.chg);
-    const overallPrice = totU ? totS / totU : 0;
-    const big = I.slice().sort((a, b) => b.s - a.s)[0];
-    const fams = []; I.slice().sort((a, b) => b.s - a.s).forEach((o) => { if (fams.indexOf(o.fam) < 0) fams.push(o.fam); });
-
-    // Header sentences from the rows
-    let sub = '<b>' + AZ.esc(big.item) + '</b> carry ' + AZ.pct(big.share, 1) + ' of sales from ' + AZ.pct(big.ushare, 1) + ' of units, at ' + AZ.money(big.price, 2) + ' a unit (' + AZ.money(overallPrice, 2) + ' overall).';
-    if (canChange) {
-      sub += spread < 0.05
-        ? ' Year-to-date change is <b>' + AZ.pct(cLo, 1, true) + '</b> to <b>' + AZ.pct(cHi, 1, true) + '</b> for every type, so price and share are what differ.'
-        : ' Year-to-date change runs from <b>' + AZ.pct(cLo, 1, true) + '</b> to <b>' + AZ.pct(cHi, 1, true) + '</b>.';
-    }
-    const title = M === 'price' ? 'Share of sales against price per unit' : 'Share of sales against year-to-date change';
-    const cap = per + (comparable ? ' against ' + perPrev : '') + '. Area is sales; families are editorial.';
-
-    el.innerHTML =
-      '<div class="gm-head"><div class="gm-top"><div class="gm-title">' + title + '</div>'
-      + '<div class="gm-seg" role="group" aria-label="Vertical measure"><button type="button" data-m="price" class="' + (M === 'price' ? 'on' : '') + '">Price per unit</button>'
-      + '<button type="button" data-m="change" class="' + (M === 'change' ? 'on' : '') + '"' + (canChange ? '' : ' disabled title="No matching quarters a year earlier in the current filter"') + '>Change vs last year</button></div></div>'
-      + '<div class="gm-sub">' + sub + '</div></div>'
-      + '<div class="gm-plot" id="gm-plot"></div>'
-      + '<div class="gm-key" id="gm-key">' + fams.map((f) => '<button type="button" data-f="' + AZ.esc(f) + '"><i style="background:' + AZ.T.family[f] + '"></i>' + AZ.esc(f) + '</button>').join('') + '</div>'
-      + '<div class="gm-cap">' + AZ.esc(cap) + '</div>';
-    el.querySelectorAll('.gm-seg button').forEach((b) => b.addEventListener('click', () => { if (b.disabled) return; ymode = b.getAttribute('data-m'); redraw(); }));
-
-    const box = document.getElementById('gm-plot'), W = Math.max(200, box.clientWidth), H = Math.max(120, box.clientHeight);
-    const pl = 46, pr = 12, pt = 20, pb = 28, iw = W - pl - pr, ih = H - pt - pb;
-    const maxShare = Math.max.apply(null, I.map((o) => o.share));
-    const xMax = maxShare * 1.18, xMin = 0;
-    const ys = I.map(yOf).filter((v) => v != null);
-    let yMin, yMax;
-    if (M === 'price') { yMin = 0; yMax = Math.max.apply(null, ys) * 1.1; const tk = niceTicks(0, yMax, Math.max(3, Math.floor(ih / 52))); if (tk.length > 1) { const st = tk[1] - tk[0]; yMax = Math.ceil(yMax / st - 1e-9) * st; } }
-    else { yMin = Math.min(0, Math.min.apply(null, ys)); yMax = Math.max(0, Math.max.apply(null, ys)); const pad = (yMax - yMin || 0.01) * 0.18; yMin -= pad; yMax += pad; }
-    const X = (v) => pl + (v - xMin) / (xMax - xMin) * iw, Y = (v) => pt + ih - (v - yMin) / (yMax - yMin) * ih;
-    const maxR = Math.max(12, Math.min(28, ih / 7, iw / 14)), maxS = Math.max.apply(null, I.map((o) => o.s));
-    const rad = (o) => Math.max(4.5, maxR * Math.sqrt(o.s / maxS));
-
-    const NS = 'http://www.w3.org/2000/svg';
-    let g = '';
-    const yt = niceTicks(yMin, yMax, Math.max(3, Math.floor(ih / 52)));
-    yt.forEach((v) => {
-      const lab = M === 'price' ? '$' + Math.round(v) : AZ.pct(v, Math.abs(yMax - yMin) < 0.05 ? 1 : 0, true);
-      g += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + Y(v).toFixed(1) + '" y2="' + Y(v).toFixed(1) + '" stroke="' + (M === 'change' && Math.abs(v) < 1e-9 ? AZ.T.ink2 : AZ.T.grid) + '" stroke-width="1"/>'
-        + '<text x="' + (pl - 6) + '" y="' + (Y(v) + 4).toFixed(1) + '" text-anchor="end" font-size="11" fill="' + AZ.T.muted + '">' + lab + '</text>';
-    });
-    niceTicks(xMin, xMax, Math.max(3, Math.floor(iw / 80))).forEach((v) => {
-      g += '<text x="' + X(v).toFixed(1) + '" y="' + (H - 12) + '" text-anchor="middle" font-size="11" fill="' + AZ.T.muted + '">' + AZ.pct(v, 0) + '</text>';
-    });
-    g += '<text x="' + (pl + iw / 2) + '" y="' + (H + 1) + '" text-anchor="middle" font-size="11" fill="' + AZ.T.ink2 + '">Share of sales</text>';
-    g += '<text x="' + pl + '" y="' + (pt - 10) + '" font-size="11" fill="' + AZ.T.ink2 + '">' + (M === 'price' ? 'Sales per unit' : 'Change on last year') + '</text>';
-    if (M === 'price') { // overall price reference
-      g += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + Y(overallPrice).toFixed(1) + '" y2="' + Y(overallPrice).toFixed(1) + '" stroke="' + AZ.T.slate[4] + '" stroke-dasharray="4 4"/>'
-        + '<text x="' + (W - pr) + '" y="' + (Y(overallPrice) - 4).toFixed(1) + '" text-anchor="end" font-size="11" fill="' + AZ.T.slate[4] + '">All types ' + AZ.money(overallPrice, 2) + '</text>';
-    }
-    if (bands && M === 'change') { // quadrant bands only when the spread justifies them
-      const eq = 1 / I.length, rx = X(eq), ry = Y(totChg);
-      g += '<line x1="' + rx.toFixed(1) + '" x2="' + rx.toFixed(1) + '" y1="' + pt + '" y2="' + (pt + ih) + '" stroke="' + AZ.T.slate[3] + '" stroke-dasharray="4 4"/>'
-        + '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + ry.toFixed(1) + '" y2="' + ry.toFixed(1) + '" stroke="' + AZ.T.slate[3] + '" stroke-dasharray="4 4"/>'
-        + '<text x="' + (W - pr - 4) + '" y="' + (pt + 12) + '" text-anchor="end" font-size="11" fill="' + AZ.T.muted + '">Large and above total</text>'
-        + '<text x="' + (pl + 4) + '" y="' + (pt + 12) + '" font-size="11" fill="' + AZ.T.muted + '">Small and above total</text>'
-        + '<text x="' + (W - pr - 4) + '" y="' + (pt + ih - 5) + '" text-anchor="end" font-size="11" fill="' + AZ.T.muted + '">Large and below total</text>'
-        + '<text x="' + (pl + 4) + '" y="' + (pt + ih - 5) + '" font-size="11" fill="' + AZ.T.muted + '">Small and below total</text>';
-    }
-    const isOn = (o) => !sel || (sel.k === 'item' ? o.item === sel.v : o.fam === sel.v);
-    const drawn = I.filter((o) => yOf(o) != null).sort((a, b) => b.s - a.s);
-    drawn.forEach((o) => {
-      g += '<g class="gm-bub" data-i="' + AZ.esc(o.item) + '" opacity="' + (isOn(o) ? 1 : 0.25) + '">'
-        + '<circle class="gm-c" cx="' + X(o.share).toFixed(1) + '" cy="' + Y(yOf(o)).toFixed(1) + '" r="' + rad(o).toFixed(1) + '" fill="' + o.col + '" fill-opacity=".8" stroke="' + (sel && sel.k === 'item' && sel.v === o.item ? AZ.T.ink : '#fff') + '" stroke-width="' + (sel && sel.k === 'item' && sel.v === o.item ? 2 : 1.5) + '"/>'
-        + '<circle cx="' + X(o.share).toFixed(1) + '" cy="' + Y(yOf(o)).toFixed(1) + '" r="' + (rad(o) + 5).toFixed(1) + '" fill="transparent"/></g>';
-    });
-    // Direct labels: the four largest plus anything isolated; skip a label that would overlap one already placed
-    const placed = [], labels = [];
-    if (M === 'price') placed.push([W - pr - 104, Y(overallPrice) - 16, 104, 14]);
-    const cand = drawn.filter((o) => isOn(o) && (sel ? true : drawn.indexOf(o) < 4));
-    cand.forEach((o) => {
-      const cx = X(o.share), cy = Y(yOf(o)), r = rad(o), tw = o.item.length * 6.4 + 2;
-      const opts = [[cx + r + 4, cy + 4, 'start'], [cx - r - 4, cy + 4, 'end'], [cx, cy - r - 5, 'middle'], [cx, cy + r + 13, 'middle']];
-      for (let k = 0; k < opts.length; k++) {
-        const x0 = opts[k][2] === 'start' ? opts[k][0] : opts[k][2] === 'end' ? opts[k][0] - tw : opts[k][0] - tw / 2, y0 = opts[k][1] - 11;
-        if (x0 < 2 || x0 + tw > W - 2 || y0 < 0 || y0 + 14 > H) continue;
-        if (placed.some((b) => x0 < b[0] + b[2] && x0 + tw > b[0] && y0 < b[1] + b[3] && y0 + 14 > b[1])) continue;
-        placed.push([x0, y0, tw, 14]);
-        labels.push('<text x="' + opts[k][0].toFixed(1) + '" y="' + opts[k][1].toFixed(1) + '" text-anchor="' + opts[k][2] + '" font-size="11" font-weight="600" fill="' + AZ.T.ink + '" stroke="#fff" stroke-width="3" paint-order="stroke" pointer-events="none">' + AZ.esc(o.item) + '</text>');
-        break;
-      }
-    });
-    box.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + AZ.esc(title) + '"><rect id="gm-bg" x="0" y="0" width="' + W + '" height="' + H + '" fill="transparent"/>' + g + labels.join('') + '</svg>';
-
-    // Key state
-    const kb = el.querySelectorAll('.gm-key button');
-    kb.forEach((b) => {
-      const f = b.getAttribute('data-f'), on = sel && sel.k === 'family' && sel.v === f;
-      b.classList.toggle('on', !!on);
-      b.classList.toggle('dim', !!sel && !on && !(sel.k === 'item' && AZ.familyOf(sel.v) === f));
-      b.addEventListener('click', () => { sel = on ? null : { k: 'family', v: f }; redraw(); });
-    });
-
-    const tip = AZ.tip(box), byItem = {}; I.forEach((o) => { byItem[o.item] = o; });
-    box.querySelectorAll('.gm-bub').forEach((n) => {
-      const o = byItem[n.getAttribute('data-i')], c = n.querySelector('.gm-c');
-      const move = (e) => {
-        const r = box.getBoundingClientRect();
-        let h = '<b>' + AZ.esc(o.item) + '</b>' + AZ.row(o.fam, '', o.col) + AZ.row('Sales', AZ.money(o.s, 1)) + AZ.row('Share of sales', AZ.pct(o.share, 1)) + AZ.row('Units', AZ.int(o.u) + ' (' + AZ.pct(o.ushare, 1) + ')') + AZ.row('Sales per unit', AZ.money(o.price, 2));
-        h += o.chg != null ? AZ.row('Change on last year', AZ.pct(o.chg, 1, true)) : AZ.row('Change on last year', 'no comparison');
-        tip.show(h, e.clientX - r.left, e.clientY - r.top);
-      };
-      n.addEventListener('mouseenter', (e) => { c.setAttribute('stroke', AZ.T.ink); c.setAttribute('stroke-width', 2); move(e); });
-      n.addEventListener('mousemove', move);
-      n.addEventListener('mouseleave', () => { const s = sel && sel.k === 'item' && sel.v === o.item; c.setAttribute('stroke', s ? AZ.T.ink : '#fff'); c.setAttribute('stroke-width', s ? 2 : 1.5); tip.hide(); });
-      n.addEventListener('click', (e) => { e.stopPropagation(); sel = sel && sel.k === 'item' && sel.v === o.item ? null : { k: 'item', v: o.item }; redraw(); });
-    });
-    document.getElementById('gm-bg').addEventListener('click', () => { if (sel) { sel = null; redraw(); } });
-  }
+// Interactions: hover a bubble for share, price, change and sales; click bubbles (or a family in the legend) to select or hide; the measure toggle switches the vertical axis between price per unit and change on last year; drag to zoom (double-click or Escape resets).
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, I = c(/item/i, 'item type'), D = c(/date|quarter|month/i, 'Quarter(date)'), V = c(/sales/i, 'Total sales'), Q = c(/quantity|units/i, 'Total quantity purchased');
+// Year to date: the quarters of the latest year up to the latest quarter, against the same quarters a year earlier.
+const qOf = (t) => Math.floor(new Date(t).getUTCMonth() / 3), R = rows.map((r) => ({ i: String(r[I]), t: AZ.ms(r[D]), s: AZ.num(r[V]), u: AZ.num(r[Q]) }));
+const last = R.length ? Math.max(...R.map((r) => r.t)) : 0, ly = AZ.year(last), lq = qOf(last), by = {};
+R.forEach((r) => { const y = AZ.year(r.t); if (qOf(r.t) > lq || (y !== ly && y !== ly - 1)) return; const o = by[r.i] = by[r.i] ?? { s: 0, u: 0, ps: 0 }; if (y === ly) { o.s += r.s; o.u += r.u; } else o.ps += r.s; });
+const items = Object.entries(by).filter(([, o]) => o.s > 0), S = items.reduce((a, [, o]) => a + o.s, 0), U = items.reduce((a, [, o]) => a + o.u, 0);
+const data = items.map(([i, o]) => ({ 'Item type': i, Family: AZ.familyOf(i), Share: o.s / S, Price: o.u ? o.s / o.u : 0, Change: o.ps ? o.s / o.ps - 1 : null, Sales: o.s }));
+const big = [...data].sort((a, b) => b.Sales - a.Sales)[0], ch = data.map((r) => r.Change).filter((v) => v != null);
+const per = 'Q1 to Q' + (lq + 1) + ' ' + ly, usd2 = { style: 'currency', currency: 'USD', maximumFractionDigits: 2 };
+AZ.maya({
+  type: 'scatter', x: 'Share', y: ch.length ? ['Price', 'Change'] : 'Price', size: 'Sales', series: 'Family', name: 'Item type', select: 'multi', zoom: true,
+  annotate: data.length ? [{ x: big.Share, text: big['Item type'] }] : undefined,
+  title: data.length ? big['Item type'] + ' carry ' + AZ.pct(big.Share, 1) + ' of sales at ' + AZ.money(big.Price, 2) + ' a unit' : '',
+  subtitle: data.length ? per + '. Area is sales; overall ' + AZ.money(U ? S / U : 0, 2) + ' a unit' + (ch.length ? ', change ' + AZ.pct(Math.min(...ch), 1, true) + ' to ' + AZ.pct(Math.max(...ch), 1, true) + ' on ' + (ly - 1) : '') : '',
+  titles: { Share: 'Share of sales', Price: 'Sales per unit', Change: 'Change on last year' },
+  format: { Share: { style: 'percent', maximumFractionDigits: 1 }, Price: usd2, Change: { style: 'percent', maximumFractionDigits: 1, signDisplay: 'exceptZero' }, Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
+  colors: AZ.T.family,
+  legend: 'bottom',
+  text: { noData: 'No rows yet. Bind the search [sales] [quantity purchased] [item type] [date].quarterly' },
+  data
 });

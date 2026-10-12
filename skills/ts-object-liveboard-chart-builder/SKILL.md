@@ -292,6 +292,7 @@ Update the example's README when the story changes.
 
 | Version | Date | Change |
 |---|---|---|
+| 4.5.0 | 2026-10-12 | 42 more tiles are MayaCharts 0.16.0 (48 of 58), drawn through the shared core's new `AZ.maya(spec)`; the core changed, so every tile was re-synced and `--core-ref` sends the new checksum. Preview only until the sample Liveboard is re-imported and screenshotted; `next-action-list`, `next-what-if` and the text tiles are unchanged |
 | 4.4.0 | 2026-10-12 | The six MayaCharts tiles are on MayaCharts 0.16.0 and render-complete once their entrance animation has settled (`maya-settled`), so a PDF export no longer catches them half drawn. Still preview only until the sample Liveboard is re-imported and screenshotted |
 | 4.3.0 | 2026-10-12 | `what-sunburst`, `what-treemap-drill` and `what-money-sankey` are MayaCharts tiles now (preview only until the sample Liveboard is re-imported and screenshotted). They keep the shared core, so packing is unchanged |
 | 4.2.0 | 2026-10-12 | Muze is gone from the chart skill: the three Liveboard tiles that used it (`pulse-monthly-line`, `state-sales-units`, `what-premium-diverging`) are MayaCharts now, preview only until the sample Liveboard is re-imported and screenshotted. They keep the shared core, so packing, `--core-ref` and ownership markers are unchanged. `MUZE_STUDIO` stays: it is ThoughtSpot's TML type for every custom chart |

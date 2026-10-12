@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,113 +243,37 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [date].monthly
-// Full-year outlook: actual months so far (ink, solid) plus the remaining months projected two ways (slate, dashed):
-//   same months last year, and the average of the last 3 months carried forward.
-// If the latest year is already complete (December present) it projects the next year instead.
-// Interactions: scenario toggle, hover a month for actual or projected values.
-let scen = 'both';
-
-AZ.boot({
-  need: 'sales and date at monthly grain, e.g. [sales] [date].monthly',
-  render: async ({ el, rows, schema, redraw }) => {
-    const dK = AZ.col(schema, /date|month/i), sK = AZ.col(schema, /sales/i);
-    const M = rows.map((r) => ({ t: AZ.ms(r[dK]), v: AZ.num(r[sK]) })).filter((r) => isFinite(r.t)).sort((a, b) => a.t - b.t);
-    if (M.length < 2) { AZ.paint(el, '<div class="az-empty"><b>Not enough months to project</b><span>Needs at least two months of [sales] [date].monthly.</span></div>'); return; }
-    const byKey = {}; M.forEach((r) => { const d = new Date(r.t); byKey[d.getUTCFullYear() + '-' + d.getUTCMonth()] = r.v; });
-    const last = M[M.length - 1].t, ly = AZ.year(last), lm = new Date(last).getUTCMonth();
-    const complete = lm === 11, T = complete ? ly + 1 : ly, first = complete ? 0 : lm + 1;
-    const recent = M.slice(-3), avg3 = recent.reduce((a, r) => a + r.v, 0) / recent.length;
-    const get = (y, m) => byKey[y + '-' + m];
-    // Per-month series for the target year
-    const S = [];
-    for (let m = 0; m < 12; m++) {
-      const act = complete ? null : (m <= lm ? get(T, m) : null);
-      const prevV = get(T - 1, m);
-      const o = { m, act, prevV: prevV == null ? null : prevV, isAct: act != null };
-      o.gap = !complete && m <= lm && act == null;
-      if (!o.isAct && !o.gap) { o.a = prevV != null ? prevV : avg3; o.aFallback = prevV == null; o.b = avg3; }
-      S.push(o);
-    }
-    const ytd = S.filter((o) => o.isAct).reduce((a, o) => a + o.act, 0), ytdPrev = S.filter((o) => o.isAct && o.prevV != null).reduce((a, o) => a + o.prevV, 0);
-    const nAct = S.filter((o) => o.isAct).length, nPrevAct = S.filter((o) => o.isAct && o.prevV != null).length;
-    const totA = ytd + S.filter((o) => o.a != null).reduce((a, o) => a + o.a, 0), totB = ytd + S.filter((o) => o.b != null).reduce((a, o) => a + o.b, 0);
-    const prevYear = S.every((o) => o.prevV != null) ? S.reduce((a, o) => a + o.prevV, 0) : null;
-    const showA = scen !== 'b', showB = scen !== 'a';
-    const nGap = S.filter((o) => o.gap).length, remain = S.filter((o) => o.a != null).length, anyFb = S.some((o) => o.aFallback);
-
-    const cA = AZ.T.slate[6], cB = AZ.T.slate[3];
-    const dchg = !complete && nAct && nPrevAct === nAct && ytdPrev > 0 ? ytd / ytdPrev - 1 : null;
-    let sub;
-    if (complete) sub = '<b>' + ly + '</b> is complete in the data (' + AZ.money(prevYear != null ? prevYear : M.slice(-12).reduce((a, r) => a + r.v, 0), 1) + '), so this projects <b>' + T + '</b>.';
-    else sub = 'Actual through <b>' + AZ.MON[lm] + '</b>: <b>' + AZ.money(ytd, 1) + '</b>' + (dchg != null ? ', ' + AZ.pct(dchg, 1, true) + ' on the same months of ' + (T - 1) : '') + '. ' + remain + ' month' + (remain === 1 ? '' : 's') + ' projected.' + (nGap ? ' ' + nGap + ' earlier month' + (nGap === 1 ? ' is' : 's are') + ' missing from the current filter, so totals cover the months present.' : '');
-    const gapPct = totB ? Math.abs(totA - totB) / Math.max(totA, totB) : 0;
-    const tail = 'The two scenarios end ' + AZ.money(Math.abs(totA - totB), 1) + ' apart (' + AZ.pct(gapPct, 1) + ').';
-
-    el.innerHTML =
-      '<div class="rr-top"><div class="rr-title">' + T + ' year-end outlook</div>'
-      + '<div class="rr-seg" role="group" aria-label="Scenario"><button type="button" data-s="both" class="' + (scen === 'both' ? 'on' : '') + '">Both</button><button type="button" data-s="a" class="' + (scen === 'a' ? 'on' : '') + '">Last year</button><button type="button" data-s="b" class="' + (scen === 'b' ? 'on' : '') + '">3-month avg</button></div></div>'
-      + '<div class="rr-sub">' + sub + '</div>'
-      + '<div class="rr-tot"><div class="rr-t ' + (showA ? (scen === 'a' ? 'on' : '') : 'off') + '"><div class="l"><i style="border-color:' + cA + '"></i>Same months as ' + (T - 1) + '</div><div class="n">' + AZ.money(totA, 1) + '</div><div class="c">' + (prevYear ? AZ.pct(totA / prevYear - 1, 1, true) + ' on all of ' + (T - 1) : anyFb ? 'no ' + (T - 1) + ' months here, uses the average' : 'year-end total') + '</div></div>'
-      + '<div class="rr-t ' + (showB ? (scen === 'b' ? 'on' : '') : 'off') + '"><div class="l"><i style="border-color:' + cB + '; border-top-style:dotted"></i>Last 3 months, carried on</div><div class="n">' + AZ.money(totB, 1) + '</div><div class="c">' + (prevYear ? AZ.pct(totB / prevYear - 1, 1, true) + ' on all of ' + (T - 1) : AZ.money(avg3, 1) + ' a month') + '</div></div></div>'
-      + '<div class="rr-plot" id="rr-plot"></div>'
-      + '<div class="rr-cap">' + AZ.esc(tail) + ' Projection, not a forecast.</div>';
-    el.querySelectorAll('.rr-seg button').forEach((b) => b.addEventListener('click', () => { scen = b.getAttribute('data-s'); redraw(); }));
-
-    const box = document.getElementById('rr-plot'), W = Math.max(200, box.clientWidth), H = Math.max(110, box.clientHeight);
-    const pl = 40, pr = 40, pt = 14, pb = 20, iw = W - pl - pr, ih = H - pt - pb;
-    const all = []; S.forEach((o) => { if (o.isAct) all.push(o.act); else if (!o.gap) { if (showA) all.push(o.a); if (showB) all.push(o.b); } if (complete && o.prevV != null) all.push(o.prevV); });
-    let lo = Math.min.apply(null, all), hi = Math.max.apply(null, all);
-    const padY = (hi - lo || hi * 0.1 || 1) * 0.15; lo = Math.max(0, lo - padY); hi += padY;
-    const step = (function () { const raw = (hi - lo) / 4, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p; })();
-    lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
-    const X = (m) => pl + (m + 0.5) / 12 * iw, Y = (v) => pt + ih - (v - lo) / (hi - lo) * ih;
-    let g = '';
-    for (let v = lo; v <= hi + 1e-6; v += step) g += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + Y(v).toFixed(1) + '" y2="' + Y(v).toFixed(1) + '" stroke="' + AZ.T.grid + '"/><text x="' + (pl - 6) + '" y="' + (Y(v) + 4).toFixed(1) + '" text-anchor="end" font-size="11" fill="' + AZ.T.muted + '">' + AZ.money(v, 0) + '</text>';
-    for (let m = 0; m < 12; m++) if (m % (iw < 300 ? 2 : 1) === 0) g += '<text x="' + X(m).toFixed(1) + '" y="' + (H - 4) + '" text-anchor="middle" font-size="11" fill="' + AZ.T.muted + '">' + AZ.MON[m] + '</text>';
-    // Projection band
-    const bx0 = first === 0 ? pl : (X(first - 1) + X(first)) / 2, bx1 = W - pr;
-    g += '<rect x="' + bx0.toFixed(1) + '" y="' + pt + '" width="' + (bx1 - bx0).toFixed(1) + '" height="' + ih + '" fill="' + AZ.T.slate[0] + '" opacity=".85"/>'
-      + '<text x="' + ((bx0 + bx1) / 2).toFixed(1) + '" y="' + (pt + 11) + '" text-anchor="middle" font-size="11" font-weight="600" letter-spacing=".08em" fill="' + AZ.T.slate[4] + '">PROJECTION</text>';
-    const path = (pts) => pts.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(' ');
-    if (complete) { const gp = S.filter((o) => o.prevV != null).map((o) => [o.m, o.prevV]); if (gp.length > 1) g += '<path d="' + path(gp) + '" fill="none" stroke="' + AZ.T.slate[2] + '" stroke-width="1.5"/><text x="' + (pl + 4) + '" y="' + (Y(gp[0][1]) - 8).toFixed(1) + '" font-size="11" fill="' + AZ.T.slate[4] + '">' + (T - 1) + ' actual</text>'; }
-    const act = S.filter((o) => o.isAct).map((o) => [o.m, o.act]), lastAct = act.length ? act[act.length - 1] : null;
-    const pa = (lastAct ? [lastAct] : []).concat(S.filter((o) => o.a != null).map((o) => [o.m, o.a])), pb2 = (lastAct ? [lastAct] : []).concat(S.filter((o) => o.b != null).map((o) => [o.m, o.b]));
-    if (showA) g += '<path d="' + path(pa) + '" fill="none" stroke="' + cA + '" stroke-width="2" stroke-dasharray="6 4"/>';
-    if (showB) g += '<path d="' + path(pb2) + '" fill="none" stroke="' + cB + '" stroke-width="2.25" stroke-dasharray="1 4" stroke-linecap="round"/>';
-    if (act.length) g += '<path d="' + path(act) + '" fill="none" stroke="' + AZ.T.ink + '" stroke-width="2.25" stroke-linejoin="round"/><circle cx="' + X(lastAct[0]).toFixed(1) + '" cy="' + Y(lastAct[1]).toFixed(1) + '" r="3.5" fill="' + AZ.T.ink + '"/>';
-    // End labels with a simple collision nudge
-    const ends = []; if (showA) ends.push([S[11].a, cA]); if (showB) ends.push([S[11].b, cB]);
-    ends.sort((p, q) => p[0] - q[0]);
-    let prevY = null;
-    ends.slice().reverse().forEach((e) => { let y = Y(e[0]); if (prevY != null && y - prevY < 13) y = prevY + 13; prevY = y; g += '<text x="' + (X(11) + 8).toFixed(1) + '" y="' + (y + 4).toFixed(1) + '" font-size="11" font-weight="600" fill="' + e[1] + '">' + AZ.money(e[0], 1) + '</text>'; });
-    box.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + T + ' outlook"><line id="rr-g" y1="' + pt + '" y2="' + (pt + ih) + '" stroke="' + AZ.T.ink2 + '" stroke-dasharray="2 3" opacity="0"/>' + g + '<g id="rr-d"></g></svg>';
-
-    const tip = AZ.tip(box), guide = box.querySelector('#rr-g'), dots = box.querySelector('#rr-d'), NS = 'http://www.w3.org/2000/svg';
-    const dot = (x, y, c, hollow) => { const e = document.createElementNS(NS, 'circle'); e.setAttribute('cx', x); e.setAttribute('cy', y); e.setAttribute('r', 4); e.setAttribute('fill', hollow ? '#fff' : c); e.setAttribute('stroke', c); e.setAttribute('stroke-width', 2); dots.appendChild(e); };
-    box.addEventListener('mousemove', (e) => {
-      const r = box.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * W;
-      const m = Math.max(0, Math.min(11, Math.round((px - pl) / iw * 12 - 0.5))), o = S[m];
-      guide.setAttribute('x1', X(m)); guide.setAttribute('x2', X(m)); guide.setAttribute('opacity', 1); dots.innerHTML = '';
-      const label = AZ.MON[m] + ' ' + T;
-      let h;
-      if (o.gap) {
-        dots.innerHTML = '';
-        h = '<b>' + label + '</b>' + AZ.row('Data', 'none in this filter');
-      } else if (o.isAct) {
-        dot(X(m), Y(o.act), AZ.T.ink, false);
-        h = '<b>' + label + '</b>' + AZ.row('Actual', AZ.money(o.act, 2), '#FFFFFF') + (o.prevV != null ? AZ.row(AZ.MON[m] + ' ' + (T - 1), AZ.money(o.prevV, 2), AZ.T.slate[3]) + AZ.row('Change', AZ.pct(o.act / o.prevV - 1, 1, true)) : '');
-      } else {
-        h = '<b>' + label + ' (projected)</b>';
-        if (showA) { dot(X(m), Y(o.a), cA, true); h += AZ.row('Same month ' + (T - 1) + (o.aFallback ? ' (none, uses 3-month avg)' : ''), AZ.money(o.a, 2), '#B4BDC9'); }
-        if (showB) { dot(X(m), Y(o.b), cB, true); h += AZ.row('3-month average', AZ.money(o.b, 2), '#8E9AAB'); }
-      }
-      tip.show(h, X(m) / W * r.width, e.clientY - r.top);
-    });
-    box.addEventListener('mouseleave', () => { guide.setAttribute('opacity', 0); dots.innerHTML = ''; tip.hide(); });
-  }
+// Interactions: hover a month for the actual or both projected values; click a legend key (or a line's end label on wide tiles) to hide or show a scenario; drag to zoom (double-click or Escape resets); arrow keys step through months.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month(date)', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Total sales';
+// The year to project is the latest year (or the next one when December is already in). Its remaining months run two
+// ways from the last actual month: the same months a year earlier, and the last three months' average carried on.
+const M = rows.map((r) => ({ t: AZ.ms(r[D]), v: AZ.num(r[V]) })).filter((r) => isFinite(r.t)).sort((a, b) => a.t - b.t);
+const get = new Map(M.map((r) => [AZ.year(r.t) + '-' + new Date(r.t).getUTCMonth(), r.v])), at = (y, m) => Date.UTC(y, m, 1);
+const last = M.length ? M[M.length - 1].t : 0, ly = AZ.year(last), lm = new Date(last).getUTCMonth(), full = lm === 11, T = full ? ly + 1 : ly;
+const avg3 = M.slice(-3).reduce((a, r) => a + r.v, 0) / Math.max(1, M.slice(-3).length);
+const A = 'Same months as ' + (T - 1), B = 'Last 3 months carried on', pts = [];
+let ytd = 0, ytdPrev = 0, totA = 0, totB = 0;
+for (let m = 0; M.length && m < 12; m++) {
+  const act = full ? undefined : m <= lm ? get.get(T + '-' + m) : undefined, prev = get.get((T - 1) + '-' + m);
+  if (act != null) { ytd += act; ytdPrev += prev ?? 0; pts.push({ Month: at(T, m), Scenario: 'Actual', Sales: act }); if (m === lm) pts.push({ Month: at(T, m), Scenario: A, Sales: act }, { Month: at(T, m), Scenario: B, Sales: act }); }
+  else if (full || m > lm) { const a = prev ?? avg3; totA += a; totB += avg3; pts.push({ Month: at(T, m), Scenario: A, Sales: a }, { Month: at(T, m), Scenario: B, Sales: avg3 }); }
+}
+totA += ytd; totB += ytd;
+const prevYear = Array.from({ length: 12 }, (_, m) => get.get((T - 1) + '-' + m)), py = prevYear.every((v) => v != null) ? prevYear.reduce((a, v) => a + v, 0) : null;
+const on = (x) => AZ.pct(x / py - 1, 1, true);
+AZ.maya({
+  type: 'line', x: 'Month', y: 'Sales', series: 'Scenario', xType: 'time', zoom: true, dash: [A, B],
+  rules: M.length && !full ? [{ x: at(T, lm), label: 'Projected' }] : undefined,
+  title: M.length ? T + ' ends at ' + AZ.money(totA, 1) + ' on last year\'s months, ' + AZ.money(totB, 1) + ' on the recent pace' : '',
+  subtitle: M.length ? (full ? ly + ' is complete in the data, so this projects ' + T + '. ' : 'Actual through ' + AZ.MON[lm] + ': ' + AZ.money(ytd, 1) + (ytdPrev ? ', ' + AZ.pct(ytd / ytdPrev - 1, 1, true) + ' on ' + (T - 1) : '') + '. ') + (py ? AZ.money(py, 1) + ' in all of ' + (T - 1) + ', the scenarios ' + on(totA) + ' and ' + on(totB) + ' on it. ' : '') + 'A projection, not a forecast.' : '',
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Month: { month: 'short', year: 'numeric', timeZone: 'UTC' } },
+  colors: { Actual: '#1E1E24', [A]: '#4A5872', [B]: '#8E9AAB' },
+  text: { noData: 'No rows yet. Bind the search [sales] [date].monthly' },
+  data: pts
 });

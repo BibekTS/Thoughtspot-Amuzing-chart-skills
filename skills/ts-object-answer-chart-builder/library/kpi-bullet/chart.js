@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,99 +243,25 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
-/* body */
-
 // Search: [sales] [quantity purchased] [date].monthly
-// KPI set, shared prelude (each tile of the set stores this in full).
-const NEED = 'sales, quantity purchased and date at monthly grain, e.g. [sales] [quantity purchased] [date].monthly';
-const NS = 'http://www.w3.org/2000/svg';
-const MET = {
-  sales: { tab: 'Sales', label: 'Sales', month: (r) => r.s, agg: (a) => a.reduce((x, r) => x + r.s, 0), fmt: (v) => AZ.money(v, 1), fmtM: (v) => AZ.money(v, 2) },
-  units: { tab: 'Units', label: 'Units sold', month: (r) => r.u, agg: (a) => a.reduce((x, r) => x + r.u, 0), fmt: (v) => AZ.int(v), fmtM: (v) => Math.round(v).toLocaleString('en-US') },
-  asp: { tab: 'Price', label: 'Price per unit', month: (r) => (r.u ? r.s / r.u : 0), agg: (a) => { const s = a.reduce((x, r) => x + r.s, 0), u = a.reduce((x, r) => x + r.u, 0); return u ? s / u : 0; }, fmt: (v) => '$' + v.toFixed(2), fmtM: (v) => '$' + v.toFixed(2) }
-};
-const MKEYS = ['sales', 'units', 'asp'];
-let met = 'sales';
-const CX = [];
-const tw = (ms, step, done, ez) => { const c = AZ.tween(ms, step, done, ez); CX.push(c); return c; };
-const stop = () => { CX.splice(0).forEach((f) => { try { f(); } catch (e) {} }); };
-const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
-const S = (tag, a, parent) => { const n = document.createElementNS(NS, tag); for (const k in a) n.setAttribute(k, a[k]); if (parent) parent.appendChild(n); return n; };
-// The core fades every direct child of #chart in with fill-mode both, which would pin a tooltip at opacity 1: give the tip its own root.
-const mkTip = (el) => { const r = document.createElement('div'); r.style.cssText = 'position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none'; el.appendChild(r); return AZ.tip(r); };
-const rel = (box, e) => { const r = box.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
-function prep(rows, schema) {
-  const dK = AZ.col(schema, /date|month/i), sK = AZ.col(schema, /sales/i), uK = AZ.col(schema, /quantity|units/i);
-  const M = rows.map((r) => ({ t: AZ.ms(r[dK]), s: AZ.num(r[sK]), u: AZ.num(r[uK]) })).filter((r) => isFinite(r.t)).sort((a, b) => a.t - b.t);
-  return M.length ? M : null;
-}
-const emptyMsg = (el) => AZ.paint(el, '<div class="az-empty"><b>No months in this filter</b><span>This tile needs: ' + AZ.esc(NEED) + '</span></div>');
-// Year to date against the same months of the year before, from the rows.
-function yt(M, m) {
-  const last = M[M.length - 1].t, ly = AZ.year(last), lm = new Date(last).getUTCMonth();
-  const inY = (r, y) => AZ.year(r.t) === y && new Date(r.t).getUTCMonth() <= lm;
-  const cur = M.filter((r) => inY(r, ly)), prev = M.filter((r) => inY(r, ly - 1));
-  const ok = prev.length > 0 && prev.length === cur.length;
-  const curV = m.agg(cur), prevV = ok ? m.agg(prev) : null;
-  return { last, ly, lm, cur, prev, ok, curV, prevV, pc: ok && prevV ? curV / prevV - 1 : null, span: (cur.length && cur[0].t !== last ? AZ.monthShort(cur[0].t) + ' to ' + AZ.monthLabel(last) : AZ.monthLabel(last)) };
-}
-const dHtml = (y) => (y.pc == null ? 'No prior year in the current filter' : '<b class="' + (y.pc >= 0 ? 'up' : 'dn') + '">' + AZ.pct(y.pc, 1, true) + '</b> YTD vs same months last year');
-const segHtml = () => '<div class="kp-seg" role="group" aria-label="Metric">' + MKEYS.map((k) => '<button type="button" data-k="' + k + '" class="' + (k === met ? 'on' : '') + '">' + MET[k].tab + '</button>').join('') + '</div>';
-const wireSeg = (el, redraw) => el.querySelectorAll('.kp-seg button').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); met = b.getAttribute('data-k'); redraw(); }));
-const sameMonthBefore = (M, t) => { const d = new Date(t); d.setUTCFullYear(d.getUTCFullYear() - 1); return M.find((r) => r.t === d.getTime()) || null; };
-const ord = (n) => { const a = n % 100, b = n % 10; return n + (a >= 11 && a <= 13 ? 'th' : b === 1 ? 'st' : b === 2 ? 'nd' : b === 3 ? 'rd' : 'th'); };
-
-// kpi-bullet: latest month (bar) against the best month and the average month (markers), on a two-step band.
-// Interactions: metric toggle, hover the track or a legend row for each marker.
-let lastFrac = 0;
-AZ.boot({
-  need: NEED,
-  render: async ({ el, rows, schema, redraw }) => {
-    const M = prep(rows, schema);
-    if (!M) return emptyMsg(el);
-    const m = MET[met], y = yt(M, m), vals = M.map(m.month);
-    const latest = M[M.length - 1], lv = vals[vals.length - 1];
-    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-    let bi = 0; vals.forEach((v, i) => { if (v > vals[bi]) bi = i; });
-    const best = vals[bi], max = Math.max(best, lv) * 1.06 || 1;
-    const P = (v) => (v / max * 100).toFixed(2) + '%';
-    const mk = [
-      { id: 'lat', name: 'Latest month', sub: AZ.monthLabel(latest.t), v: lv },
-      { id: 'avg', name: 'Average month', sub: M.length + ' months', v: avg },
-      { id: 'best', name: 'Best month', sub: AZ.monthLabel(M[bi].t), v: best }
-    ];
-    el.innerHTML = '<div class="kp-top"><div class="kp-label">' + AZ.esc(m.label + ', latest month') + '</div>' + segHtml() + '</div>'
-      + '<div class="kp-hero">' + AZ.esc(m.fmt(lv)) + '</div><div class="kp-delta">' + dHtml(y) + '</div>'
-      + '<div class="bl-track" id="bl"><div class="bl-b1" style="width:' + P(avg) + '"></div><div class="bl-b2" style="left:' + P(avg) + ';width:calc(' + P(best) + ' - ' + P(avg) + ')"></div>'
-      + '<div class="bl-bar" id="bl-bar"></div><div class="bl-m bl-avg" data-id="avg" style="left:' + P(avg) + '"></div><div class="bl-m bl-best" data-id="best" style="left:' + P(best) + '"></div></div>'
-      + '<div class="bl-leg">' + mk.map((k) => '<div class="bl-row" data-id="' + k.id + '"><span class="bl-sw bl-sw-' + k.id + '"></span><span class="bl-nm">' + AZ.esc(k.name) + '</span><span class="bl-sb">' + AZ.esc(k.sub) + '</span><b>' + AZ.esc(m.fmt(k.v)) + '</b></div>').join('') + '</div>';
-    wireSeg(el, redraw);
-    const track = el.querySelector('#bl'), bar = el.querySelector('#bl-bar'), tip = mkTip(el);
-    const f0 = lastFrac, f1 = lv / max;
-    tw(650, (k) => { bar.style.width = (AZ.lerp(f0, f1, k) * 100).toFixed(2) + '%'; });
-    lastFrac = f1;
-    const describe = (k) => {
-      let h = '<b>' + AZ.esc(k.name + ', ' + k.sub) + '</b>' + AZ.row('Value', m.fmtM(k.v));
-      if (k.id === 'lat') { h += AZ.row('Against average', avg ? AZ.pct(lv / avg - 1, 1, true) : 'n/a') + AZ.row('Against best', best ? AZ.pct(lv / best - 1, 1, true) : 'n/a'); }
-      if (k.id === 'avg') h += AZ.row('Latest against it', avg ? AZ.pct(lv / avg - 1, 1, true) : 'n/a');
-      return h;
-    };
-    const hot = (id) => { el.classList.toggle('bl-hot', !!id); track.className = 'bl-track' + (id ? ' hot-' + id : ''); };
-    const at = (id, x, yy) => { const k = mk.find((z) => z.id === id); hot(id); tip.show(describe(k), x, yy); };
-    track.addEventListener('mousemove', (e) => {
-      const r = track.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * max;
-      let pick = mk[0], bd = 1e18; mk.forEach((k) => { const d = Math.abs(k.v - px); if (d < bd) { bd = d; pick = k; } });
-      const p = rel(el, e); at(pick.id, p[0], p[1]);
-    });
-    track.addEventListener('mouseleave', () => { hot(null); tip.hide(); });
-    el.querySelectorAll('.bl-row').forEach((r) => {
-      r.addEventListener('mousemove', (e) => { const p = rel(el, e); at(r.getAttribute('data-id'), p[0], p[1]); });
-      r.addEventListener('mouseleave', () => { hot(null); tip.hide(); });
-    });
-    return stop;
-  }
+// Interactions: hover the sparkline for each month and its sales (arrow keys step through months); the bullet below sets the latest month against the average and the best month.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Sales';
+const M = rows.map((r) => ({ Month: AZ.ms(r[D]), Sales: AZ.num(r[V]) })).filter((r) => isFinite(r.Month)).sort((a, b) => a.Month - b.Month);
+// MayaCharts draws the empty state on one line, so it is short and set in 10px to fit a 280 px tile.
+// The bullet: bands end at the average month (warn) and the best month (target), on a scale a little past the best.
+const best = M.reduce((a, b) => (b.Sales > a.Sales ? b : a), { Sales: 0 }), avg = M.reduce((a, r) => a + r.Sales, 0) / (M.length || 1);
+AZ.maya({
+  type: 'kpi', x: 'Month', y: 'Sales',
+  title: M.length ? 'Sales, latest month' : '',
+  subtitle: M.length ? 'Average month ' + AZ.money(avg, 1) + ', best ' + AZ.monthLabel(best.Month) : '',
+  yDomain: [0, Math.max(best.Sales, 1) * 1.06], ...(M.length ? { colorBy: { target: best.Sales, warn: avg } } : {}),
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Month: { month: 'short', year: 'numeric', timeZone: 'UTC' } },
+  text: { noData: 'Bind [sales] [quantity purchased] [date].monthly', target: 'best month', onTrack: 'Best month', atRisk: 'Above average', offTrack: 'Below average', near: 'above average', above: 'best month', below: 'below average' },
+  theme: { fontSize: M.length ? '12px' : '10px', series1: '#1E1E24', good: '#1F7A4D', bad: '#B3261E' },
+  data: M
 });

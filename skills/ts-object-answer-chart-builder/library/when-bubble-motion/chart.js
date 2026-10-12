@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,230 +243,24 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
-// Search: [sales] [quantity purchased] [item type] [date].quarterly
-// Gapminder-style bubbles: one bubble per item type, x units in the quarter, y price per unit, area sales.
-// Play / Pause and a scrub slider move through the quarters; bubbles glide between them and leave a short trail.
-// Hover a bubble for its numbers; click one to follow it (the rest dim and its path across all quarters is drawn).
-let fpos = null, playing = false, followed = null;
-
-AZ.boot({
-  need: 'sales, quantity purchased, item type and date at quarterly grain, e.g. [sales] [quantity purchased] [item type] [date].quarterly',
-  render: async ({ el, rows, schema, w, h }) => {
-    const sK = AZ.col(schema, /sales/i), uK = AZ.col(schema, /quantity/i), iK = AZ.col(schema, /item/i), dK = AZ.col(schema, /date|quarter|month/i);
-    const qset = new Set(), by = new Map();
-    rows.forEach((r) => {
-      const t = AZ.ms(r[dK]); if (!isFinite(t)) return;
-      qset.add(t);
-      const k = String(r[iK]);
-      if (!by.has(k)) by.set(k, new Map());
-      const m = by.get(k), o = m.get(t) || { s: 0, u: 0 };
-      o.s += AZ.num(r[sK]); o.u += AZ.num(r[uK]); m.set(t, o);
-    });
-    const qs = Array.from(qset).sort((a, b) => a - b);
-    if (!qs.length || !by.size) { AZ.paint(el, '<div class="az-empty"><b>No quarters in the result</b><span>The search needs [sales] [quantity purchased] [item type] [date].quarterly</span></div>'); return; }
-    const last = qs.length - 1;
-    const qLabel = (t) => { const d = new Date(t); return 'Q' + (Math.floor(d.getUTCMonth() / 3) + 1) + ' ' + d.getUTCFullYear(); };
-    const items = Array.from(by.keys()).map((name) => {
-      const m = by.get(name);
-      const pts = qs.map((t) => { const o = m.get(t); return o && o.u > 0 && o.s > 0 ? { s: o.s, u: o.u, p: o.s / o.u } : null; });
-      return { name, pts, col: AZ.familyColor(name), fam: AZ.familyOf(name) };
-    }).filter((it) => it.pts.some((p) => p));
-    if (!items.length) { AZ.paint(el, '<div class="az-empty"><b>No units in the result</b><span>The search needs [quantity purchased] alongside [sales]</span></div>'); return; }
-    if (fpos == null || fpos > last) fpos = last;
-    if (followed && !by.has(followed)) followed = null;
-    const firstJune = new Date(qs[0]).getUTCFullYear() === 2021 && new Date(qs[0]).getUTCMonth() === 3;
-    const qtotal = qs.map((t, i) => items.reduce((a, it) => a + (it.pts[i] ? it.pts[i].s : 0), 0));
-
-    let xmax = 0, pmin = 1e12, pmax = 0, smax = 0;
-    items.forEach((it) => it.pts.forEach((p) => { if (!p) return; xmax = Math.max(xmax, p.u); pmin = Math.min(pmin, p.p); pmax = Math.max(pmax, p.p); smax = Math.max(smax, p.s); }));
-    const niceMax = (v) => { const pw = Math.pow(10, Math.floor(Math.log10(v))); return ([1, 2, 2.5, 5, 10].find((n) => n * pw >= v) || 10) * pw; };
-    const xTop = niceMax(xmax * 1.04);
-    const span0 = Math.max(4, pmax - pmin), ystep = [1, 2, 5, 10, 20, 25, 50].find((n) => n * 4 >= span0 * 1.15) || 50;
-    let yLo = Math.max(0, Math.floor(pmin / ystep) * ystep - (pmin - Math.floor(pmin / ystep) * ystep < ystep * 0.25 ? ystep : 0)), yHi = yLo + ystep * 4;
-    while (yHi < pmax + ystep * 0.2) yHi += ystep;
-    const yTicks = Math.round((yHi - yLo) / ystep);
-
-    el.classList.toggle('bm-sm', w < 340); el.classList.toggle('bm-md', w < 480);
-    el.innerHTML =
-      '<div class="bm-head" id="bm-head"></div>'
-      + '<div class="bm-ctl"><button type="button" class="bm-btn" id="bm-play"></button>'
-      + '<input type="range" class="bm-slider" id="bm-sl" min="0" max="' + last + '" step="1" value="' + Math.round(fpos) + '" aria-label="Quarter"' + (last ? '' : ' disabled') + '>'
-      + '<div class="bm-q" id="bm-q"></div></div>'
-      + '<div class="bm-plot" id="bm-plot"></div>'
-      + '<div class="bm-key" id="bm-key"></div>';
-    const head = el.querySelector('#bm-head'), btn = el.querySelector('#bm-play'), sl = el.querySelector('#bm-sl'), qEl = el.querySelector('#bm-q'), plot = el.querySelector('#bm-plot'), key = el.querySelector('#bm-key');
-    const fams = []; items.forEach((it) => { if (fams.indexOf(it.fam) < 0) fams.push(it.fam); });
-    key.innerHTML = fams.map((f) => '<span class="bm-k"><i style="background:' + AZ.T.family[f] + '"></i>' + AZ.esc(f) + '</span>').join('')
-      + '<span class="bm-note">Area is sales in the quarter.' + (firstJune && w > 420 ? ' ' + AZ.esc(qLabel(qs[0])) + ' holds June only.' : '') + '</span>';
-
-    const W = Math.max(200, plot.clientWidth), H = Math.max(100, plot.clientHeight);
-    const narrow = W < 420, ML = narrow ? 40 : 52, MR = 14, MT = 10, MB = 30;
-    const pw = W - ML - MR, ph = H - MT - MB;
-    const xs = (v) => ML + v / xTop * pw, ys = (v) => MT + (1 - (v - yLo) / (yHi - yLo)) * ph;
-    const rMax = Math.max(14, Math.min(38, Math.min(pw, ph) * 0.14));
-    const rs = (s) => Math.max(2.5, rMax * Math.sqrt(s / smax));
-    const NS = 'http://www.w3.org/2000/svg';
-    const mk = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); Object.keys(attrs || {}).forEach((k) => n.setAttribute(k, attrs[k])); if (parent) parent.appendChild(n); return n; };
-
-    const svg = mk('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': 'Bubble chart of item types by quarter' }, plot);
-    // grid + axes
-    const gA = mk('g', {}, svg);
-    for (let i = 0; i <= yTicks; i++) {
-      const v = yLo + ystep * i, y = ys(v);
-      mk('line', { x1: ML, x2: W - MR, y1: y, y2: y, stroke: AZ.T.grid }, gA);
-      mk('text', { class: 'bm-ax', x: ML - 6, y: y + 4, 'text-anchor': 'end' }, gA).textContent = AZ.money(v, 0);
-    }
-    const nx = narrow ? 2 : 5;
-    for (let i = 0; i <= nx; i++) {
-      const v = xTop * i / nx, x = xs(v);
-      mk('line', { x1: x, x2: x, y1: MT, y2: H - MB, stroke: AZ.T.grid, opacity: 0.6 }, gA);
-      mk('text', { class: 'bm-ax', x: x, y: H - MB + 14, 'text-anchor': i === 0 ? 'start' : i === nx ? 'end' : 'middle' }, gA).textContent = AZ.int(v);
-    }
-    mk('text', { class: 'bm-axt', x: W - MR, y: H - 3, 'text-anchor': 'end' }, gA).textContent = narrow ? 'Units in the quarter' : 'Units sold in the quarter';
-    mk('text', { class: 'bm-axt', x: ML - 6, y: MT - 1, 'text-anchor': 'start', transform: 'translate(0,0)' }, gA).textContent = '';
-    const big = mk('text', { class: 'bm-big', x: ML + 10, y: MT + (narrow ? 34 : 50) }, svg);
-    const big2 = mk('text', { class: 'bm-big2', x: ML + 12, y: MT + (narrow ? 48 : 68) }, svg);
-    const gF = mk('g', {}, svg), gT = mk('g', {}, svg), gB = mk('g', {}, svg), gL = mk('g', { 'pointer-events': 'none' }, svg);
-
-    // per item elements
-    items.forEach((it) => {
-      it.trail = mk('path', { fill: 'none', stroke: it.col, 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', opacity: 0.3, 'pointer-events': 'none' }, gT);
-      it.tdots = [0, 1, 2, 3].map(() => mk('circle', { r: 2, fill: it.col, opacity: 0, 'pointer-events': 'none' }, gT));
-      it.c = mk('circle', { class: 'bm-bub', r: 5, fill: it.col, 'fill-opacity': 0.72, stroke: '#fff', 'stroke-width': 1.5, tabindex: 0, role: 'button', 'aria-label': it.name }, gB);
-      it.lb = mk('text', { class: 'bm-lb', 'text-anchor': 'start' }, gL);
-    });
-    // follow path (all quarters) and the part travelled so far
-    const fAll = mk('path', { fill: 'none', 'stroke-width': 1.6, 'stroke-dasharray': '3 3', opacity: 0, 'pointer-events': 'none' }, gF);
-    const fNow = mk('path', { fill: 'none', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', opacity: 0, 'pointer-events': 'none' }, gF);
-    const fDots = mk('g', { 'pointer-events': 'none' }, gF);
-    const tip = AZ.tip(el); let hov = null, lastRound = -1, cancelTw = () => {}, timer = 0, cancelFollow = () => {};
-
-    const P = (it, q) => it.pts[q];
-    // position of an item at fractional quarter f: {x, y, r, a}
-    function at(it, f) {
-      const a = Math.floor(f), b = Math.min(last, a + 1), k = f - a, pa = P(it, a), pb = P(it, b);
-      if (!pa && !pb) return null;
-      if (pa && pb) return { u: AZ.lerp(pa.u, pb.u, k), p: AZ.lerp(pa.p, pb.p, k), s: AZ.lerp(pa.s, pb.s, k), al: 1 };
-      return pa ? { u: pa.u, p: pa.p, s: pa.s, al: 1 - k } : { u: pb.u, p: pb.p, s: pb.s, al: k };
-    }
-    const pathOf = (it, from, to, f) => {
-      let d = '';
-      for (let q = from; q <= to; q++) { const p = P(it, q); if (!p) continue; d += (d ? 'L' : 'M') + xs(p.u).toFixed(1) + ' ' + ys(p.p).toFixed(1); }
-      if (f != null) { const c = at(it, f); if (c) d += (d ? 'L' : 'M') + xs(c.u).toFixed(1) + ' ' + ys(c.p).toFixed(1); }
-      return d;
-    };
-
-    function draw() {
-      const f = fpos, qr = Math.round(f), fl = Math.floor(f);
-      const cur = items.map((it) => ({ it, c: at(it, f) }));
-      cur.forEach(({ it, c }) => {
-        const isF = followed === it.name, dimmed = followed && !isF;
-        if (!c) { it.c.setAttribute('opacity', 0); it.c.style.pointerEvents = 'none'; it.trail.setAttribute('opacity', 0); it.tdots.forEach((d) => d.setAttribute('opacity', 0)); return; }
-        const cx = xs(c.u), cy = ys(c.p), r = rs(c.s);
-        it.c.setAttribute('cx', cx.toFixed(1)); it.c.setAttribute('cy', cy.toFixed(1)); it.c.setAttribute('r', r.toFixed(1));
-        it.c.setAttribute('opacity', (c.al * (dimmed ? 0.16 : 1)).toFixed(2)); it.c.style.pointerEvents = c.al < 0.3 ? 'none' : '';
-        it.c.setAttribute('stroke-width', isF || hov === it ? 2.4 : 1.5); it.c.setAttribute('stroke', isF || hov === it ? AZ.T.ink : '#fff');
-        // trail: the last 4 quarters before the current position
-        const from = Math.max(0, fl - 3);
-        it.trail.setAttribute('d', dimmed ? '' : pathOf(it, from, fl, f));
-        it.trail.setAttribute('opacity', dimmed ? 0 : 0.3 * c.al);
-        it.tdots.forEach((d, i) => {
-          const q = fl - 3 + i, p = q >= 0 && q <= fl ? P(it, q) : null;
-          if (!p || dimmed || q === fl && f - fl < 0.02) { d.setAttribute('opacity', 0); return; }
-          d.setAttribute('cx', xs(p.u).toFixed(1)); d.setAttribute('cy', ys(p.p).toFixed(1)); d.setAttribute('opacity', (0.12 + 0.1 * i).toFixed(2) * c.al);
-        });
-        // label on the largest of the current quarter, the followed and the hovered one
-        it.rank = 0;
-      });
-      const ord = cur.filter((o) => o.c).sort((a, b) => b.c.s - a.c.s);
-      ord.forEach((o, i) => { o.it.rank = i; });
-      if (qr !== lastRound) { ord.slice().reverse().forEach((o) => gB.appendChild(o.it.c)); }
-      const nl = narrow ? 3 : 5;
-      cur.forEach(({ it, c }) => {
-        const show = c && ((it.rank < nl && !followed) || followed === it.name || hov === it);
-        if (!show) { it.lb.setAttribute('opacity', 0); return; }
-        const r = rs(c.s), cx = xs(c.u), left = cx + r + 4 + 60 > W - MR;
-        it.lb.setAttribute('x', (left ? cx - r - 4 : cx + r + 4).toFixed(1)); it.lb.setAttribute('y', (ys(c.p) + 4).toFixed(1));
-        it.lb.setAttribute('text-anchor', left ? 'end' : 'start'); it.lb.textContent = it.name; it.lb.setAttribute('opacity', c.al.toFixed(2));
-      });
-      // follow layer
-      const fi = followed ? items.find((x) => x.name === followed) : null;
-      if (fi) {
-        fAll.setAttribute('d', pathOf(fi, 0, last)); fAll.setAttribute('stroke', fi.col); fAll.setAttribute('opacity', 0.55);
-        fNow.setAttribute('d', pathOf(fi, 0, Math.floor(f), f)); fNow.setAttribute('stroke', fi.col); fNow.setAttribute('opacity', 0.95);
-      } else { fAll.setAttribute('opacity', 0); fNow.setAttribute('opacity', 0); }
-      if (qr !== lastRound || fi) {
-        fDots.innerHTML = '';
-        if (fi) fi.pts.forEach((p, q) => {
-          if (!p) return;
-          const d = new Date(qs[q]), yr = d.getUTCMonth() === 0 || q === 0;
-          mk('circle', { cx: xs(p.u).toFixed(1), cy: ys(p.p).toFixed(1), r: 2.6, fill: '#fff', stroke: fi.col, 'stroke-width': 1.5, opacity: q <= f + 0.01 ? 1 : 0.5 }, fDots);
-          if (yr && !narrow || q === 0) mk('text', { class: 'bm-yr', x: (xs(p.u) + (q === 0 ? 0 : 5)).toFixed(1), y: (ys(p.p) + (q === 0 ? 14 : -6)).toFixed(1), 'text-anchor': q === 0 ? 'middle' : 'start' }, fDots).textContent = q === 0 ? qLabel(qs[q]) : String(d.getUTCFullYear());
-        });
-      }
-      if (qr !== lastRound) {
-        lastRound = qr;
-        big.textContent = qLabel(qs[qr]);
-        big2.textContent = qr === 0 && firstJune ? 'June only' : '';
-        const top = ord[0], tot = qtotal[qr];
-        const c0 = top ? P(top.it, qr) : null;
-        head.innerHTML = top && c0 ? '<b>' + AZ.esc(top.it.name) + '</b> leads ' + AZ.esc(qLabel(qs[qr])) + ' with ' + AZ.money(c0.s, 1) + ', ' + AZ.pct(tot ? c0.s / tot : 0, 0) + ' of sales, at ' + AZ.money(c0.p, 2) + ' a unit' + (items.length > 1 && w >= 480 ? ' <span>| ' + items.length + ' item types</span>' : '') : 'No sales in ' + AZ.esc(qLabel(qs[qr]));
-        qEl.textContent = qLabel(qs[qr]);
-      }
-      sl.value = String(qr);
-      btn.textContent = playing ? 'Pause' : 'Play';
-      btn.setAttribute('aria-label', playing ? 'Pause' : (Math.round(fpos) >= last ? 'Play again from the first quarter' : 'Play'));
-    }
-
-    // motion: one tween per step between quarters
-    function goTo(target, ms, then) {
-      cancelTw();
-      const from = fpos;
-      cancelTw = AZ.tween(ms, (e) => { fpos = AZ.lerp(from, target, e); draw(); }, () => { fpos = target; draw(); if (then) then(); }, AZ.EASE.inOut);
-    }
-    function stepPlay() {
-      if (!playing) return;
-      if (Math.round(fpos) >= last) { playing = false; draw(); return; }
-      goTo(Math.round(fpos) + 1, 620, () => { timer = setTimeout(stepPlay, AZ.reduced() ? 600 : 0); });
-    }
-    btn.addEventListener('click', () => {
-      if (playing) { playing = false; cancelTw(); clearTimeout(timer); fpos = Math.round(fpos); draw(); return; }
-      if (Math.round(fpos) >= last) { fpos = 0; }
-      playing = true; draw(); stepPlay();
-    });
-    sl.addEventListener('input', () => { playing = false; clearTimeout(timer); goTo(Number(sl.value), 380); });
-
-    // hover + follow
-    const info = (it, e) => {
-      const q = Math.round(fpos), p = P(it, q), b = el.getBoundingClientRect();
-      if (!p) return tip.hide();
-      tip.show('<b>' + AZ.esc(it.name) + '</b>' + AZ.row(qLabel(qs[q]) + ' sales', AZ.money(p.s, 2)) + AZ.row('Units', AZ.int(p.u)) + AZ.row('Price per unit', AZ.money(p.p, 2))
-        + AZ.row('Share of sales', AZ.pct(qtotal[q] ? p.s / qtotal[q] : 0, 1)) + (followed === it.name ? AZ.row('Following', 'click to release') : AZ.row('Follow', 'click')), e.clientX - b.left, e.clientY - b.top);
-    };
-    const follow = (it) => {
-      followed = followed === it.name ? null : it.name; lastRound = -1;
-      cancelFollow();
-      draw();
-      if (followed) { cancelFollow = AZ.tween(600, (e) => { const len = fAll.getTotalLength ? fNow.getTotalLength() : 0; fNow.setAttribute('stroke-dasharray', (len * e) + ' ' + (len + 1)); }, () => fNow.removeAttribute('stroke-dasharray'), AZ.EASE.out); }
-    };
-    items.forEach((it) => {
-      it.c.addEventListener('mousemove', (e) => { hov = it; info(it, e); draw(); });
-      it.c.addEventListener('mouseleave', () => { hov = null; tip.hide(); draw(); });
-      it.c.addEventListener('click', () => follow(it));
-      it.c.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); follow(it); } });
-      it.c.addEventListener('focus', () => { const b = it.c.getBoundingClientRect(), a = el.getBoundingClientRect(); hov = it; info(it, { clientX: b.left + b.width / 2, clientY: b.top }); });
-      it.c.addEventListener('blur', () => { hov = null; tip.hide(); });
-    });
-    const onKey = (e) => { if (e.key === 'Escape' && followed) { followed = null; lastRound = -1; draw(); } };
-    window.addEventListener('keydown', onKey);
-    svg.addEventListener('click', (e) => { if (e.target === svg && followed) { followed = null; lastRound = -1; draw(); } });
-
-    draw();
-    if (playing) stepPlay();
-    return () => { cancelTw(); cancelFollow(); clearTimeout(timer); window.removeEventListener('keydown', onKey); };
-  }
+// Search: [sales] [quantity purchased] [item type] [date].quarterly   (Family is an editorial grouping of Item Type, derived here)
+// Interactions: Play steps through the quarters (axes hold still); hover a bubble for its quarter, units, price and sales; click a bubble or a legend family to select it, Escape clears.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const opt = { optional: true }, I = AZ.col(schema, /item/i, opt) ?? 'Item type', D = AZ.col(schema, /date|quarter/i, opt) ?? 'Quarter', V = AZ.col(schema, /sales/i, opt) ?? 'Sales', U = AZ.col(schema, /quantity|units/i, opt) ?? 'Units';
+// One bubble per item type and quarter: price per unit is sales over units, the quarter a label in time order.
+const qOf = (t) => { const d = new Date(t); return 'Q' + (Math.floor(d.getUTCMonth() / 3) + 1) + ' ' + d.getUTCFullYear(); };
+const pts = rows.filter((r) => AZ.num(r[U]) > 0 && AZ.num(r[V]) > 0).sort((a, b) => AZ.ms(a[D]) - AZ.ms(b[D]))
+  .map((r) => ({ 'Item type': r[I], Family: AZ.familyOf(r[I]), Quarter: qOf(AZ.ms(r[D])), Units: AZ.num(r[U]), Price: AZ.num(r[V]) / AZ.num(r[U]), Sales: AZ.num(r[V]) }));
+AZ.maya({
+  type: 'scatter', x: 'Units', y: 'Price', size: 'Sales', series: 'Family', name: 'Item type', frame: 'Quarter', select: true, colors: AZ.T.family,
+  title: pts.length ? 'Item types by units and price' : '',
+  subtitle: pts.length ? 'Area is sales in the quarter; press Play to step through the quarters' : '',
+  titles: { Units: 'Units sold', Price: 'Price per unit' },
+  format: { Units: { notation: 'compact', maximumFractionDigits: 1 }, Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }, Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
+  text: { noData: 'No rows yet. Bind the search [sales] [quantity purchased] [item type] [date].quarterly' },
+  data: pts
 });

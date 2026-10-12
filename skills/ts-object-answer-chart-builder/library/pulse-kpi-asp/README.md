@@ -6,16 +6,16 @@ Is the price per unit rising or sliding?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [quantity purchased] [date].monthly` |
-| Library | HTML and inline SVG (no chart library) |
+| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
 | Tile | 3x4 grid units (Pulse tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | none |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
 
 ## Interactions
-YTD and All toggle. Hover the sparkline for the month, its value and the change on the same month a year earlier.
+Hover the sparkline, or focus the tile and use the arrow keys, for each year's total over the same months; Space pins the tooltip. The headline counts up on the first draw.
 
 ## Notes
-One source file serves four KPI tiles; the tile picks its metric with data-kpi in chart.html (asp). The comparison is the same months of the latest year against the year before, so it holds under a date filter. Search returns sales and units so any of the four can share it.
+Built on MayaCharts 0.16.0 as a `kpi` tile with `aggregate: { ratio: ['Sales', 'Units'] }`, so each year's price is its total sales over its total units for the same months (never an average of monthly prices). The body keeps the months from January to the latest month of every year that has all of them and labels each row with its year; the change line reads this year against the same months last year. The sparkline is now one point per year, not the last 24 months. Dropped against the old tile: the YTD and All toggle, the month-level sparkline with its year-earlier tooltip, and the span caption. The tile is no longer shared with the other Pulse KPIs through data-kpi. Preview-verified on synthetic data, not yet re-checked on a cluster.
 
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.

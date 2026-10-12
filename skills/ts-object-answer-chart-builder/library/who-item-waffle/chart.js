@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,107 +243,26 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
-// Search: [sales] [quantity purchased] [item type]
-// 10x10 waffle by product family with a Sales / Units toggle. Cells are assigned by largest remainder so they total 100.
-// Interactions: toggle metric, hover a family (cells or key) to highlight it, click to isolate it and list its item types.
-let metric = 'sales', iso = null;
-
-AZ.boot({
-  need: 'sales, quantity purchased and item type, e.g. [sales] [quantity purchased] [item type]',
-  render: async ({ el, rows, schema, w, h, redraw }) => {
-    const tK = AZ.col(schema, /item type|type/i), sK = AZ.col(schema, /sales/i), uK = AZ.col(schema, /quantity|units/i);
-    const types = new Map();
-    rows.forEach((r) => {
-      const t = String(r[tK]), o = types.get(t) || { type: t, sales: 0, units: 0 };
-      o.sales += AZ.num(r[sK]); o.units += AZ.num(r[uK]); types.set(t, o);
-    });
-    const order = Object.keys(AZ.T.family).concat(['Other']);
-    const fam = new Map();
-    types.forEach((o) => {
-      const f = AZ.familyOf(o.type);
-      const g = fam.get(f) || { name: f, color: AZ.T.family[f] || AZ.T.muted, sales: 0, units: 0, items: [] };
-      g.sales += o.sales; g.units += o.units; g.items.push(o); fam.set(f, g);
-    });
-    const F = order.filter((n) => fam.has(n)).map((n) => fam.get(n));
-    const tS = F.reduce((a, g) => a + g.sales, 0), tU = F.reduce((a, g) => a + g.units, 0);
-    if (!F.length || (!tS && !tU)) throw new Error('No item types in the result. Search: [sales] [quantity purchased] [item type]');
-    F.forEach((g) => { g.ss = tS ? g.sales / tS : 0; g.us = tU ? g.units / tU : 0; });
-    if (iso && !fam.has(iso)) iso = null;
-    const key = metric === 'sales' ? 'ss' : 'us';
-    // Largest remainder: floor each share of 100, hand the leftover cells to the biggest remainders.
-    const cells = F.map((g) => Math.floor(g[key] * 100 + 1e-9));
-    let left = 100 - cells.reduce((a, b) => a + b, 0);
-    F.map((g, i) => ({ i, r: g[key] * 100 - cells[i] })).sort((a, b) => b.r - a.r || a.i - b.i).forEach((o) => { if (left > 0) { cells[o.i] += 1; left -= 1; } });
-    F.forEach((g, i) => { g.cells = cells[i]; });
-    // Header: family with the widest gap between share of sales and share of units.
-    const wide = F.slice().sort((a, b) => Math.abs(b.ss - b.us) - Math.abs(a.ss - a.us))[0];
-    const headTxt = F.length < 2
-      ? '<b>' + AZ.esc(wide.name) + '</b> is the only family in the current filter.'
-      : '<b>' + AZ.esc(wide.name) + '</b> takes ' + AZ.pct(wide.ss, 0) + ' of sales from ' + AZ.pct(wide.us, 0) + ' of units, the widest gap of the ' + F.length + ' families.';
-
-    el.innerHTML =
-      '<div class="wf-top"><div class="wf-head">' + headTxt + '</div>'
-      + '<div class="wf-seg" role="group" aria-label="Measure"><button type="button" data-m="sales" class="' + (metric === 'sales' ? 'on' : '') + '" aria-pressed="' + (metric === 'sales') + '">Sales</button><button type="button" data-m="units" class="' + (metric === 'units' ? 'on' : '') + '" aria-pressed="' + (metric === 'units') + '">Units</button></div></div>'
-      + '<div class="wf-main"><div class="wf-grid" id="wf-grid"></div><div class="wf-side" id="wf-side"></div></div>'
-      + '<div class="wf-ft" id="wf-ft"></div>';
-    el.querySelectorAll('.wf-seg button').forEach((b) => b.addEventListener('click', () => { metric = b.getAttribute('data-m'); redraw(); }));
-
-    const grid = el.querySelector('#wf-grid'), side = el.querySelector('#wf-side'), ft = el.querySelector('#wf-ft');
-    const S = Math.max(120, Math.min(Math.floor(h - 110), Math.floor(w * (w < 340 ? 0.36 : 0.42))));
-    grid.style.width = S + 'px'; grid.style.height = S + 'px';
-    const owner = [];
-    F.forEach((g, gi) => { for (let k = 0; k < g.cells; k++) owner.push(gi); });
-    grid.innerHTML = owner.map((gi, n) => '<div class="wf-c" data-g="' + gi + '" style="background:' + F[gi].color + '"></div>').join('');
-    const cellEls = Array.from(grid.children);
-    const tip = AZ.tip(el);
-    const fmtM = (n) => metric === 'sales' ? AZ.money(n, 1) : AZ.int(n);
-    ft.innerHTML = 'Each square is 1% of ' + (metric === 'sales' ? '<b>' + AZ.money(tS, 1) + '</b> in sales' : '<b>' + AZ.int(tU) + '</b> units') + '. Families are an editorial grouping of item types.';
-
-    let hoverG = null;
-    function paintHi() {
-      const act = hoverG != null ? hoverG : (iso ? F.findIndex((g) => g.name === iso) : null);
-      grid.classList.toggle('dim', act != null);
-      cellEls.forEach((c) => c.classList.toggle('on', act != null && Number(c.getAttribute('data-g')) === act));
-      side.classList.toggle('dim', act != null && !iso);
-      side.querySelectorAll('.wf-k').forEach((k) => k.classList.toggle('on', act != null && Number(k.getAttribute('data-g')) === act));
-    }
-    function isolate(gi) { iso = iso === F[gi].name ? null : F[gi].name; hoverG = null; paintSide(); paintHi(); tip.hide(); }
-    function paintSide() {
-      if (iso) {
-        const g = fam.get(iso), tot = metric === 'sales' ? g.sales : g.units, gi = F.indexOf(g);
-        side.innerHTML = '<button type="button" class="wf-back">All families</button>'
-          + '<div class="wf-k on" style="cursor:default" data-g="' + gi + '"><i style="background:' + g.color + '"></i><span>' + AZ.esc(g.name) + '</span><em>' + AZ.pct(g[key], 1) + '</em><small>' + AZ.money(g.sales, 1) + ' sales, ' + AZ.int(g.units) + ' units</small></div>'
-          + g.items.slice().sort((a, b) => (metric === 'sales' ? b.sales - a.sales : b.units - a.units)).map((o) => {
-            const v = metric === 'sales' ? o.sales : o.units, p = tot ? v / tot : 0;
-            return '<div class="wf-it"><span>' + AZ.esc(o.type) + '</span><em>' + AZ.pct(p, 0) + ' of family</em><u style="width:' + Math.max(2, Math.round(p * 100)) + '%"></u></div>';
-          }).join('');
-        side.querySelector('.wf-back').addEventListener('click', () => { iso = null; paintSide(); paintHi(); });
-      } else {
-        side.innerHTML = F.map((g, gi) => '<button type="button" class="wf-k" data-g="' + gi + '" aria-label="' + AZ.esc(g.name + ', ' + AZ.pct(g[key], 0) + ' of ' + metric + '. Click to isolate') + '"><i style="background:' + g.color + '"></i><span>' + AZ.esc(g.name) + '</span><em>' + AZ.pct(g[key], 0) + '</em><small>' + AZ.money(g.sales, 1) + ' sales, ' + AZ.int(g.units) + ' units</small></button>').join('');
-        side.querySelectorAll('.wf-k').forEach((k) => {
-          const gi = Number(k.getAttribute('data-g'));
-          k.addEventListener('mouseenter', () => { hoverG = gi; paintHi(); });
-          k.addEventListener('mouseleave', () => { hoverG = null; paintHi(); });
-          k.addEventListener('focus', () => { hoverG = gi; paintHi(); });
-          k.addEventListener('blur', () => { hoverG = null; paintHi(); });
-          k.addEventListener('click', () => isolate(gi));
-        });
-      }
-    }
-    // Hit-test by position so the 2px gaps between squares still count as the square beside them.
-    const hit = (e) => { const r = grid.getBoundingClientRect(), c = Math.min(9, Math.max(0, Math.floor((e.clientX - r.left) / r.width * 10))), q = Math.min(9, Math.max(0, Math.floor((e.clientY - r.top) / r.height * 10))); return owner[q * 10 + c]; };
-    grid.addEventListener('mousemove', (e) => {
-      const gi = hit(e); if (gi == null) return;
-      const g = F[gi], b = el.getBoundingClientRect();
-      if (hoverG !== gi) { hoverG = gi; paintHi(); }
-      tip.show('<b>' + AZ.esc(g.name) + '</b>' + AZ.row('Share of ' + metric, AZ.pct(g[key], 1), g.color) + AZ.row('Squares', String(g.cells)) + AZ.row('Sales', AZ.money(g.sales, 1) + ' (' + AZ.pct(g.ss, 1) + ')') + AZ.row('Units', AZ.int(g.units) + ' (' + AZ.pct(g.us, 1) + ')'), e.clientX - b.left, e.clientY - b.top);
-    });
-    grid.addEventListener('mouseleave', () => { hoverG = null; paintHi(); tip.hide(); });
-    grid.addEventListener('click', (e) => { const gi = hit(e); if (gi != null) isolate(gi); });
-    paintSide(); paintHi();
-  }
-});
+// Search: [sales] [quantity purchased] [item type]   (Family is an editorial grouping of Item Type, derived here)
+// Interactions: Sales / Units toggle; hover a square or a key for the family's share; click a family (square or key) to select it, Escape clears.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, I = c(/item/i, 'Item Type'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
+// One row per family, in the house family order, so squares and key keep the same order on both measures.
+const fam = new Map(Object.keys(AZ.T.family).map((f) => [f, { Family: f, Sales: 0, Units: 0 }]));
+rows.forEach((r) => { const f = AZ.familyOf(r[I]), o = fam.get(f) ?? fam.set(f, { Family: f, Sales: 0, Units: 0 }).get(f); o.Sales += AZ.num(r[V]); o.Units += AZ.num(r[Q]); });
+const data = [...fam.values()].filter((o) => o.Sales > 0 || o.Units > 0);
+// Headline: the family whose share of sales differs most from its share of units.
+const S = data.reduce((a, o) => a + o.Sales, 0), U = data.reduce((a, o) => a + o.Units, 0);
+const g = data.map((o) => ({ f: o.Family, s: S ? o.Sales / S : 0, u: U ? o.Units / U : 0 })).sort((a, b) => Math.abs(b.s - b.u) - Math.abs(a.s - a.u))[0];
+AZ.maya({
+  type: 'waffle', x: 'Family', y: ['Sales', 'Units'], select: true, colors: AZ.T.family,
+  title: g ? g.f + ' takes ' + AZ.pct(g.s, 0) + ' of sales from ' + AZ.pct(g.u, 0) + ' of units' : '',
+  subtitle: g ? 'Each square is 1% of ' + AZ.money(S) + ' in sales or ' + AZ.int(U) + ' units' : '',
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Units: { notation: 'compact', maximumFractionDigits: 1 } },
+  text: { noData: 'No rows yet: bind [sales] [quantity purchased] [item type]' },
+  data
+}, 'maya.global.js');

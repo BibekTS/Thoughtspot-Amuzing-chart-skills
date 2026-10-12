@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,109 +243,28 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
-/* body */
-
 // Search: [sales] [quantity purchased] [date].monthly
-// KPI set, shared prelude (each tile of the set stores this in full).
-const NEED = 'sales, quantity purchased and date at monthly grain, e.g. [sales] [quantity purchased] [date].monthly';
-const NS = 'http://www.w3.org/2000/svg';
-const MET = {
-  sales: { tab: 'Sales', label: 'Sales', month: (r) => r.s, agg: (a) => a.reduce((x, r) => x + r.s, 0), fmt: (v) => AZ.money(v, 1), fmtM: (v) => AZ.money(v, 2) },
-  units: { tab: 'Units', label: 'Units sold', month: (r) => r.u, agg: (a) => a.reduce((x, r) => x + r.u, 0), fmt: (v) => AZ.int(v), fmtM: (v) => Math.round(v).toLocaleString('en-US') },
-  asp: { tab: 'Price', label: 'Price per unit', month: (r) => (r.u ? r.s / r.u : 0), agg: (a) => { const s = a.reduce((x, r) => x + r.s, 0), u = a.reduce((x, r) => x + r.u, 0); return u ? s / u : 0; }, fmt: (v) => '$' + v.toFixed(2), fmtM: (v) => '$' + v.toFixed(2) }
-};
-const MKEYS = ['sales', 'units', 'asp'];
-let met = 'sales';
-const CX = [];
-const tw = (ms, step, done, ez) => { const c = AZ.tween(ms, step, done, ez); CX.push(c); return c; };
-const stop = () => { CX.splice(0).forEach((f) => { try { f(); } catch (e) {} }); };
-const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
-const S = (tag, a, parent) => { const n = document.createElementNS(NS, tag); for (const k in a) n.setAttribute(k, a[k]); if (parent) parent.appendChild(n); return n; };
-// The core fades every direct child of #chart in with fill-mode both, which would pin a tooltip at opacity 1: give the tip its own root.
-const mkTip = (el) => { const r = document.createElement('div'); r.style.cssText = 'position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none'; el.appendChild(r); return AZ.tip(r); };
-const rel = (box, e) => { const r = box.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
-function prep(rows, schema) {
-  const dK = AZ.col(schema, /date|month/i), sK = AZ.col(schema, /sales/i), uK = AZ.col(schema, /quantity|units/i);
-  const M = rows.map((r) => ({ t: AZ.ms(r[dK]), s: AZ.num(r[sK]), u: AZ.num(r[uK]) })).filter((r) => isFinite(r.t)).sort((a, b) => a.t - b.t);
-  return M.length ? M : null;
-}
-const emptyMsg = (el) => AZ.paint(el, '<div class="az-empty"><b>No months in this filter</b><span>This tile needs: ' + AZ.esc(NEED) + '</span></div>');
-// Year to date against the same months of the year before, from the rows.
-function yt(M, m) {
-  const last = M[M.length - 1].t, ly = AZ.year(last), lm = new Date(last).getUTCMonth();
-  const inY = (r, y) => AZ.year(r.t) === y && new Date(r.t).getUTCMonth() <= lm;
-  const cur = M.filter((r) => inY(r, ly)), prev = M.filter((r) => inY(r, ly - 1));
-  const ok = prev.length > 0 && prev.length === cur.length;
-  const curV = m.agg(cur), prevV = ok ? m.agg(prev) : null;
-  return { last, ly, lm, cur, prev, ok, curV, prevV, pc: ok && prevV ? curV / prevV - 1 : null, span: (cur.length && cur[0].t !== last ? AZ.monthShort(cur[0].t) + ' to ' + AZ.monthLabel(last) : AZ.monthLabel(last)) };
-}
-const dHtml = (y) => (y.pc == null ? 'No prior year in the current filter' : '<b class="' + (y.pc >= 0 ? 'up' : 'dn') + '">' + AZ.pct(y.pc, 1, true) + '</b> YTD vs same months last year');
-const segHtml = () => '<div class="kp-seg" role="group" aria-label="Metric">' + MKEYS.map((k) => '<button type="button" data-k="' + k + '" class="' + (k === met ? 'on' : '') + '">' + MET[k].tab + '</button>').join('') + '</div>';
-const wireSeg = (el, redraw) => el.querySelectorAll('.kp-seg button').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); met = b.getAttribute('data-k'); redraw(); }));
-const sameMonthBefore = (M, t) => { const d = new Date(t); d.setUTCFullYear(d.getUTCFullYear() - 1); return M.find((r) => r.t === d.getTime()) || null; };
+// Interactions: hover a dot for its month and sales; click a dot to select it (Escape clears); click a legend key to select a group.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Sales';
+const M = rows.map((r) => ({ Month: AZ.ms(r[D]), Sales: AZ.num(r[V]) })).filter((r) => isFinite(r.Month)).sort((a, b) => a.Month - b.Month);
+// Rank of the latest month among every month in view; each dot is grouped against it (latest in ink, above and below in slate).
+const L = M[M.length - 1], above = L ? M.filter((r) => r.Sales > L.Sales).length : 0;
 const ord = (n) => { const a = n % 100, b = n % 10; return n + (a >= 11 && a <= 13 ? 'th' : b === 1 ? 'st' : b === 2 ? 'nd' : b === 3 ? 'rd' : 'th'); };
-
-// kpi-dotstrip: one dot per month in the current filter, oldest to newest, height is the value; the latest month is in ink and
-// a dashed line at its level shows how many months sit above it.
-// Interactions: metric toggle, hover a dot for its month, click a dot to pin it against the latest month, click again to unpin.
-let pinT = null;
-AZ.boot({
-  need: NEED,
-  render: async ({ el, rows, schema, redraw }) => {
-    const M = prep(rows, schema);
-    if (!M) return emptyMsg(el);
-    const m = MET[met], y = yt(M, m), vals = M.map(m.month), n = M.length, li = n - 1, lv = vals[li];
-    if (pinT != null && (pinT === M[li].t || !M.some((r) => r.t === pinT))) pinT = null;
-    const rank = 1 + vals.filter((v) => v > lv).length;
-    const rankTxt = n < 2 ? 'Only 1 month in the current filter' : '<b>' + ord(rank) + ' highest</b> of ' + n + ' months';
-    el.innerHTML = '<div class="kp-top"><div class="kp-label">' + AZ.esc(m.label + ', ' + AZ.monthLabel(M[li].t)) + '</div>' + segHtml() + '</div>'
-      + '<div class="kp-hero">' + AZ.esc(m.fmt(lv)) + '</div><div class="kp-delta">' + rankTxt + '</div>'
-      + '<div class="kp-area" id="ds"></div>'
-      + '<div class="ds-ax"><span>' + AZ.esc(AZ.monthLabel(M[0].t)) + '</span><span>' + AZ.esc(AZ.monthLabel(M[li].t)) + '</span></div>'
-      + '<div class="kp-cap" id="ds-c"></div><div class="kp-cap">' + dHtml(y).replace(/<[^>]+>/g, '') + '</div>';
-    wireSeg(el, redraw);
-    const box = el.querySelector('#ds'), cap = el.querySelector('#ds-c'), W = Math.max(60, box.clientWidth), H = Math.max(30, box.clientHeight);
-    const lo = Math.min.apply(null, vals), hiV = Math.max.apply(null, vals), pad = 6;
-    const X = (i) => (n < 2 ? W / 2 : pad + i / (n - 1) * (W - 2 * pad));
-    const Y = (v) => (hiV === lo ? H / 2 : pad + (1 - (v - lo) / (hiV - lo)) * (H - 2 * pad));
-    const r = Math.max(1.6, Math.min(4.5, W / n * 0.36));
-    const pos = M.map((rec, i) => ({ x: X(i), y: Y(vals[i]) }));
-    const svg = S('svg', { width: W, height: H }, box);
-    S('line', { x1: 0, x2: W, y1: Y(lv).toFixed(1), y2: Y(lv).toFixed(1), stroke: AZ.T.slate[2], 'stroke-dasharray': '3 3' }, svg);
-    const dots = M.map((rec, i) => {
-      const isL = i === li;
-      return S('circle', { cx: pos[i].x.toFixed(1), cy: pos[i].y.toFixed(1), r: isL ? r + 1.5 : r, fill: isL ? AZ.T.ink : AZ.T.slate[3], opacity: 0 }, svg);
-    });
-    const ring = S('circle', { cx: pos[li].x.toFixed(1), cy: pos[li].y.toFixed(1), r: r + 4.5, fill: 'none', stroke: AZ.T.ink, 'stroke-width': 1, opacity: 0 }, svg);
-    const pinRing = S('circle', { r: r + 3.5, fill: 'none', stroke: AZ.T.ink2, 'stroke-width': 1.5, opacity: 0 }, svg);
-    const T = 220 + 360;
-    tw(T, (k) => {
-      dots.forEach((d, i) => { const p = clamp01((k * T - (pos[i].x / W) * 360) / 220); d.setAttribute('opacity', p); });
-      ring.setAttribute('opacity', clamp01((k * T - 360) / 220));
-    }, null, (t) => t);
-    const setPin = () => {
-      const i = pinT == null ? -1 : M.findIndex((z) => z.t === pinT);
-      if (i < 0) { pinRing.setAttribute('opacity', 0); cap.innerHTML = 'Click a dot to compare it with ' + AZ.esc(AZ.monthLabel(M[li].t)); return; }
-      pinRing.setAttribute('cx', pos[i].x.toFixed(1)); pinRing.setAttribute('cy', pos[i].y.toFixed(1)); pinRing.setAttribute('opacity', 1);
-      const d = lv ? vals[i] / lv - 1 : 0;
-      cap.innerHTML = '<b>' + AZ.esc(AZ.monthLabel(M[i].t)) + '</b> ' + AZ.esc(m.fmt(vals[i])) + ', ' + AZ.esc(AZ.pct(Math.abs(d), 1)) + (d >= 0 ? ' above ' : ' below ') + AZ.esc(AZ.monthLabel(M[li].t));
-    };
-    setPin();
-    const tip = mkTip(el);
-    const near = (e) => { const p = rel(box, e); let b = 0, bd = 1e9; pos.forEach((q, i) => { const d = Math.abs(q.x - p[0]); if (d < bd) { bd = d; b = i; } }); return b; };
-    box.addEventListener('mousemove', (e) => {
-      const i = near(e), p = rel(el, e);
-      dots.forEach((d, j) => d.setAttribute('r', (j === li ? r + 1.5 : r) + (j === i ? 1.5 : 0)));
-      if (i < 0) return tip.hide();
-      const pr = sameMonthBefore(M, M[i].t);
-      tip.show('<b>' + AZ.monthLabel(M[i].t) + '</b>' + AZ.row(m.label, m.fmtM(vals[i]), '#FFFFFF') + AZ.row('Rank', ord(1 + vals.filter((v) => v > vals[i]).length) + ' of ' + n) + (pr && m.month(pr) ? AZ.row('Against a year earlier', AZ.pct(vals[i] / m.month(pr) - 1, 1, true)) : '') + '<div class="sb-tk">' + (i === li ? 'Latest month' : 'Click to pin') + '</div>', p[0], p[1]);
-    });
-    box.addEventListener('mouseleave', () => { dots.forEach((d, j) => d.setAttribute('r', j === li ? r + 1.5 : r)); tip.hide(); });
-    box.addEventListener('click', (e) => { const i = near(e); if (i < 0 || i === li) return; pinT = pinT === M[i].t ? null : M[i].t; setPin(); });
-    return stop;
-  }
+const pts = M.map((r) => ({ ...r, Group: r === L ? 'Latest month' : r.Sales > L.Sales ? 'Above it' : 'Below it' }));
+AZ.maya({
+  type: 'scatter', x: 'Month', y: 'Sales', series: 'Group', name: 'Label', select: true, legend: 'bottom',
+  title: L ? AZ.monthLabel(L.Month) + ' sales ranks ' + ord(above + 1) + ' of ' + M.length : '',
+  subtitle: L ? AZ.money(L.Sales, 1) + '; ' + above + ' month' + (above === 1 ? '' : 's') + ' sit above the dashed line' : '',
+  ...(L ? { rules: [{ y: L.Sales, label: 'Latest' }] } : {}),
+  // theme.series1 would override the colors map, so the slots are set by colors alone.
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Month: { month: 'short', year: 'numeric', timeZone: 'UTC' } },
+  colors: { 'Latest month': '#1E1E24', 'Above it': '#6A7891', 'Below it': '#B4BDC9' },
+  text: { noData: 'Bind [sales] [quantity purchased] [date].monthly' },
+  theme: { fontSize: L ? '12px' : '10px' },
+  data: pts.map((r) => ({ ...r, Label: AZ.monthLabel(r.Month) }))
 });

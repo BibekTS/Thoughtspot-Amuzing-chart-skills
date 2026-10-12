@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,221 +243,35 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [store] [date].quarterly
-// Dumbbell per store: the same quarters last year (grey) against this year (ink). The latest quarter in the data sets
-// the window: every quarter of that year up to it, against the same quarters a year earlier.
-// Interactions: Sort toggle (rows glide to their new place); hover a row; click a row to expand it in place into its
-// quarterly line (this year solid, last year dashed slate); click again, Unpin or Escape collapses; the list scrolls.
-let sortBy = 'change';
-let pinned = null;
-
-AZ.boot({
-  need: 'sales by store and quarter, e.g. [sales] [store] [date].quarterly',
-  render: async ({ el, rows, schema, w }) => {
-    const sK = AZ.col(schema, /store/i), dK = AZ.col(schema, /date|quarter/i), vK = AZ.col(schema, /sales/i);
-    const M = rows.map((r) => ({ s: String(r[sK]), t: AZ.ms(r[dK]), v: AZ.num(r[vK]) })).filter((r) => isFinite(r.t));
-    if (!M.length) throw new Error('No quarters in the result');
-    const last = Math.max.apply(null, M.map((r) => r.t)), ly = AZ.year(last), lq = Math.floor(new Date(last).getUTCMonth() / 3);
-    const G = new Map(), QV = new Map();
-    const qCur = new Set(), qPrev = new Set();
-    M.forEach((r) => {
-      const d = new Date(r.t), y = d.getUTCFullYear(), q = Math.floor(d.getUTCMonth() / 3);
-      if (y === ly || y === ly - 1) {
-        if (!QV.has(r.s)) QV.set(r.s, {});
-        const z = QV.get(r.s); z[y + ':' + q] = (z[y + ':' + q] || 0) + r.v;
-      }
-      if (q > lq || (y !== ly && y !== ly - 1)) return;
-      if (!G.has(r.s)) G.set(r.s, { s: r.s, cur: 0, prev: 0, nc: 0, np: 0 });
-      const o = G.get(r.s);
-      if (y === ly) { o.cur += r.v; o.nc++; qCur.add(q); } else { o.prev += r.v; o.np++; qPrev.add(q); }
-    });
-    const all = Array.from(G.values()).filter((o) => o.prev > 0 && o.cur > 0);
-    if (!all.length) {
-      AZ.paint(el, '<div class="az-empty"><b>No year-on-year comparison</b><span>The current filter has no stores with sales in both ' + (ly - 1) + ' and ' + ly + '. Search: [sales] [store] [date].quarterly</span></div>');
-      return;
-    }
-    all.forEach((o) => { o.pct = o.cur / o.prev - 1; });
-    const span = lq === 0 ? 'Q1' : 'Q1 to Q' + (lq + 1);
-    const sorters = {
-      change: (a, b) => b.pct - a.pct,
-      size: (a, b) => b.cur - a.cur,
-      name: (a, b) => (a.s < b.s ? -1 : a.s > b.s ? 1 : 0)
-    };
-    if (pinned && !all.some((o) => o.s === pinned)) pinned = null;
-    const up = all.filter((o) => o.pct >= 0).length;
-    const best = all.reduce((b, o) => (o.pct > b.pct ? o : b), all[0]);
-    const sp = (x) => (x > 0 ? '+' : x < 0 ? '-' : '') + (Math.abs(x) * 100).toFixed(1) + '%';
-    const line = all.length === 1
-      ? '<b>' + AZ.esc(best.s) + '</b> ' + sp(best.pct) + ' on the same quarters a year earlier.'
-      : '<b>' + up + ' of ' + all.length + '</b> stores are up; best is <b>' + AZ.esc(best.s) + '</b> at ' + sp(best.pct) + '.';
-    const comparable = qCur.size === qPrev.size;
-
-    el.innerHTML =
-      '<div class="db-top"><div class="db-title">Sales by store</div><div class="db-seg" role="group" aria-label="Sort">'
-      + ['change', 'size', 'name'].map((k) => '<button type="button" data-s="' + k + '" class="' + (sortBy === k ? 'on' : '') + '">' + k.charAt(0).toUpperCase() + k.slice(1) + '</button>').join('') + '</div></div>'
-      + '<div class="db-line">' + span + ' ' + ly + ' vs ' + (ly - 1) + ': ' + line + '</div>'
-      + '<div class="db-axis" id="db-axis"></div>'
-      + '<div class="db-scroll" id="db-scroll"></div>'
-      + '<div class="db-key" id="db-key"></div>';
-
-    const box = document.getElementById('db-scroll'), axis = document.getElementById('db-axis'), read = document.getElementById('db-key');
-    const RH = 28, EH = 112, labW = w < 420 ? 146 : 160, pctW = 48, gap = 10;
-    const W = Math.max(200, box.clientWidth - 2), x0 = labW + gap, x1 = W - pctW - gap;
-    const vals = all.reduce((a, o) => a.concat([o.cur, o.prev]), []);
-    let lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
-    const pad = (hi - lo || hi * 0.1) * 0.08; lo -= pad; hi += pad;
-    const sx = (v) => x0 + (v - lo) / (hi - lo) * (x1 - x0);
-    const step = (() => { const raw = (hi - lo) / 4, p = Math.pow(10, Math.floor(Math.log10(raw))); return [1, 2, 2.5, 5, 10].map((m) => m * p).find((s) => s >= raw) || raw; })();
-    const ticks = []; for (let t = Math.ceil(lo / step) * step; t <= hi; t += step) ticks.push(t);
-    const tickTxt = (t) => AZ.money(t, step >= 1e6 ? (step % 1e6 ? 1 : 0) : (step % 1e5 ? 2 : 1));
-    axis.innerHTML = '<svg viewBox="0 0 ' + W + ' 16" preserveAspectRatio="none" width="100%" height="16">' + ticks.map((t) => '<text x="' + sx(t).toFixed(1) + '" y="12" text-anchor="middle" font-size="11" fill="' + AZ.T.muted + '">' + AZ.esc(tickTxt(t)) + '</text>').join('') + '</svg>';
-
-    const tipBox = document.createElement('div'); tipBox.className = 'db-tipbox'; tipBox.style.position = 'absolute'; el.style.position = 'relative'; el.appendChild(tipBox);
-    const NS = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('width', W); box.appendChild(svg);
-    const grid = document.createElementNS(NS, 'g'); svg.appendChild(grid);
-    grid.innerHTML = ticks.map((t) => '<line x1="' + sx(t).toFixed(1) + '" x2="' + sx(t).toFixed(1) + '" y1="0" y2="1" stroke="' + AZ.T.grid + '" stroke-width="1"/>').join('');
-    const gridLines = Array.from(grid.querySelectorAll('line'));
-    const clip = (str, max) => (str.length > max ? str.slice(0, max - 1) + '...' : str);
-    const maxCh = Math.floor(labW / 6.1);
-    const initial = all.slice().sort(sorters[sortBy]);
-    const R = {}; // store -> { o, g, head, rec: {y, ext}, panel }
-    initial.forEach((o, i) => {
-      const cy = RH / 2, a = sx(o.prev), b = sx(o.cur), col = o.pct >= 0 ? AZ.T.good : AZ.T.bad;
-      const g = document.createElementNS(NS, 'g');
-      g.setAttribute('class', 'db-row'); g.setAttribute('data-s', o.s); g.setAttribute('tabindex', 0); g.setAttribute('role', 'button');
-      g.setAttribute('aria-label', o.s + ' ' + sp(o.pct) + ', open quarterly line');
-      g.innerHTML = '<g class="db-head">'
-        + '<rect class="bg" x="0" y="1" width="' + W + '" height="' + (RH - 2) + '" rx="6"/>'
-        + '<text x="6" y="' + (cy + 4) + '" font-size="12" fill="' + AZ.T.ink + '">' + AZ.esc(clip(o.s, maxCh)) + '</text>'
-        + '<line x1="' + a.toFixed(1) + '" x2="' + b.toFixed(1) + '" y1="' + cy + '" y2="' + cy + '" stroke="' + AZ.T.slate[3] + '" stroke-width="3" stroke-linecap="round"/>'
-        + '<circle cx="' + a.toFixed(1) + '" cy="' + cy + '" r="4.5" fill="' + AZ.T.slate[3] + '"/>'
-        + '<circle cx="' + b.toFixed(1) + '" cy="' + cy + '" r="5" fill="' + AZ.T.ink + '"/>'
-        + '<text x="' + (W - 6) + '" y="' + (cy + 4) + '" text-anchor="end" font-size="12" font-weight="600" fill="' + col + '">' + sp(o.pct) + '</text></g>';
-      svg.appendChild(g);
-      R[o.s] = { o, g, head: g.querySelector('.db-head'), rec: { y: i * RH, ext: 0 }, panel: null, id: i };
-    });
-
-    // ---- the expanded panel: this year against last year, by quarter ------------------------
-    const qv = (s, y, q) => { const z = QV.get(s); return z && z[y + ':' + q] != null ? z[y + ':' + q] : null; };
-    const narrow = x1 - x0 < 150;
-    const px0 = narrow ? 30 : x0 + 14, px1 = narrow ? W - 30 : x1 - 14, pw = px1 - px0;
-    const qx = (q) => px0 + q * pw / 3;
-    function panelFor(r) {
-      const s = r.o.s, cur = [], prv = [];
-      for (let q = 0; q < 4; q++) { cur.push(q <= lq ? qv(s, ly, q) : null); prv.push(qv(s, ly - 1, q)); }
-      const vs = cur.concat(prv).filter((v) => v != null);
-      let a = Math.min.apply(null, vs), b = Math.max.apply(null, vs); const pd = (b - a || b * 0.1) * 0.18; a -= pd; b += pd;
-      const top = RH + (narrow ? 44 : 24), bot = RH + EH - 24, sy = (v) => bot - (v - a) / (b - a) * (bot - top);
-      const path = (arr) => { let d = '', pen = false; arr.forEach((v, q) => { if (v == null) { pen = false; return; } d += (pen ? 'L' : 'M') + qx(q).toFixed(1) + ' ' + sy(v).toFixed(1); pen = true; }); return d; };
-      const dots = (arr, fill, stroke, rad) => arr.map((v, q) => (v == null ? '' : '<circle cx="' + qx(q).toFixed(1) + '" cy="' + sy(v).toFixed(1) + '" r="' + rad + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2"/>')).join('');
-      const labels = cur.map((v, q) => (v == null ? '' : '<text x="' + qx(q).toFixed(1) + '" y="' + (sy(v) - 9).toFixed(1) + '" text-anchor="middle" font-size="11" fill="' + AZ.T.ink2 + '">' + AZ.esc(AZ.money(v, 1)) + '</text>')).join('');
-      const xl = [0, 1, 2, 3].map((q) => '<text x="' + qx(q).toFixed(1) + '" y="' + (RH + EH - 8) + '" text-anchor="middle" font-size="11" fill="' + AZ.T.muted + '">Q' + (q + 1) + '</text>').join('');
-      const cid = 'dbc' + r.id;
-      const p = document.createElementNS(NS, 'g'); p.setAttribute('class', 'db-panel');
-      p.innerHTML = '<clipPath id="' + cid + '"><rect x="' + (px0 - 14) + '" y="' + RH + '" width="0" height="' + EH + '"/></clipPath>'
-        + '<rect class="pbg" x="0" y="' + (RH + 2) + '" width="' + W + '" height="' + (EH - 6) + '" rx="6"/>'
-        + (narrow
-          ? '<line x1="8" x2="24" y1="' + (RH + 16) + '" y2="' + (RH + 16) + '" stroke="' + AZ.T.ink + '" stroke-width="2.5"/><text x="29" y="' + (RH + 20) + '" font-size="11" fill="' + AZ.T.ink2 + '">' + ly + '</text>'
-            + '<line x1="70" x2="86" y1="' + (RH + 16) + '" y2="' + (RH + 16) + '" stroke="' + AZ.T.slate[3] + '" stroke-width="2" stroke-dasharray="4 3"/><text x="91" y="' + (RH + 20) + '" font-size="11" fill="' + AZ.T.ink2 + '">' + (ly - 1) + '</text>'
-          : '<text x="6" y="' + (RH + 20) + '" font-size="11" fill="' + AZ.T.ink2 + '">Quarterly sales</text>'
-            + '<line x1="6" x2="24" y1="' + (RH + 38) + '" y2="' + (RH + 38) + '" stroke="' + AZ.T.ink + '" stroke-width="2.5"/><text x="30" y="' + (RH + 42) + '" font-size="11" fill="' + AZ.T.ink2 + '">' + ly + '</text>'
-            + '<line x1="6" x2="24" y1="' + (RH + 54) + '" y2="' + (RH + 54) + '" stroke="' + AZ.T.slate[3] + '" stroke-width="2" stroke-dasharray="4 3"/><text x="30" y="' + (RH + 58) + '" font-size="11" fill="' + AZ.T.ink2 + '">' + (ly - 1) + '</text>'
-            + '<text x="6" y="' + (RH + 78) + '" font-size="11" fill="' + AZ.T.muted + '">Axis does not</text><text x="6" y="' + (RH + 91) + '" font-size="11" fill="' + AZ.T.muted + '">start at zero</text>')
-        + xl
-        + '<g clip-path="url(#' + cid + ')">'
-        + '<path d="' + path(prv) + '" fill="none" stroke="' + AZ.T.slate[3] + '" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round"/>' + dots(prv, '#fff', AZ.T.slate[3], 3.5)
-        + '<path d="' + path(cur) + '" fill="none" stroke="' + AZ.T.ink + '" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>' + dots(cur, AZ.T.ink, '#fff', 4.5) + labels
-        + '</g>';
-      r.g.appendChild(p);
-      r.panel = { g: p, clip: p.querySelector('clipPath rect'), sy, cur, prv };
-      p.addEventListener('mousemove', (e) => {
-        e.stopPropagation();
-        const bx = el.getBoundingClientRect(), pr = svg.getBoundingClientRect(), x = e.clientX - pr.left;
-        let q = Math.max(0, Math.min(3, Math.round((x - px0) / (pw / 3))));
-        const c = cur[q], v = prv[q];
-        let h = '<b>' + AZ.esc(s) + ' Q' + (q + 1) + '</b>' + (c != null ? AZ.row(ly, AZ.money(c, 2), '#FFFFFF') : AZ.row(ly, 'not yet')) + (v != null ? AZ.row(ly - 1, AZ.money(v, 2), AZ.T.slate[3]) : AZ.row(ly - 1, 'no data'));
-        if (c != null && v) h += AZ.row('Change', sp(c / v - 1));
-        tip.show(h, e.clientX - bx.left, e.clientY - bx.top);
-      });
-      p.addEventListener('mouseleave', () => tip.hide());
-    }
-    const dropPanel = (r) => { if (r.panel) { r.panel.g.remove(); r.panel = null; } };
-
-    // ---- layout + motion ---------------------------------------------------------------------
-    let total = initial.length * RH, cancelT = null;
-    const targets = () => {
-      const order = all.slice().sort(sorters[sortBy]).map((o) => o.s);
-      let acc = 0; const T = {};
-      order.forEach((s) => { const e = pinned === s ? 1 : 0; T[s] = { y: acc, ext: e }; acc += RH + EH * e; });
-      return { T, total: acc };
-    };
-    const place = (r) => {
-      r.g.setAttribute('transform', 'translate(0,' + r.rec.y.toFixed(2) + ')');
-      if (r.panel) {
-        const e = Math.max(0, Math.min(1, r.rec.ext));
-        r.panel.g.style.opacity = Math.min(1, e * 1.6);
-        r.panel.clip.setAttribute('width', ((px1 + 14) - (px0 - 14)) * e + 1);
-      }
-    };
-    const setTotal = (t) => { total = t; svg.setAttribute('height', t); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + t); gridLines.forEach((l) => l.setAttribute('y2', t)); };
-    const apply = (animate, ms, keepView) => {
-      if (cancelT) { cancelT(); cancelT = null; }
-      const { T, total: tt } = targets();
-      const t0 = total, ks = Object.keys(R);
-      const s0 = {}; ks.forEach((k) => { s0[k] = { y: R[k].rec.y, ext: R[k].rec.ext }; });
-      ks.forEach((k) => { if (T[k].ext > 0 && !R[k].panel) panelFor(R[k]); });
-      const sc0 = box.scrollTop;
-      let sc1 = sc0;
-      if (pinned && keepView !== false) {
-        const yT = T[pinned].y, hgt = RH + EH, vh = box.clientHeight;
-        if (yT < sc0) sc1 = yT; else if (yT + hgt > sc0 + vh) sc1 = Math.min(yT, yT + hgt - vh);
-        sc1 = Math.max(0, sc1);
-      }
-      if (tt > t0) setTotal(tt);
-      cancelT = AZ.tween(animate ? (ms || 480) : 0, (k) => {
-        ks.forEach((key) => { const r = R[key]; r.rec.y = AZ.lerp(s0[key].y, T[key].y, k); r.rec.ext = AZ.lerp(s0[key].ext, T[key].ext, k); place(r); });
-        if (sc1 !== sc0) box.scrollTop = AZ.lerp(sc0, sc1, k);
-        if (tt <= t0) setTotal(AZ.lerp(t0, tt, k));
-      }, () => { cancelT = null; setTotal(tt); ks.forEach((key) => { if (T[key].ext === 0) dropPanel(R[key]); }); }, AZ.EASE.inOut);
-    };
-
-    const paint = () => {
-      Object.keys(R).forEach((k) => { const g = R[k].g; g.classList.toggle('pin', pinned === k); g.classList.toggle('dim', !!pinned && pinned !== k); g.setAttribute('aria-expanded', pinned === k ? 'true' : 'false'); });
-      const o = pinned ? G.get(pinned) : null;
-      const dots = '<span><i style="background:' + AZ.T.ink + '"></i>' + ly + '</span><span><i style="background:' + AZ.T.slate[3] + '"></i>' + (ly - 1) + '</span>';
-      read.innerHTML = dots + (o
-        ? '<span style="color:var(--az-ink2);font-size:12px"><b style="color:var(--az-ink)">' + AZ.esc(o.s) + '</b> ' + AZ.money(o.prev, 2) + ' to ' + AZ.money(o.cur, 2) + ', ' + sp(o.pct) + '</span><button type="button" class="db-x" id="db-x">Collapse</button>'
-        : '<span>Sorted by ' + (sortBy === 'change' ? 'change' : sortBy === 'size' ? ly + ' sales' : 'name') + '. Axis starts at ' + AZ.money(lo, 1) + '. Click a store to open its quarters.' + (comparable ? '' : ' Prior year has ' + qPrev.size + ' of ' + qCur.size + ' quarters.') + '</span>');
-      const x = document.getElementById('db-x'); if (x) x.addEventListener('click', () => { pinned = null; paint(); apply(true, 420); });
-    };
-    const tip = AZ.tip(tipBox), pick = (k) => { pinned = pinned === k ? null : k; paint(); apply(true, 480); };
-    Object.keys(R).forEach((k) => {
-      const r = R[k], o = r.o;
-      r.head.addEventListener('mousemove', (e) => {
-        const bx = el.getBoundingClientRect(), rank = all.slice().sort(sorters.change).indexOf(o) + 1;
-        tip.show('<b>' + AZ.esc(o.s) + '</b>' + AZ.row(ly, AZ.money(o.cur, 2), '#FFFFFF') + AZ.row(ly - 1, AZ.money(o.prev, 2), AZ.T.slate[3]) + AZ.row('Change', (o.cur >= o.prev ? '+' : '-') + AZ.money(Math.abs(o.cur - o.prev), 2) + ' (' + sp(o.pct) + ')') + AZ.row('Rank by change', rank + ' of ' + all.length), e.clientX - bx.left, e.clientY - bx.top);
-      });
-      r.g.addEventListener('mouseleave', () => tip.hide());
-      r.g.addEventListener('click', () => pick(o.s));
-      r.g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(o.s); } });
-    });
-    el.querySelectorAll('.db-seg button').forEach((b) => b.addEventListener('click', () => {
-      sortBy = b.getAttribute('data-s');
-      el.querySelectorAll('.db-seg button').forEach((n) => n.classList.toggle('on', n === b));
-      paint(); apply(true, 520);
-    }));
-    const onKey = (e) => { if (e.key === 'Escape' && pinned) { e.preventDefault(); pinned = null; paint(); apply(true, 420); } };
-    document.addEventListener('keydown', onKey);
-    setTotal(targets().total);
-    if (pinned) { panelFor(R[pinned]); }
-    paint();
-    apply(false);
-    if (pinned) { const yT = targets().T[pinned].y; box.scrollTop = Math.max(0, yT - Math.max(0, box.clientHeight - RH - EH) / 2); }
-    return () => { if (cancelT) cancelT(); document.removeEventListener('keydown', onKey); };
-  }
+// Interactions: hover or arrow-key to a store for both years; click stores to select several, Escape clears; click a legend key to hide a year.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, S = c(/store/i, 'store'), D = c(/date|quarter/i, 'Quarter(date)'), V = c(/sales/i, 'Total sales');
+// The latest quarter sets the window: Q1 to it in the latest year, against the same quarters a year earlier.
+const M = rows.map((r) => ({ s: String(r[S]), d: new Date(AZ.ms(r[D])), v: AZ.num(r[V]) })).filter((r) => isFinite(r.d));
+const last = M.length ? new Date(Math.max(...M.map((r) => r.d.getTime()))) : null, ly = last ? last.getUTCFullYear() : 0, lq = last ? Math.floor(last.getUTCMonth() / 3) : 0;
+const win = M.filter((r) => { const y = r.d.getUTCFullYear(); return (y === ly || y === ly - 1) && Math.floor(r.d.getUTCMonth() / 3) <= lq; })
+  .map((r) => ({ Store: r.s, Year: String(r.d.getUTCFullYear()), Sales: r.v }));
+// Stores with sales in both years, ordered by change so the biggest gain is on top.
+const T = new Map(); win.forEach((r) => { const o = T.get(r.Store) || { cur: 0, prev: 0 }; o[r.Year === String(ly) ? 'cur' : 'prev'] += r.Sales; T.set(r.Store, o); });
+const keep = [...T].filter(([, o]) => o.cur > 0 && o.prev > 0).map(([s, o]) => ({ s, p: o.cur / o.prev - 1 })).sort((a, b) => b.p - a.p);
+const rank = new Map(keep.map((k, i) => [k.s, i])), up = keep.filter((k) => k.p >= 0).length;
+const data = win.filter((r) => rank.has(r.Store)).sort((a, b) => rank.get(a.Store) - rank.get(b.Store) || (a.Year < b.Year ? -1 : 1));
+// The changes are a few percent of each store's sales, so the axis is fitted to the totals (said in the subtitle).
+const tot = [...T].filter(([s]) => rank.has(s)).flatMap(([, o]) => [o.cur, o.prev]), lo = Math.min(...tot), hi = Math.max(...tot), pad = (hi - lo || hi * 0.1) * 0.08;
+const span = 'Q1' + (lq ? ' to Q' + (lq + 1) : '');
+AZ.maya({
+  type: 'dumbbell', x: 'Store', series: 'Year', y: 'Sales', horizontal: true, select: 'multi',
+  ...(keep.length ? { yDomain: [Math.max(0, lo - pad), hi + pad] } : {}),
+  title: keep.length ? up + ' of ' + keep.length + ' stores are up on last year' : 'Store sales, this year vs last',
+  subtitle: keep.length ? span + ' ' + ly + ' against ' + (ly - 1) + ', biggest gain first. Axis does not start at zero.' : 'Bind the search [sales] [store] [date].quarterly',
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
+  colors: { [String(ly - 1)]: '#B4BDC9', [String(ly)]: '#1E1E24' },
+  text: { noData: 'No year-on-year rows' },
+  theme: { series1: '#B4BDC9', series2: '#1E1E24' },
+  data
 });

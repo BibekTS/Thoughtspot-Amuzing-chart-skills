@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,271 +243,26 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [store] [date].quarterly     (columns arrive as "store", "Quarter(date)" and "Total sales")
-// A wall of small multiples: one mini area chart per store, quarterly sales. Scale toggle (same scale for all or each its own),
-// sort toggle (Sales / Change vs last year / Name). Minis rise in with a stagger; sort and scale changes tween in place.
-// Interactions: hover a mini for its numbers at the quarter under the pointer; click a store (Enter or Space when focused)
-// and that mini expands (FLIP) to fill the tile as a full quarterly chart against the same quarters a year earlier.
-// Crumbs, Back and Escape shrink it back into place. No library, no fetch: plain SVG.
-const INK = AZ.T.ink, SLATE = AZ.T.slate;
-let scaleMode = 'same';   // 'same' | 'own'
-let sortBy = 'sales';     // 'sales' | 'change' | 'name'
-let drill = null;         // store name when one store is open
-let wallSeen = false;
-const clamp01 = (x) => Math.max(0, Math.min(1, x));
-const qLabel = (t) => 'Q' + (Math.floor(new Date(t).getUTCMonth() / 3) + 1) + ' ' + AZ.year(t);
-const nice = (max) => {
-  const raw = (max || 1) / 4, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
-  const step = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
-  const t = []; for (let v = 0; v <= max + step * 0.999; v += step) t.push(v);
-  return { ticks: t, top: t[t.length - 1] };
-};
-
-AZ.boot({
-  need: 'sales by store and quarter, e.g. [sales] [store] [date].quarterly',
-  render: async ({ el, rows, schema }) => {
-    const sK = AZ.col(schema, /store/i), dK = AZ.col(schema, /date|quarter/i), vK = AZ.col(schema, /sales/i);
-    const qset = new Set(), M = new Map();
-    rows.forEach((r) => {
-      const t = AZ.ms(r[dK]); if (!isFinite(t)) return;
-      qset.add(t);
-      const n = String(r[sK]);
-      if (!M.has(n)) M.set(n, { n: n, m: new Map() });
-      const o = M.get(n); o.m.set(t, (o.m.get(t) || 0) + AZ.num(r[vK]));
-    });
-    const Q = Array.from(qset).sort((a, b) => a - b), nQ = Q.length;
-    if (!M.size || !nQ) {
-      AZ.paint(el, '<div class="az-empty"><b>No stores to draw</b><span>The current filter returns no store rows. Search: [sales] [store] [date].quarterly</span></div>');
-      return;
-    }
-    const lastT = Q[nQ - 1], lyT = (() => { const d = new Date(lastT); d.setUTCFullYear(d.getUTCFullYear() - 1); return d.getTime(); })();
-    const qIdx = new Map(Q.map((t, i) => [t, i])), lyI = qIdx.has(lyT) ? qIdx.get(lyT) : -1;
-    const St = Array.from(M.values()).map((o) => {
-      o.v = Q.map((t) => (o.m.has(t) ? o.m.get(t) : null));
-      o.total = o.v.reduce((a, x) => a + (x || 0), 0);
-      o.latest = o.v[nQ - 1]; o.ly = lyI >= 0 ? o.v[lyI] : null;
-      o.chg = o.latest != null && o.ly ? o.latest / o.ly - 1 : null;
-      o.max = Math.max.apply(null, o.v.map((x) => x || 0)) || 1;
-      return o;
-    });
-    if (drill && !M.has(drill)) drill = null;
-    const n = St.length, gmax = Math.max.apply(null, St.map((o) => o.max));
-    const qTot = Q.map((t, i) => St.reduce((a, o) => a + (o.v[i] || 0), 0));
-
-    // ---- header text, computed from the rows
-    const totLatest = qTot[nQ - 1], totLy = lyI >= 0 ? qTot[lyI] : null;
-    const withChg = St.filter((o) => o.chg != null).sort((a, b) => b.chg - a.chg);
-    let lineAll = '<b>' + qLabel(lastT) + '</b>: ' + AZ.money(totLatest, 1) + ' across ' + n + (n === 1 ? ' store' : ' stores');
-    if (totLy) lineAll += ', ' + AZ.pct(totLatest / totLy - 1, 1, true) + ' on ' + qLabel(lyT);
-    if (withChg.length > 1) lineAll += '. Widest gap: ' + AZ.esc(withChg[0].n) + ' ' + AZ.pct(withChg[0].chg, 1, true) + ' to ' + AZ.esc(withChg[withChg.length - 1].n) + ' ' + AZ.pct(withChg[withChg.length - 1].chg, 1, true);
-    lineAll += '.';
-    const notes = [];
-    if (nQ >= 3 && qTot[0] < qTot[1] * 0.5) notes.push('The first quarter (' + qLabel(Q[0]) + ') totals ' + AZ.money(qTot[0], 1) + ' against ' + AZ.money(qTot[1], 1) + ' the next, so it is a part quarter.');
-    if (nQ >= 3 && qTot[nQ - 1] < qTot[nQ - 2] * 0.5) notes.push('The latest quarter (' + qLabel(lastT) + ') looks partial.');
-    const capAll = (scaleMode === 'same' ? 'Every mini shares one scale, so heights compare across stores.' : 'Each mini has its own scale, so shapes compare, not heights.') + ' The dot marks ' + qLabel(lastT) + '. ' + notes.join(' ');
-
-    el.innerHTML =
-      '<div class="sw-top"><div class="sw-title" id="sw-title">Quarterly sales by store</div>'
-      + '<div class="sw-ctl" id="sw-ctl"><div class="sw-seg" role="group" aria-label="Scale" id="sw-scale"><button type="button" data-v="same">Same scale</button><button type="button" data-v="own">Each own scale</button></div>'
-      + '<div class="sw-seg" role="group" aria-label="Sort" id="sw-sort"><button type="button" data-v="sales">Sales</button><button type="button" data-v="change">Change vs last year</button><button type="button" data-v="name">Name</button></div></div>'
-      + '<button type="button" class="sw-back" id="sw-back" style="display:none">Back</button></div>'
-      + '<div class="sw-line" id="sw-line"></div>'
-      + '<div class="sw-stage" id="sw-stage"><div class="sw-wall" id="sw-wall"><div class="sw-in" id="sw-in"></div></div></div>'
-      + '<div class="sw-cap" id="sw-cap"></div>';
-    const stage = document.getElementById('sw-stage'), wall = document.getElementById('sw-wall'), inner = document.getElementById('sw-in');
-    document.getElementById('sw-line').innerHTML = lineAll; document.getElementById('sw-cap').textContent = capAll;
-    await AZ.settle();
-    const SW = Math.max(180, stage.clientWidth), SH = Math.max(120, stage.clientHeight - 6), gap = 8;
-    let best = { c: 1, s: -1 };
-    for (let c = 1; c <= Math.min(10, n); c++) {
-      const cw0 = (SW - (c - 1) * gap) / c, rows0 = Math.ceil(n / c), ch0 = (SH - (rows0 - 1) * gap) / rows0;
-      const sc = Math.min(cw0 / 1.9, ch0) - (cw0 < 84 ? 100 : 0) - (ch0 < 50 ? 60 : 0);
-      if (sc > best.s) best = { c: c, s: sc };
-    }
-    const cols = best.c, rowsN = Math.ceil(n / cols), cw = Math.floor((SW - (cols - 1) * gap - (rowsN * 60 > SH ? 8 : 0)) / cols), ch = Math.max(50, Math.floor((SH - (rowsN - 1) * gap) / rowsN));
-    inner.style.height = (rowsN * ch + (rowsN - 1) * gap) + 'px';
-    const cancels = {};
-    const cut = (s, px) => {
-      const mc = Math.max(4, Math.floor(px / 5.6));
-      if (s.length <= mc) return s;
-      const m = /^(.*) (\(\d+\))$/.exec(s);
-      if (!m) return s.slice(0, mc - 1) + '.';
-      const room = mc - m[2].length - 1;
-      return room >= 4 ? m[1].slice(0, room - 1) + '. ' + m[2] : s.slice(0, mc - 1) + '.';
-    };
-
-    // ---- minis
-    const px0 = 6, px1 = cw - 8, py0 = 20, py1 = ch - 5;
-    const xq = (i) => (nQ < 2 ? (px0 + px1) / 2 : px0 + (i / (nQ - 1)) * (px1 - px0));
-    const showVal = cw >= 120;
-    St.forEach((o, i) => {
-      const d = document.createElement('div');
-      d.className = 'sw-m'; d.tabIndex = 0; d.setAttribute('role', 'button'); d.setAttribute('aria-label', o.n + ': open quarterly chart');
-      d.style.width = cw + 'px'; d.style.height = ch + 'px'; d.style.opacity = '0';
-      d.innerHTML = '<svg viewBox="0 0 ' + cw + ' ' + ch + '" width="100%" height="100%" preserveAspectRatio="none"><text class="sw-nm" x="6" y="13">' + AZ.esc(cut(o.n, cw - 12 - (showVal ? 44 : 0))) + '</text>'
-        + (showVal && o.latest != null ? '<text class="sw-vl" x="' + (cw - 6) + '" y="13" text-anchor="end">' + AZ.money(o.latest, 1) + '</text>' : '')
-        + '<path class="sw-ar" fill="' + SLATE[1] + '" fill-opacity=".7"/><path class="sw-ln" fill="none" stroke="' + INK + '" stroke-width="1.4" stroke-linejoin="round"/><circle class="sw-dot" r="3" fill="' + INK + '" stroke="#fff" stroke-width="1.2"/><circle class="sw-hv" r="3" fill="' + SLATE[5] + '" stroke="#fff" stroke-width="1.2" style="display:none"/></svg>';
-      inner.appendChild(d);
-      o.el = d; o.ar = d.querySelector('.sw-ar'); o.ln = d.querySelector('.sw-ln'); o.dot = d.querySelector('.sw-dot'); o.hv = d.querySelector('.sw-hv');
-    });
-    const yMaxT = (o) => (scaleMode === 'same' ? gmax : o.max);
-    const paintMini = (o, ymax) => {
-      const yy = (v) => py1 - (v / ymax) * (py1 - py0);
-      const pts = []; o.v.forEach((v, i) => { if (v != null) pts.push([xq(i), yy(v)]); });
-      if (pts.length > 1) {
-        const ln = 'M' + pts.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L');
-        o.ln.setAttribute('d', ln);
-        o.ar.setAttribute('d', ln + 'L' + pts[pts.length - 1][0].toFixed(1) + ' ' + py1 + 'L' + pts[0][0].toFixed(1) + ' ' + py1 + 'Z');
-      } else { o.ln.setAttribute('d', ''); o.ar.setAttribute('d', ''); }
-      const lp = o.v[nQ - 1] != null ? [xq(nQ - 1), yy(o.v[nQ - 1])] : null;
-      if (lp) { o.dot.setAttribute('cx', lp[0].toFixed(1)); o.dot.setAttribute('cy', lp[1].toFixed(1)); o.dot.style.display = ''; } else o.dot.style.display = 'none';
-      o.cy = ymax;
-    };
-    St.forEach((o) => paintMini(o, yMaxT(o)));
-
-    // ---- order and positions
-    const cmp = { sales: (a, b) => b.total - a.total, change: (a, b) => (a.chg == null) - (b.chg == null) || (b.chg || 0) - (a.chg || 0), name: (a, b) => a.n.localeCompare(b.n) };
-    const place = () => { St.slice().sort(cmp[sortBy]).forEach((o, j) => { o.tx = (j % cols) * (cw + gap); o.ty = Math.floor(j / cols) * (ch + gap); o.rank = j; }); };
-    place();
-    St.forEach((o) => { o.x = o.tx; o.y = o.ty; o.el.style.left = o.x + 'px'; o.el.style.top = o.y + 'px'; });
-    const setBtns = () => {
-      document.querySelectorAll('#sw-scale button').forEach((b) => b.classList.toggle('on', b.getAttribute('data-v') === scaleMode));
-      document.querySelectorAll('#sw-sort button').forEach((b) => b.classList.toggle('on', b.getAttribute('data-v') === sortBy));
-      document.getElementById('sw-cap').textContent = (scaleMode === 'same' ? 'Every mini shares one scale, so heights compare across stores.' : 'Each mini has its own scale, so shapes compare, not heights.') + ' The dot marks ' + qLabel(lastT) + '. ' + notes.join(' ');
-    };
-    document.querySelectorAll('#sw-scale button').forEach((b) => b.addEventListener('click', () => {
-      const v = b.getAttribute('data-v'); if (v === scaleMode || drill) return; scaleMode = v; setBtns();
-      if (cancels.scale) cancels.scale();
-      const from = St.map((o) => o.cy), to = St.map((o) => yMaxT(o));
-      cancels.scale = AZ.tween(450, (k) => St.forEach((o, i) => paintMini(o, AZ.lerp(from[i], to[i], k))), null, AZ.EASE.inOut);
-    }));
-    document.querySelectorAll('#sw-sort button').forEach((b) => b.addEventListener('click', () => {
-      const v = b.getAttribute('data-v'); if (v === sortBy || drill) return; sortBy = v; setBtns(); place();
-      if (cancels.sort) cancels.sort();
-      const fx = St.map((o) => o.x), fy = St.map((o) => o.y);
-      cancels.sort = AZ.tween(500, (k) => St.forEach((o, i) => { o.x = AZ.lerp(fx[i], o.tx, k); o.y = AZ.lerp(fy[i], o.ty, k); o.el.style.left = o.x.toFixed(1) + 'px'; o.el.style.top = o.y.toFixed(1) + 'px'; }), null, AZ.EASE.inOut);
-    }));
-    setBtns();
-
-    // ---- entrance: fade and rise with a stagger, once per load
-    const enter = (t) => St.forEach((o) => {
-      const loc = AZ.EASE.out(clamp01((t * 900 - o.rank * 14) / 380));
-      o.el.style.opacity = String(loc); o.el.style.transform = loc >= 1 ? '' : 'translateY(' + ((1 - loc) * 10).toFixed(1) + 'px)';
-    });
-    if (!wallSeen && !drill) { wallSeen = true; enter(0); cancels.enter = AZ.tween(900, enter, null, (t) => t); }
-    else { wallSeen = true; enter(1); }
-
-    // ---- hover a mini
-    const tip = AZ.tip(el);
-    St.forEach((o) => {
-      const qAt = (e) => { const r = o.el.getBoundingClientRect(), px = ((e.clientX - r.left) / r.width) * cw; let bi = -1, bd = 1e9; for (let i = 0; i < nQ; i++) { if (o.v[i] == null) continue; const dd = Math.abs(xq(i) - px); if (dd < bd) { bd = dd; bi = i; } } return bi; };
-      o.el.addEventListener('mousemove', (e) => {
-        if (drill || busy) return;
-        const i = qAt(e), b = el.getBoundingClientRect();
-        if (i < 0) { tip.hide(); return; }
-        const yy = (v) => py1 - (v / o.cy) * (py1 - py0);
-        o.hv.setAttribute('cx', xq(i).toFixed(1)); o.hv.setAttribute('cy', yy(o.v[i]).toFixed(1)); o.hv.style.display = i === nQ - 1 ? 'none' : '';
-        const prevI = qIdx.get((() => { const d = new Date(Q[i]); d.setUTCFullYear(d.getUTCFullYear() - 1); return d.getTime(); })());
-        const pv = prevI != null ? o.v[prevI] : null;
-        tip.show('<b>' + AZ.esc(o.n) + '</b>' + AZ.row(qLabel(Q[i]), AZ.money(o.v[i], 2), '#FFFFFF') + (pv ? AZ.row('vs ' + qLabel(Q[prevI]), AZ.pct(o.v[i] / pv - 1, 1, true)) : '') + AZ.row('All quarters', AZ.money(o.total, 1)) + (o.chg != null ? AZ.row(qLabel(lastT) + ' vs last year', AZ.pct(o.chg, 1, true)) : ''), e.clientX - b.left, e.clientY - b.top);
-      });
-      o.el.addEventListener('mouseleave', () => { tip.hide(); o.hv.style.display = 'none'; });
-      o.el.addEventListener('click', () => { if (!drill && !busy) go(o.n); });
-      o.el.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && !drill && !busy) { e.preventDefault(); go(o.n); } });
-    });
-
-    // ---- drill: FLIP the mini out to the full tile
-    let ov = null, ghost = null, full = null, sel = null, cur = 0, busy = false, src = null;
-    const buildDetail = (o) => {
-      const dh = document.createElement('div'); dh.className = 'sw-dh';
-      const c = o.chg;
-      dh.innerHTML = '<span><b>' + qLabel(lastT) + '</b>: ' + (o.latest != null ? AZ.money(o.latest, 1) : 'no sales') + (c != null ? ', ' + AZ.pct(c, 1, true) + ' on ' + qLabel(lyT) : '') + '. All quarters ' + AZ.money(o.total, 1) + '.</span><span class="sw-key"><i></i>Sales<i class="d"></i>Same quarter a year earlier</span>';
-      const pl = document.createElement('div'); pl.className = 'sw-plot';
-      full.appendChild(dh); full.appendChild(pl);
-      const draw = () => {
-        const W = Math.max(160, pl.clientWidth), H = Math.max(100, pl.clientHeight), ml = 46, mr = 16, mt = 10, mb = 22, iw = W - ml - mr, ih = H - mt - mb;
-        const ly = o.v.map((v, i) => { const d = new Date(Q[i]); d.setUTCFullYear(d.getUTCFullYear() - 1); const j = qIdx.get(d.getTime()); return j != null ? o.v[j] : null; });
-        const g = nice(Math.max(o.max, Math.max.apply(null, ly.map((x) => x || 0))));
-        const X = (i) => (nQ < 2 ? ml + iw / 2 : ml + (i / (nQ - 1)) * iw), Yv = (v) => mt + ih - (v / g.top) * ih;
-        let h = '';
-        g.ticks.forEach((v) => { h += '<line class="sw-grid" x1="' + ml + '" x2="' + (W - mr) + '" y1="' + Yv(v).toFixed(1) + '" y2="' + Yv(v).toFixed(1) + '"/><text class="sw-tick" x="' + (ml - 6) + '" y="' + (Yv(v) + 4).toFixed(1) + '" text-anchor="end">' + (v >= 1e6 && v % 1e6 !== 0 ? AZ.money(v, 1) : AZ.money(v, 0)) + '</text>'; });
-        const step = Math.max(1, Math.ceil((nQ * 72) / Math.max(1, iw)));
-        for (let i = 0; i < nQ; i++) if ((nQ - 1 - i) % step === 0) h += '<text class="sw-tick" x="' + X(i).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + (i === nQ - 1 && nQ > 1 ? 'end' : 'middle') + '">' + qLabel(Q[i]) + '</text>';
-        const path = (arr) => { const pts = []; arr.forEach((v, i) => { if (v != null) pts.push([X(i), Yv(v)]); }); return pts; };
-        const mine = path(o.v), prev = path(ly);
-        const dstr = (p) => 'M' + p.map((a) => a[0].toFixed(1) + ' ' + a[1].toFixed(1)).join('L');
-        if (mine.length > 1) h += '<path d="' + dstr(mine) + 'L' + mine[mine.length - 1][0].toFixed(1) + ' ' + (mt + ih) + 'L' + mine[0][0].toFixed(1) + ' ' + (mt + ih) + 'Z" fill="' + SLATE[1] + '" fill-opacity=".55"/>';
-        if (prev.length > 1) h += '<path d="' + dstr(prev) + '" fill="none" stroke="' + SLATE[3] + '" stroke-width="1.6" stroke-dasharray="5 4" stroke-linejoin="round"/>';
-        if (mine.length > 1) h += '<path d="' + dstr(mine) + '" fill="none" stroke="' + INK + '" stroke-width="2.2" stroke-linejoin="round"/>';
-        const lp = mine.length && o.v[nQ - 1] != null ? mine[mine.length - 1] : null;
-        if (lp) h += '<circle cx="' + lp[0].toFixed(1) + '" cy="' + lp[1].toFixed(1) + '" r="4" fill="' + INK + '" stroke="#fff" stroke-width="1.5"/>';
-        h += '<line id="sw-g" y1="' + mt + '" y2="' + (mt + ih) + '" stroke="' + INK + '" stroke-opacity=".25" style="display:none"/><circle id="sw-gd" r="3.5" fill="' + INK + '" stroke="#fff" stroke-width="1.5" style="display:none"/>';
-        pl.innerHTML = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">' + h + '</svg>';
-        const sv = pl.firstChild, gl = sv.querySelector('#sw-g'), gd = sv.querySelector('#sw-gd');
-        sv.addEventListener('mousemove', (e) => {
-          if (busy) return;
-          const r = sv.getBoundingClientRect(), px = e.clientX - r.left;
-          let bi = -1, bd = 1e9; for (let i = 0; i < nQ; i++) { if (o.v[i] == null) continue; const dd = Math.abs(X(i) - px); if (dd < bd) { bd = dd; bi = i; } }
-          if (bi < 0 || px < ml - 8 || px > W - mr + 8) { tip.hide(); gl.style.display = 'none'; gd.style.display = 'none'; return; }
-          gl.setAttribute('x1', X(bi)); gl.setAttribute('x2', X(bi)); gl.style.display = ''; gd.setAttribute('cx', X(bi)); gd.setAttribute('cy', Yv(o.v[bi])); gd.style.display = '';
-          const pv = ly[bi], b = el.getBoundingClientRect();
-          tip.show('<b>' + AZ.esc(o.n) + ' ' + qLabel(Q[bi]) + '</b>' + AZ.row('Sales', AZ.money(o.v[bi], 2), '#FFFFFF') + (pv ? AZ.row('A year earlier', AZ.money(pv, 2), SLATE[3]) + AZ.row('Change', AZ.pct(o.v[bi] / pv - 1, 1, true)) : AZ.row('A year earlier', 'no data')), e.clientX - b.left, e.clientY - b.top);
-        });
-        sv.addEventListener('mouseleave', () => { tip.hide(); gl.style.display = 'none'; gd.style.display = 'none'; });
-      };
-      full.style.width = SW + 'px'; full.style.height = SH + 'px';
-      return draw;
-    };
-    const rectOf = (o) => { const a = stage.getBoundingClientRect(), b = o.el.getBoundingClientRect(); return { x: b.left - a.left, y: b.top - a.top, w: b.width, h: b.height }; };
-    const makeOverlay = (o) => {
-      sel = o; src = rectOf(o);
-      ov = document.createElement('div'); ov.className = 'sw-ov';
-      ghost = document.createElement('div'); ghost.className = 'sw-gh'; ghost.appendChild(o.el.querySelector('svg').cloneNode(true));
-      full = document.createElement('div'); full.className = 'sw-fl'; full.style.opacity = '0';
-      ov.appendChild(ghost); ov.appendChild(full); stage.appendChild(ov);
-      const draw = buildDetail(o); draw();
-    };
-    const frame = (k) => {
-      cur = k;
-      const kk = k;
-      ov.style.left = AZ.lerp(src.x, 0, kk).toFixed(1) + 'px'; ov.style.top = AZ.lerp(src.y, 0, kk).toFixed(1) + 'px';
-      ov.style.width = AZ.lerp(src.w, SW, kk).toFixed(1) + 'px'; ov.style.height = AZ.lerp(src.h, SH, kk).toFixed(1) + 'px';
-      ghost.style.opacity = String(1 - clamp01(k * 3)); full.style.opacity = String(clamp01((k - 0.35) / 0.5));
-      St.forEach((o) => { o.el.style.opacity = o === sel ? (k > 0 ? '0' : '1') : String(1 - clamp01(k * 1.4)); });
-    };
-    const paintHead = () => {
-      const t = document.getElementById('sw-title'), l = document.getElementById('sw-line'), ctl = document.getElementById('sw-ctl'), back = document.getElementById('sw-back');
-      if (!drill) { t.textContent = 'Quarterly sales by store'; l.innerHTML = lineAll; ctl.style.display = ''; back.style.display = 'none'; }
-      else {
-        t.innerHTML = AZ.crumbs(['All stores', drill]); AZ.wireCrumbs(t, () => go(null));
-        const o = M.get(drill), rk = St.slice().sort(cmp.sales).indexOf(o) + 1;
-        l.innerHTML = '<b>' + AZ.esc(drill) + '</b>: ' + AZ.money(o.total, 1) + ' over ' + o.v.filter((x) => x != null).length + ' quarters, ' + (n > 1 ? 'rank ' + rk + ' of ' + n + ' on sales.' : 'the only store in this filter.');
-        ctl.style.display = 'none'; back.style.display = '';
-      }
-    };
-    const go = (name) => {
-      if (cancels.drill) cancels.drill();
-      tip.hide();
-      const from = cur;
-      if (name) { if (ov) { ov.remove(); ov = null; } makeOverlay(M.get(name)); drill = name; }
-      else { drill = null; if (ov && sel) { src = rectOf(sel); } }
-      paintHead(); busy = true;
-      const to = name ? 1 : 0, start = name ? 0 : from;
-      if (name) frame(0);
-      cancels.drill = AZ.tween(520, (k) => frame(AZ.lerp(start, to, k)), () => {
-        busy = false;
-        if (!to && ov) { ov.remove(); ov = null; St.forEach((o) => { o.el.style.opacity = '1'; }); sel = null; cur = 0; }
-      }, AZ.EASE.inOut);
-    };
-    document.getElementById('sw-back').addEventListener('click', () => go(null));
-    if (drill) { makeOverlay(M.get(drill)); frame(1); St.forEach((o) => { o.el.style.opacity = '0'; }); }
-    paintHead();
-    const onKey = (e) => { if (e.key === 'Escape' && drill) go(null); };
-    window.addEventListener('keydown', onKey);
-    return () => { Object.keys(cancels).forEach((k) => { if (cancels[k]) cancels[k](); }); window.removeEventListener('keydown', onKey); };
-  }
+// Interactions: Same scale / Own scale toggle (sales, or each quarter's share of the store's own total, so shapes compare); hover or arrow-key to a cell for store, quarter and value; click cells to select several, Escape clears.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, S = c(/store/i, 'store'), D = c(/date|quarter/i, 'Quarter(date)'), V = c(/sales/i, 'Total sales');
+// Quarter labels from the date, each store's total for the own-scale share, stores ordered by sales (largest on top).
+const M = rows.map((r) => ({ s: String(r[S]), t: AZ.ms(r[D]), v: AZ.num(r[V]) })).filter((r) => isFinite(r.t)).sort((a, b) => a.t - b.t);
+const tot = new Map(); M.forEach((r) => tot.set(r.s, (tot.get(r.s) || 0) + r.v));
+const q = (t) => { const d = new Date(t); return d.getUTCFullYear() + ' Q' + (Math.floor(d.getUTCMonth() / 3) + 1); };
+const data = M.map((r) => ({ Store: r.s, Quarter: q(r.t), Sales: r.v, Own: tot.get(r.s) ? r.v / tot.get(r.s) : 0 })).sort((a, b) => tot.get(b.Store) - tot.get(a.Store));
+AZ.maya({
+  type: 'heatmap', x: 'Quarter', series: 'Store', y: ['Sales', 'Own'], select: 'multi',
+  title: 'Quarterly sales by store',
+  subtitle: data.length ? tot.size + ' stores, largest on top. Own scale shows each store\'s quarters as a share of its total, so shapes compare.' : 'Bind the search [sales] [store] [date].quarterly',
+  titles: { Sales: 'Same scale', Own: 'Own scale' },
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Own: { style: 'percent', maximumFractionDigits: 1 } },
+  text: { noData: 'No store rows' },
+  theme: { accent: '#6A7891', series1: '#6A7891' },
+  data
 });

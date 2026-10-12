@@ -135,6 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
+  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
+  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
+  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  function maya(spec, file) {
+    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    el.addEventListener('maya-settled', fin, { once: true });
+    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    return el;
+  }
+
   // -- motion: small, motivated, and off under prefers-reduced-motion ---------
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
   const EASE = { out: (t) => 1 - Math.pow(1 - t, 3), inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), spring: (t) => 1 - Math.pow(1 - t, 4) * Math.cos(t * 9) * (1 - t) };
@@ -230,229 +243,33 @@ const AZ = (function () {
   }
   const row = (k, v, swatch) => '<div class="az-tr"><span class="az-tk">' + (swatch ? '<i style="background:' + swatch + '"></i>' : '') + esc(k) + '</span><span class="az-tv">' + esc(v) + '</span></div>';
 
-  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot };
+  return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [region] [state] [date].quarterly
-// YTD bridge: last year's YTD total, each region's change (same quarters, latest year vs the year before), this year's YTD total.
-// Interactions: hover a row for the numbers. Click a region step (or press Enter) to open it: the step splits into its
-// states and the bridge re-scales to that region (crumbs, Back or Escape return). Click a total, or a state, to isolate
-// it (dims the rest); click again or use Show all to clear.
-let sel = null, openReg = null;
-
-AZ.boot({
-  need: 'sales by region, state and quarter, e.g. [sales] [region] [state] [date].quarterly',
-  render: async ({ el, rows, schema, w, h }) => {
-    const rK = AZ.col(schema, /region/i), stK = AZ.col(schema, /state/i), dK = AZ.col(schema, /date|quarter/i), sK = AZ.col(schema, /sales/i);
-    const M = rows.map((r) => ({ g: String(r[rK]), st: String(r[stK]), t: AZ.ms(r[dK]), v: AZ.num(r[sK]) })).filter((r) => isFinite(r.t));
-    if (!M.length) throw new Error('No quarters in the result');
-    const last = Math.max.apply(null, M.map((r) => r.t)), ly = AZ.year(last), lq = Math.floor(new Date(last).getUTCMonth() / 3);
-    const ST = new Map();
-    const nCur = new Set(), nPrev = new Set();
-    M.forEach((r) => {
-      const d = new Date(r.t), y = d.getUTCFullYear(), q = Math.floor(d.getUTCMonth() / 3);
-      if (q > lq || (y !== ly && y !== ly - 1)) return;
-      const k = r.g + '||' + r.st;
-      if (!ST.has(k)) ST.set(k, { g: r.st, region: r.g, cur: 0, prev: 0 });
-      const o = ST.get(k);
-      if (y === ly) { o.cur += r.v; nCur.add(q); } else { o.prev += r.v; nPrev.add(q); }
-    });
-    const states = Array.from(ST.values()).map((o) => Object.assign(o, { d: o.cur - o.prev }));
-    const RG = new Map();
-    states.forEach((o) => { if (!RG.has(o.region)) RG.set(o.region, { g: o.region, cur: 0, prev: 0, kids: [] }); const r = RG.get(o.region); r.cur += o.cur; r.prev += o.prev; r.kids.push(o); });
-    const regions = Array.from(RG.values()).map((o) => Object.assign(o, { d: o.cur - o.prev })).sort((a, b) => b.d - a.d);
-    regions.forEach((r) => r.kids.sort((a, b) => b.d - a.d));
-    const span = 'Jan to ' + AZ.MON[lq * 3 + 2];
-    if (!nPrev.size || !nCur.size || !regions.length) {
-      AZ.paint(el, '<div class="az-empty"><b>No year-on-year bridge</b><span>The current filter has no ' + span + ' in both ' + (ly - 1) + ' and ' + ly + '. Search: [sales] [region] [state] [date].quarterly</span></div>');
-      return;
-    }
-    if (openReg && !RG.has(openReg)) openReg = null;
-    const comparable = nCur.size === nPrev.size;
-    const capNote = comparable ? '' : ' Prior year has ' + nPrev.size + ' of ' + nCur.size + ' quarters.';
-    const signed = (n, d) => (n > 0 ? '+' : n < 0 ? '-' : '') + AZ.money(Math.abs(n), d == null ? 1 : d);
-    const pctS = (x) => (x == null ? 'n/a' : AZ.pct(x, 1, true));
-    const cls = (n) => (n >= 0 ? 'up' : 'dn');
-
-    el.innerHTML = '<div class="br-head"><div class="br-title"></div><div class="br-line"></div></div><div class="br-crumbrow"></div><div class="br-plot" id="br-plot"></div>'
-      + '<div class="br-key"><span><i style="background:' + AZ.T.slate[4] + '"></i>YTD total</span><span><i style="background:' + AZ.T.ink + '"></i>Increase</span><span><i style="border:1.5px solid ' + AZ.T.slate[6] + ';background:' + AZ.T.slate[1] + '"></i>Decrease</span>'
-      + '<button type="button" class="br-clear" id="br-clear" style="visibility:hidden">Show all</button></div><div class="br-key br-cap"></div>';
-    const titleEl = el.querySelector('.br-title'), lineEl = el.querySelector('.br-line'), crumbEl = el.querySelector('.br-crumbrow'), capEl = el.querySelector('.br-cap');
-    const plot = document.getElementById('br-plot'), clear = document.getElementById('br-clear');
-    const flash = (n) => { n.classList.remove('br-fade'); void n.offsetWidth; n.classList.add('br-fade'); };
-
-    // Rows for one level: prior total, steps, current total.
-    const layoutFor = (reg) => {
-      const src = reg ? RG.get(reg).kids : regions;
-      const totPrev = src.reduce((x, o) => x + o.prev, 0), totCur = src.reduce((x, o) => x + o.cur, 0);
-      const R = [{ k: '__p', label: ly - 1 + ' YTD', total: true, from: null, to: totPrev }];
-      let run = totPrev;
-      src.forEach((o) => { R.push({ k: reg ? 'st:' + o.g : o.g, label: o.g, o, from: run, to: run + o.d }); run += o.d; });
-      R.push({ k: '__c', label: ly + ' YTD', total: true, from: null, to: totCur });
-      const vals = R.map((r) => r.to).concat([totPrev]);
-      const hi0 = Math.max.apply(null, vals), lo0 = Math.min.apply(null, vals), rg = (hi0 - lo0) || Math.max(1, hi0 * 0.05);
-      const lo = lo0 - rg * 0.55, hi = hi0 + rg * 0.1;
-      return { reg, R, src, totPrev, totCur, net: totCur - totPrev, lo, hi };
-    };
-    const W = Math.max(120, plot.clientWidth), H = Math.max(80, plot.clientHeight);
-    const labW = W < 300 ? 70 : 84, valW = W < 300 ? 58 : 66, gap = 8;
-    const x0 = labW + gap, x1 = W - valW - gap;
-    const geoOf = (L) => {
-      const sx = (v) => x0 + (v - L.lo) / (L.hi - L.lo) * (x1 - x0);
-      const rowH = H / L.R.length, bh = Math.min(22, Math.max(12, rowH * 0.5));
-      const G = {};
-      L.R.forEach((r, i) => {
-        const a = r.total ? L.lo : Math.min(r.from, r.to), b = r.total ? r.to : Math.max(r.from, r.to);
-        const xa = sx(a), xb = Math.max(sx(b), xa + 2);
-        G[r.k] = { y: rowH * i + rowH / 2, h: bh, x: xa, w: xb - xa, ex: sx(r.to), rh: rowH, op: sel != null && r.k !== sel ? 0.25 : 1 };
-      });
-      L.G = G; L.rowH = rowH; L.bh = bh;
-      return L;
-    };
-
-    const NS = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('width', W); svg.setAttribute('height', H);
-    svg.innerHTML = '<defs><pattern id="br-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="' + AZ.T.slate[0] + '"/><line x1="0" y1="0" x2="0" y2="6" stroke="' + AZ.T.slate[3] + '" stroke-width="2"/></pattern></defs><g class="conns"></g><g class="rows"></g>';
-    plot.appendChild(svg);
-    const connG = svg.querySelector('.conns'), rowG = svg.querySelector('.rows');
-    const tipRoot = document.createElement('div'); tipRoot.style.cssText = 'position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none'; el.style.position = 'relative'; el.appendChild(tipRoot);
-    const tip = AZ.tip(tipRoot);
-
-    // ---- row elements (one per key) -------------------------------------------------------------
-    const els = {};
-    const mkRow = (r) => {
-      const g = document.createElementNS(NS, 'g');
-      g.setAttribute('class', 'br-row'); g.setAttribute('data-k', r.k); g.setAttribute('tabindex', 0); g.setAttribute('role', 'button');
-      const inc = !r.total && r.o.d >= 0;
-      const valTxt = r.total ? AZ.money(r.to, 1) : signed(r.o.d), col = r.total ? AZ.T.ink : (r.o.d >= 0 ? AZ.T.good : AZ.T.bad);
-      g.setAttribute('aria-label', r.label + ' ' + valTxt + (r.total || openReg ? '' : ', open its states'));
-      g.innerHTML = '<rect class="br-hit" x="0" rx="6"/>'
-        + '<text class="lab" x="' + labW + '" y="4" text-anchor="end" font-size="12" fill="' + AZ.T.ink + '" font-weight="' + (r.total ? 600 : 500) + '">' + AZ.esc(r.label) + '</text>'
-        + '<rect class="bar" rx="2"/>' + (r.total ? '<path class="tk" stroke="#fff" stroke-width="2" fill="none"/>' : '')
-        + '<text class="val" x="' + W + '" y="4" text-anchor="end" font-size="12" font-weight="600" fill="' + col + '">' + AZ.esc(valTxt) + '</text>';
-      const bar = g.querySelector('.bar');
-      if (r.total) bar.setAttribute('fill', AZ.T.slate[4]);
-      else if (inc) bar.setAttribute('fill', AZ.T.ink);
-      else { bar.setAttribute('fill', 'url(#br-hatch)'); bar.setAttribute('stroke', AZ.T.slate[6]); bar.setAttribute('stroke-width', 1.5); }
-      g.addEventListener('mousemove', (e) => { const rr = curL.R.find((x) => x.k === r.k); if (!rr) return; const b = el.getBoundingClientRect(); tip.show(html(rr), e.clientX - b.left, e.clientY - b.top); });
-      g.addEventListener('mouseleave', () => tip.hide());
-      g.addEventListener('click', () => activate(r.k));
-      g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(r.k); } });
-      rowG.appendChild(g);
-      els[r.k] = { g, bar, hit: g.querySelector('.br-hit'), tk: g.querySelector('.tk'), lab: g.querySelector('.lab'), val: g.querySelector('.val'), total: !!r.total, dec: !inc && !r.total };
-      return els[r.k];
-    };
-    const applyRow = (k, rec) => {
-      const e = els[k]; if (!e) return;
-      e.g.setAttribute('transform', 'translate(0,' + rec.y.toFixed(2) + ')'); e.g.style.opacity = rec.op;
-      e.hit.setAttribute('y', (-rec.rh / 2 + 1).toFixed(2)); e.hit.setAttribute('width', W); e.hit.setAttribute('height', Math.max(2, rec.rh - 2).toFixed(2));
-      if (e.dec) { e.bar.setAttribute('x', (rec.x + 0.75).toFixed(2)); e.bar.setAttribute('y', (-rec.h / 2 + 0.75).toFixed(2)); e.bar.setAttribute('width', Math.max(1, rec.w - 1.5).toFixed(2)); e.bar.setAttribute('height', Math.max(1, rec.h - 1.5).toFixed(2)); }
-      else { e.bar.setAttribute('x', rec.x.toFixed(2)); e.bar.setAttribute('y', (-rec.h / 2).toFixed(2)); e.bar.setAttribute('width', Math.max(1, rec.w).toFixed(2)); e.bar.setAttribute('height', rec.h.toFixed(2)); }
-      if (e.tk) e.tk.setAttribute('d', 'M' + (rec.x + 5).toFixed(1) + ' ' + (-rec.h / 2 - 2).toFixed(1) + ' l-4 ' + (rec.h + 4).toFixed(1) + ' M' + (rec.x + 9).toFixed(1) + ' ' + (-rec.h / 2 - 2).toFixed(1) + ' l-4 ' + (rec.h + 4).toFixed(1));
-    };
-    const html = (r) => {
-      const L = curL;
-      if (r.total) return '<b>' + AZ.esc(openReg ? openReg + ', ' + r.label : r.label) + ', ' + span + '</b>' + AZ.row('Sales', AZ.money(r.to, 2), '#FFFFFF') + (r.k === '__c' ? AZ.row('vs ' + (ly - 1), signed(L.net, 2) + ' (' + pctS(L.totPrev ? L.net / L.totPrev : null) + ')') : '');
-      const o = r.o;
-      return '<b>' + AZ.esc(o.g) + (openReg ? ', ' + AZ.esc(openReg) : '') + '</b>' + AZ.row(ly - 1 + ' YTD', AZ.money(o.prev, 2), AZ.T.slate[3]) + AZ.row(ly + ' YTD', AZ.money(o.cur, 2), '#FFFFFF')
-        + AZ.row('Change', signed(o.d, 2) + ' (' + pctS(o.prev ? o.d / o.prev : null) + ')') + (L.net ? AZ.row('Share of ' + (openReg ? openReg + ' ' : '') + 'net change', AZ.pct(o.d / L.net, 0)) : '')
-        + (openReg ? '' : AZ.row('States', String(o.kids.length)));
-    };
-
-    // ---- headings ---------------------------------------------------------------------------------
-    const head = (L, fade) => {
-      titleEl.textContent = openReg ? 'YTD sales in ' + openReg + ' by state, ' + span + ', ' + ly + ' vs ' + (ly - 1) : 'YTD sales by region, ' + span + ', ' + ly + ' vs ' + (ly - 1);
-      const steps = L.src, net = L.net, big = steps.reduce((b, o) => (Math.abs(o.d) > Math.abs(b.d) ? o : b), steps[0]);
-      const who = openReg ? openReg : 'All regions';
-      let line;
-      if (steps.length === 1) line = '<b>' + AZ.esc(big.g) + '</b> <span class="' + cls(big.d) + '">' + signed(big.d) + '</span> (' + pctS(big.prev ? big.d / big.prev : null) + ') on the same quarters a year earlier';
-      else line = '<b>' + AZ.esc(big.g) + '</b> moved most: <span class="' + cls(big.d) + '">' + signed(big.d) + '</span> (' + pctS(big.prev ? big.d / big.prev : null) + '). ' + AZ.esc(who) + ': <span class="' + cls(net) + '">' + signed(net) + '</span> (' + pctS(L.totPrev ? net / L.totPrev : null) + ')';
-      lineEl.innerHTML = line;
-      crumbEl.innerHTML = openReg ? AZ.crumbs(['All regions', openReg]) + '<button type="button" class="br-back">Back</button>' : '<span class="br-hint">Click a region to open its states</span>';
-      if (openReg) { AZ.wireCrumbs(crumbEl, () => goTo(null)); crumbEl.querySelector('.br-back').addEventListener('click', () => goTo(null)); }
-      capEl.textContent = 'Axis starts at ' + AZ.money(L.lo, 1) + '; total bars are cut.' + capNote;
-      clear.style.visibility = sel == null ? 'hidden' : 'visible';
-      if (fade) { flash(titleEl); flash(lineEl); flash(crumbEl); }
-    };
-
-    // ---- the morph ----------------------------------------------------------------------------------
-    let curL = null, cur = null, cancelT = null, leaving = [], conns = [];
-    const lerpRec = (a, b, k) => ({ y: AZ.lerp(a.y, b.y, k), h: AZ.lerp(a.h, b.h, k), x: AZ.lerp(a.x, b.x, k), w: AZ.lerp(a.w, b.w, k), ex: AZ.lerp(a.ex, b.ex, k), rh: AZ.lerp(a.rh, b.rh, k), op: AZ.lerp(a.op, b.op, k) });
-    const update = (animate, ms) => {
-      if (cancelT) { cancelT(); cancelT = null; }
-      leaving.forEach((k) => { if (els[k]) { els[k].g.remove(); delete els[k]; } }); leaving = [];
-      const L = geoOf(layoutFor(openReg)), prev = animate ? cur : null;
-      const prevReg = curL ? curL.reg : undefined;
-      curL = L;
-      const start = {};
-      L.R.forEach((r) => {
-        const tg = L.G[r.k];
-        let s = null;
-        if (prev && prev[r.k]) s = Object.assign({}, prev[r.k]);
-        else if (prev && prevReg === null && openReg && prev[openReg]) s = Object.assign({}, prev[openReg], { op: 1 });
-        else if (prev && prevReg && openReg === null) {
-          const kids = Object.keys(prev).filter((k) => k.indexOf('st:') === 0);
-          const kr = RG.get(prevReg);
-          if (r.k === prevReg && kids.length) {
-            const yy = kids.map((k) => prev[k].y), xa = Math.min.apply(null, kids.map((k) => prev[k].x)), xb = Math.max.apply(null, kids.map((k) => prev[k].x + prev[k].w));
-            s = { y: yy.reduce((a, b) => a + b, 0) / yy.length, h: prev[kids[0]].h, x: xa, w: xb - xa, ex: prev[kids[kids.length - 1]].ex, rh: prev[kids[0]].rh, op: 1 };
-          }
-        }
-        if (!s) s = Object.assign({}, tg, { op: prev ? 0 : tg.op });
-        if (!prev) s = Object.assign({}, tg);
-        start[r.k] = s;
-        if (!els[r.k]) mkRow(r);
-        else if (!els[r.k].total) { /* reused non-total key keeps its element */ }
-        if (els[r.k].total) { els[r.k].val.textContent = AZ.money(r.to, 1); }
-      });
-      // rows that go away
-      const gone = prev ? Object.keys(prev).filter((k) => !L.G[k]) : [];
-      const fadeKeys = [];
-      gone.forEach((k) => {
-        const swallowed = (openReg && k === openReg) || (prevReg && openReg === null && k.indexOf('st:') === 0);
-        if (swallowed) { if (els[k]) { els[k].g.remove(); delete els[k]; } } else fadeKeys.push(k);
-      });
-      leaving = fadeKeys.slice();
-      // connectors: one per gap between target rows
-      connG.innerHTML = ''; conns = [];
-      for (let i = 0; i < L.R.length - 1; i++) { const ln = document.createElementNS(NS, 'line'); ln.setAttribute('stroke', AZ.T.slate[3]); ln.setAttribute('stroke-width', 1); ln.setAttribute('stroke-dasharray', '2 2'); connG.appendChild(ln); conns.push(ln); }
-      cur = {}; L.R.forEach((r) => { cur[r.k] = Object.assign({}, start[r.k]); });
-      const fromFade = {}; fadeKeys.forEach((k) => { fromFade[k] = Object.assign({}, prev[k]); });
-      const levelChange = prevReg !== undefined && prevReg !== openReg && animate;
-      const frame = (k) => {
-        L.R.forEach((r) => { const rec = lerpRec(start[r.k], L.G[r.k], k); cur[r.k] = rec; applyRow(r.k, rec); });
-        fadeKeys.forEach((key) => { const f = fromFade[key]; applyRow(key, Object.assign({}, f, { op: f.op * (1 - k) })); });
-        conns.forEach((ln, i) => {
-          const a = cur[L.R[i].k], b = cur[L.R[i + 1].k], cx = a.ex;
-          ln.setAttribute('x1', cx); ln.setAttribute('x2', cx); ln.setAttribute('y1', a.y + a.h / 2); ln.setAttribute('y2', b.y - b.h / 2);
-          ln.setAttribute('opacity', levelChange ? k : 1);
-        });
-      };
-      cancelT = AZ.tween(animate ? (ms || 500) : 0, frame, () => {
-        cancelT = null;
-        leaving.forEach((k) => { if (els[k]) { els[k].g.remove(); delete els[k]; } }); leaving = [];
-      }, AZ.EASE.inOut);
-      // rows keep tab order from top to bottom
-      L.R.forEach((r) => rowG.appendChild(els[r.k].g));
-    };
-
-    const activate = (k) => {
-      const L = curL, r = L.R.find((x) => x.k === k);
-      if (!r) return;
-      if (!r.total && !openReg) { goTo(r.k); return; }
-      sel = sel === k ? null : k; head(curL, false); update(true, 260);
-    };
-    const goTo = (reg) => {
-      if (reg === openReg) return;
-      openReg = reg; sel = null; tip.hide();
-      update(true, 520); head(curL, true);
-    };
-    clear.addEventListener('click', () => { sel = null; head(curL, false); update(true, 260); });
-    const onKey = (e) => { if (e.key !== 'Escape') return; if (openReg) { e.preventDefault(); goTo(null); } else if (sel != null) { e.preventDefault(); sel = null; head(curL, false); update(true, 260); } };
-    document.addEventListener('keydown', onKey);
-
-    update(false); head(curL, false);
-    return () => { if (cancelT) cancelT(); document.removeEventListener('keydown', onKey); };
-  }
+// Interactions: hover or arrow-key to a bar for the region's change or a YTD total; click bars to select several, Escape clears.
+const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
+const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, G = c(/region/i, 'region'), D = c(/date|quarter/i, 'Quarter(date)'), V = c(/sales/i, 'Total sales');
+// YTD bridge: the same quarters of the latest year and the year before, one step per region's change.
+const M = rows.map((r) => ({ g: String(r[G]), d: new Date(AZ.ms(r[D])), v: AZ.num(r[V]) })).filter((r) => isFinite(r.d));
+const last = M.length ? new Date(Math.max(...M.map((r) => r.d.getTime()))) : null, ly = last ? last.getUTCFullYear() : 0, lq = last ? Math.floor(last.getUTCMonth() / 3) : 0;
+const reg = new Map(); let cur = 0, prev = 0;
+M.forEach((r) => { const y = r.d.getUTCFullYear(); if (Math.floor(r.d.getUTCMonth() / 3) > lq || (y !== ly && y !== ly - 1)) return; const s = y === ly ? r.v : -r.v; reg.set(r.g, (reg.get(r.g) || 0) + s); if (y === ly) cur += r.v; else prev += r.v; });
+const P = (ly - 1) + ' YTD', C = ly + ' YTD', ok = cur > 0 && prev > 0;
+const steps = [...reg].sort((a, b) => b[1] - a[1]).map(([g, d]) => ({ Step: g, Change: d }));
+const data = ok ? [{ Step: P, Change: prev }].concat(steps, [{ Step: C, Change: 0 }]) : [];
+// The changes are small next to the totals, so the axis starts near the lowest running total (said in the subtitle).
+let run = prev, lo = Math.min(prev, cur), hi = Math.max(prev, cur); steps.forEach((s) => { run += s.Change; lo = Math.min(lo, run); hi = Math.max(hi, run); });
+const pad = (hi - lo || hi * 0.05) * 0.6, span = 'Q1' + (lq ? ' to Q' + (lq + 1) : '');
+AZ.maya({
+  type: 'waterfall', x: 'Step', y: 'Change', totals: [C], select: 'multi', labels: true,
+  ...(ok ? { yDomain: [Math.max(0, lo - pad), hi + pad * 0.3] } : {}),
+  title: ok ? 'YTD sales ' + AZ.pct(cur / prev - 1, 1, true) + ' on ' + (ly - 1) : 'YTD sales by region',
+  subtitle: ok ? span + ' ' + ly + ' against ' + (ly - 1) + ', by region. Axis does not start at zero.' : 'Bind the search [sales] [region] [state] [date].quarterly',
+  titles: { Step: 'Region', Change: 'Sales' },
+  format: { Change: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
+  text: { noData: 'No year-on-year rows' },
+  theme: { series1: '#1F7A4D', series2: '#B3261E', good: '#1F7A4D', bad: '#B3261E' },
+  data
 });

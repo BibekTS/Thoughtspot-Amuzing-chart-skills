@@ -6,16 +6,16 @@ How do the 15 item types rank by sales, and what leads inside each?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [item type] [product]` |
-| Library | d3@7 (d3-hierarchy, d3-shape, d3-chord) from https://cdn.jsdelivr.net/npm/d3@7 (fallback https://unpkg.com/d3@7) |
+| Library | MayaCharts 0.16.0 (maya.global.js from jsDelivr) |
 | Tile | 6x6 grid units (04 What tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | https://cdn.jsdelivr.net/npm/d3@7, https://unpkg.com/d3@7 |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js` |
 
 ## Interactions
-Hover a bar; click a bar to swap to that item type's top 12 products (bars retract then grow); crumbs, Back, Escape.
+Hover or arrow-key to a bar for its item type and sales; the other bars dim. Click a bar (or Enter) to select it, and click a family in the legend to select that family's item types; Escape clears.
 
 ## Notes
-Bar length is proportional to sales (linear radius). Family is an editorial grouping. Top 12 products shown per item type.
+Built on MayaCharts 0.16.0 as a `radial` bar chart with `x` item type, `sort: 'desc'` and `series` family, so colours come from `colors: AZ.T.family` (an editorial grouping derived with `AZ.familyOf`). The product rows of the search roll up into one bar per item type; the centre shows total sales. The headline (the top three item types and their share of sales) is computed in the body. Dropped against the D3 chart: the click that swapped a bar for that item type's top 12 products, because `radial` takes no `path` or `drill` in 0.16.0 (`path` without `x` fails with `missing-field`). The tooltip lists every family with a value only on the hovered bar's family. On narrow tiles long item type names shorten with an ellipsis. Render-complete fires on `maya-settled`. Preview-verified on synthetic data, not yet re-checked on a cluster.
 
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.
