@@ -25,7 +25,7 @@ library and search). Use the `examples/` files further down only for shapes the 
 
 | Pattern | Copy | Library | Why this one |
 |---|---|---|---|
-| Any standard business shape (bar, line, KPI, waterfall, treemap ...) | `examples/maya-was-bars` | MayaCharts | One JSON spec gives marks, tooltip, selection and resize; the starter for every MayaCharts chart (preview-verified, not yet on a cluster) |
+| Any standard business shape (bar, line, KPI, waterfall, treemap ...) | `examples/maya-was-bars` | MayaCharts | 15 lines, no shared core: the fixed tile plumbing plus one spec with a ghost of last year, and the pivot the spec cannot do yet. The starter for a standalone MayaCharts tile (preview-verified, not yet on a cluster) |
 | Hierarchy with animated zoom | `library/what-sunburst` | Plotly | Native `sunburstclick` zoom, crumbs wired to `Plotly.restyle` |
 | Hierarchy as rectangles, drill by click | `library/what-treemap-drill` | hand SVG | Three-level drill with crumbs and a way back |
 | Flow between two or three dimensions | `library/what-money-sankey`, `library/what-chord` | ECharts / D3 | Click a node to isolate its flows; chord drills a family |
@@ -54,8 +54,9 @@ These predate the preview loop and the shared core. Entries marked *superseded* 
 
 ## Chart.js (CDN)
 
-None left in `examples/`; `library/` has the Chart.js charts. Load the library the way `AZ.loadScript` does: a
-`<script src>` plus a bounded promise, jsdelivr pinned to `chart.js@4`.
+No Chart.js chart ships, here or in `library/`; MayaCharts covers its usual shapes (radial, gauge, doughnut-like
+waffle). If you need it, load it the way `AZ.loadScript` does: a `<script src>` plus a bounded promise, jsdelivr
+pinned to `chart.js@4`, and read the Chart.js section of `references/library-starters.md`.
 
 ## Plotly (CDN)
 

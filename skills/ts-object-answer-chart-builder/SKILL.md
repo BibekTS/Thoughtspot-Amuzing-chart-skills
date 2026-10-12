@@ -416,7 +416,9 @@ Without that skill or the MCP, hand the user the three files and the search to b
 
 Start from a library chart: the "Start here" table at the top of `references/examples.md`
 maps shapes (animated drill, map zoom, flow, KPI variants, what-if, beeswarm ...) to a
-proven chart under `library/`. Copy its technique; keep the shared core. Otherwise,
+proven chart under `library/`. Copy its technique. Keep the shared core in a chart bound for the library or a
+Liveboard (the Liveboard tooling needs it); a standalone MayaCharts tile needs no core and starts from the 7-line
+tile in the MayaCharts section of `references/library-starters.md`. Otherwise,
 pick by what the chart is. **MayaCharts is the default for standard business shapes** (bar, line, area,
 scatter, KPI, waterfall, heatmap, table, treemap, sunburst, sankey, funnel, box plot, gauge): one JSON spec gives the
 marks, tooltip, keyboard focus, selection, drill, empty state and resize, so a whole tile is 7 lines of

@@ -7,8 +7,9 @@ Two skills:
 
 - **ts-object-answer-chart-builder** writes the three files a BYOC tile takes (`chart.html`,
   `chart.css`, `chart.js`) and iterates them in a real browser until the render is right,
-  instead of handing you code it has never run. It carries a library of 58 proven charts, and can
-  save a finished chart as a ThoughtSpot answer through the MCP.
+  instead of handing you code it has never run. Charts are built on [MayaCharts](https://bbekshr.github.io/mayacharts/)
+  by default, where a whole tile is 7 lines of `chart.js`. It carries a library of 58 charts, and can save a
+  finished chart as a ThoughtSpot answer through the MCP.
 - **ts-object-liveboard-chart-builder** builds a whole storytelling Liveboard of those charts on a
   real model through the ThoughtSpot MCP: plans the tabs, has each tile built by the chart
   skill, writes the banners, adds filters, imports, proves the import, and screenshots every
@@ -44,6 +45,41 @@ A run goes:
 
 If a window cannot open in Claude Code either — no display, or Chromium fails to start
 headed — it falls back to headless on its own and says so.
+
+### Chart libraries
+
+[MayaCharts](https://bbekshr.github.io/mayacharts/) (MIT, no dependencies) is the default for standard business
+shapes: bar, line, area, scatter, KPI, waterfall, heatmap, table, treemap, sunburst, sankey, funnel, box plot and
+gauge. One JSON spec gives the marks, tooltip, keyboard focus, selection, drill, empty state and resize, so a complete
+tile is 7 lines of `chart.js`: 6 fixed lines that never change and one spec.
+
+```js
+const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.15.0/dist/maya.global.js';
+const el = document.getElementById('chart') ?? document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
+const done = () => viz?.events?.emitRenderCompletedEvent();
+if (!document.querySelector('script[src="' + MAYA + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, onerror: () => { el.textContent = 'MayaCharts could not load from ' + MAYA; done(); } }));
+const rows = ((r) => { const k = r.schema.map((c) => c.name); return r.data.map((d) => { const o = {}; k.forEach((n, i) => { const v = d[i]; o[n] = v !== null && typeof v === 'object' ? (typeof v.value === 'function' ? v.value() : v.value) : v; }); return o; }); })(viz?.getDataFromSearchQuery?.()?.getData() ?? { schema: [], data: [] });
+['maya-render', 'maya-error'].forEach((t) => el.addEventListener(t, done, { once: true }));
+el.spec = { type: 'bar', x: 'Item Type', y: 'Total Sales', data: rows };
+```
+
+The fixed lines load the library, mount the chart (even when the HTML tab is pasted empty), turn ThoughtSpot's
+search result into rows (unwrapping object cells, about 3x faster than building each row with `Object.fromEntries`),
+and tell ThoughtSpot the tile is done, on errors too. The tile was checked in the preview on live, missing, wrapped and
+empty data, 280 to 1400 px tiles, a renamed column and a CDN that fails to load.
+
+MayaCharts ships often. The doctor asks jsDelivr (then npm) for the latest release on every run and prints it as
+`mayacharts:`; each chart pins that exact release, so a saved tile never changes under you.
+
+The skill reaches for something else only when a spec cannot say it: Plotly for an animated sunburst zoom, D3 for
+force layouts and bespoke shapes, ECharts for dense flows, hand-built HTML and SVG for pivots, KPI cards and
+annotations computed from the data. Things MayaCharts cannot do yet (a diagonal reference line, a dashed series,
+extra tooltip fields, a log scale), and the fixes suggested for it, are filed upstream as
+[BbekShr/mayacharts#59 to #68](https://github.com/BbekShr/mayacharts/issues).
+
+Muze is not used: ThoughtSpot's own chart library has no license to redistribute, so a Muze chart could never be
+previewed here. (`MUZE_STUDIO` still appears in the answer and Liveboard TML: it is ThoughtSpot's type name for every
+custom chart, whatever draws it.)
 
 ## Install in Claude Code
 
@@ -162,7 +198,7 @@ node /mnt/skills/user/ts-object-answer-chart-builder/helpers/env.mjs        # Cl
 
 It prints where runs and deliverables go, whether the preview will be headed or
 headless, which Playwright and Chromium it found, whether it could actually launch
-the browser, and whether CDN libraries are reachable. When something is missing, its
+the browser, whether CDN libraries are reachable, and the latest MayaCharts release to pin. When something is missing, its
 `fix:` line is the command that fixes it. If a run fails in the Claude app, that
 output is the thing to send to the skill author.
 
@@ -174,6 +210,7 @@ node $H/start-preview.mjs my-chart                     # open the preview window
 node $H/snap.mjs my-chart 01                           # screenshot + diagnostic block
 node $H/snap.mjs my-chart 91 --data absent             # also: wrapped, empty, noviz
 node $H/snap.mjs my-chart 95 --tile 620x400            # resize the tile, report svg-fit
+node $H/probe.mjs my-chart --tile 620x400 --sweep      # does hovering change anything (looks inside shadow DOM)
 node $H/close-preview.mjs my-chart                     # close the window
 ```
 
@@ -215,9 +252,10 @@ skill as a sibling folder (or through `TS_ANSWER_CHART_SKILL`), so install both 
 **(Sample) Retail - Apparel**, and 50 of them are arranged as the Liveboard **Amuzing chart samples**:
 seven numbered tabs (About, Pulse, Where, What, When, Who, Next), each answering one question, custom
 charts only, three Liveboard filters (date, region, item type). Every chart reads only what its search
-returns, is interactive, survives a filtered view, and was checked in a real cluster, except four newer ones (a pivot table,
-a store league table, a MayaCharts diverging bar and a volume-and-price growth split, rebuilt from the older
-`examples/`) that are marked *preview only* until they have been on a tile.
+returns, is interactive, survives a filtered view, and was checked in a real cluster, except six that are marked
+*preview only* until they have been on a tile: a pivot table, a store league table and a volume-and-price growth split
+(rebuilt from the older `examples/`), and the three MayaCharts charts (monthly line against last year, sales against
+units by state, premium or volume by item type), which were rebuilt on synthetic data.
 `references/library.md` indexes them by tab, library and search; the "Start here" table in
 `references/examples.md` maps chart shapes to the one to copy. The library is one worked Liveboard on
 that model rather than 58 model-agnostic templates: the shared core knows the apparel item families and
@@ -243,17 +281,18 @@ inside a tile, `<script src>` from a CDN is not), and the import-side ones in th
 
 ## Examples
 
-`skills/ts-object-answer-chart-builder/examples/` carries charts that already render
-correctly in ThoughtSpot, grouped by library: MayaCharts (`maya-was-bars`, the starter), Plotly over CDN
-(sunburst), hand-built DOM (pivot table, flat table,
-waffle, funnel), raw SVG (hex cartogram, KPI), and self-contained HTML.
+`skills/ts-object-answer-chart-builder/examples/` holds:
+
+- `maya-was-bars`: the MayaCharts starter (bars against a ghost of last year, 15 lines), verified in the
+  preview, not yet on a tile.
+- Older charts that render correctly in ThoughtSpot: Plotly sunbursts, gridjs and hand-built tables (pivot,
+  flat, league, scoreboard), a waffle, a funnel, a hex cartogram and a KPI card. They were written before the
+  preview loop existed, so they are correct-in-ThoughtSpot, not correct-in-preview, and most are superseded by
+  the library.
 
 `references/examples.md` indexes them by shape and says what each is worth opening for —
 mostly the workarounds for bugs that are expensive to rediscover: object-wrapped cells, TS column names
-that carry non-breaking spaces.
-
-They were written before the preview loop existed, so they are correct-in-ThoughtSpot,
-not correct-in-preview. Copy the technique, not the file.
+that carry non-breaking spaces. Copy the technique, not the file.
 
 ## For maintainers: the ThoughtSpot skills library
 
@@ -268,16 +307,6 @@ scripts/export-to-library.sh /path/to/thoughtspot-agent-skills
 That copies both folders as they are. Registering them in the library (README, setup docs,
 runtime coverage, naming family, changelog, smoke tests) is part of the library PR.
 
-## MayaCharts
-
-[MayaCharts](https://bbekshr.github.io/mayacharts/) (MIT, no dependencies) is the default library for standard
-business shapes: bar, line, area, scatter, KPI, waterfall, heatmap, table, treemap, sunburst, sankey, funnel, box
-plot and gauge. One JSON spec gives the marks, tooltip, keyboard focus, selection, drill and resize, so a tile is a
-fraction of the code of a hand-built or D3 chart. It ships often, so the doctor asks jsDelivr (then npm) for the
-latest release on every run and prints it as `mayacharts:`; each chart pins that exact release, so a saved tile never
-changes under you. A whole tile is about ten lines of `chart.js`: the host plumbing and one spec. `examples/maya-was-bars/` is the starter, and the MayaCharts section of
-`references/library-starters.md` has the traps.
-
 ## Status
 
 Verified on macOS (2026-09-29):
@@ -288,6 +317,14 @@ Verified on macOS (2026-09-29):
   Claude-app mode, installs `playwright-core` from the doctor's `fix:` line and
   captures every data mode plus `--tile 620x400` and `1400x500`.
 - **Fallback:** a Chromium that cannot open a window drops to headless on its own.
+
+Verified on macOS (2026-10-12), after the switch to MayaCharts:
+
+- The doctor reports the latest MayaCharts release (0.15.0).
+- The 7-line tile, `examples/maya-was-bars` and the three MayaCharts library charts pass every data mode,
+  280x300 and 1400x500 tiles and the hover sweep; the smoke fixture, a hand-built SVG KPI and the Plotly
+  sunburst still pass after the Muze code left the preview.
+- Not yet checked: the rebuilt charts on a real cluster tile.
 
 Not yet run inside the Claude app itself; the doctor output from a first run there is
 the thing to check.
