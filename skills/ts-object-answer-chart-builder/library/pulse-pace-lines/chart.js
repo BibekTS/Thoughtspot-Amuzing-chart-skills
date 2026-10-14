@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -251,17 +256,14 @@ const AZ = (function () {
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [date].monthly
-// Interactions: hover a month for every year's cumulative sales; click a line or a legend key to select a year (the others dim; Escape clears); click a legend key on narrow tiles to hide or show a year; arrow keys step through months and years.
+// Interactions: hover a month for every year's cumulative sales; click a line or a legend key to select a year (Escape clears); arrow keys step through months and years.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month(date)', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Total sales';
-// Cumulative sales through each month, one line per year; a year needs at least 3 months.
 const by = new Map();
 rows.forEach((r) => { const t = AZ.ms(r[D]), y = AZ.year(t), m = new Date(t).getUTCMonth(); if (!by.has(y)) by.set(y, new Array(12).fill(null)); by.get(y)[m] = (by.get(y)[m] ?? 0) + AZ.num(r[V]); });
 const years = [...by.keys()].sort().filter((y) => by.get(y).filter((v) => v != null).length >= 3), cum = new Map();
 years.forEach((y) => { let c = 0; cum.set(y, by.get(y).map((v) => (v == null ? null : (c += v)))); });
-// Months before a year's first month go in as null, so months run Jan to Dec and years stay in order everywhere.
 const data = AZ.MON.flatMap((mon, m) => years.filter((y) => m === 0 || cum.get(y)[m] != null).map((y) => ({ Month: mon, Year: String(y), Sales: cum.get(y)[m] })));
-// Headline: the latest year against the year before through the same month.
 const ly = years[years.length - 1], lm = ly ? by.get(ly).reduce((a, v, i) => (v != null ? i : a), -1) : -1, prev = by.get(ly - 1);
 const sumTo = (arr) => arr.slice(0, lm + 1).reduce((a, v) => a + (v ?? 0), 0), cur = ly ? sumTo(by.get(ly)) : 0, was = prev ? sumTo(prev) : 0;
 const part = years.filter((y) => by.get(y)[0] == null).map((y) => y + ' starts in ' + AZ.MON[by.get(y).findIndex((v) => v != null)]);
@@ -274,6 +276,6 @@ AZ.maya({
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 0 } },
   titles: { Sales: 'Sales to date' },
   colors: years.length <= 8 ? colors : undefined,
-  text: { noData: 'No rows yet. Bind the search [sales] [date].monthly (a year needs at least 3 months)' },
+  text: { noData: 'No rows yet. Bind [sales] [date].monthly.' },
   data
 });

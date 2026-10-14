@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -251,20 +256,19 @@ const AZ = (function () {
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [store] [date].quarterly     (columns arrive as "store", "Quarter(date)" and "Total sales")
-// Interactions: Same scale / Own scale toggle (sales, or each quarter's share of the store's own total, so shapes compare); hover or arrow-key to a cell for store, quarter and value; click cells to select several, Escape clears.
+// Interactions: Same scale / Own scale toggle (sales, or each quarter's share of the store's own total); hover or arrow-key to a cell for store, quarter and value; click cells to select several, Escape clears.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, S = c(/store/i, 'store'), D = c(/date|quarter/i, 'Quarter(date)'), V = c(/sales/i, 'Total sales');
-// Quarter labels from the date, each store's total for the own-scale share, stores ordered by sales (largest on top).
-const M = rows.map((r) => ({ s: String(r[S]), t: AZ.ms(r[D]), v: AZ.num(r[V]) })).filter((r) => isFinite(r.t)).sort((a, b) => a.t - b.t);
-const tot = new Map(); M.forEach((r) => tot.set(r.s, (tot.get(r.s) || 0) + r.v));
-const q = (t) => { const d = new Date(t); return d.getUTCFullYear() + ' Q' + (Math.floor(d.getUTCMonth() / 3) + 1); };
-const data = M.map((r) => ({ Store: r.s, Quarter: q(r.t), Sales: r.v, Own: tot.get(r.s) ? r.v / tot.get(r.s) : 0 })).sort((a, b) => tot.get(b.Store) - tot.get(a.Store));
+const tot = {}, q = (t) => { const d = new Date(t); return d.getUTCFullYear() + ' Q' + (Math.floor(d.getUTCMonth() / 3) + 1); };
+const M = rows.filter((r) => isFinite(AZ.ms(r[D]))).sort((a, b) => AZ.ms(a[D]) - AZ.ms(b[D]));
+M.forEach((r) => { tot[r[S]] = (tot[r[S]] || 0) + AZ.num(r[V]); });
+const data = M.map((r) => ({ Store: String(r[S]), Quarter: q(AZ.ms(r[D])), Sales: AZ.num(r[V]), Own: tot[r[S]] ? AZ.num(r[V]) / tot[r[S]] : 0 })).sort((a, b) => tot[b.Store] - tot[a.Store]);
 AZ.maya({
   type: 'heatmap', x: 'Quarter', series: 'Store', y: ['Sales', 'Own'], select: 'multi',
   title: 'Quarterly sales by store',
-  subtitle: data.length ? tot.size + ' stores, largest on top. Own scale shows each store\'s quarters as a share of its total, so shapes compare.' : 'Bind the search [sales] [store] [date].quarterly',
+  subtitle: data.length ? Object.keys(tot).length + ' stores, largest on top. Own scale shows each store\'s quarters as a share of its total, so shapes compare.' : '',
   titles: { Sales: 'Same scale', Own: 'Own scale' },
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Own: { style: 'percent', maximumFractionDigits: 1 } },
-  text: { noData: 'No store rows' },
+  text: { noData: 'No rows yet: bind [sales] [store] [date].quarterly' },
   data
 });

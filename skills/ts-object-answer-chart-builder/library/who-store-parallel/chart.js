@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -254,8 +259,6 @@ const AZ = (function () {
 // Interactions: hover a line for the store and its five values; click lines to select several (the rest fade), Escape clears; arrow keys step between stores.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, St = c(/store/i, 'Store'), D = c(/date|quarter/i, 'Quarter(date)'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
-// Per store: totals over every quarter, price per unit, year-to-date change (the latest year's quarters up to the
-// latest quarter against the same quarters a year earlier) and total sales as a share of the largest store.
 const last = rows.reduce((m, r) => Math.max(m, AZ.ms(r[D])), 0), ly = AZ.year(last), lq = new Date(last).getUTCMonth();
 const by = new Map();
 rows.forEach((r) => {

@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -254,17 +259,15 @@ const AZ = (function () {
 // Interactions: Sales / Units toggle; hover a square or a key for the family's share; click a family (square or key) to select it, Escape clears.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, I = c(/item/i, 'Item Type'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
-// One row per family, in the house family order, so squares and key keep the same order on both measures.
-const fam = new Map(Object.keys(AZ.T.family).map((f) => [f, { Family: f, Sales: 0, Units: 0 }]));
-rows.forEach((r) => { const f = AZ.familyOf(r[I]), o = fam.get(f) ?? fam.set(f, { Family: f, Sales: 0, Units: 0 }).get(f); o.Sales += AZ.num(r[V]); o.Units += AZ.num(r[Q]); });
-const data = [...fam.values()].filter((o) => o.Sales > 0 || o.Units > 0);
+const FO = Object.keys(AZ.T.family).concat('Other');
+const data = rows.map((r) => ({ Family: AZ.familyOf(r[I]), Sales: AZ.num(r[V]), Units: AZ.num(r[Q]) })).sort((a, b) => FO.indexOf(a.Family) - FO.indexOf(b.Family));
+const sum = (k, f) => data.filter((o) => !f || o.Family === f).reduce((a, o) => a + o[k], 0), S = sum('Sales'), U = sum('Units');
 // Headline: the family whose share of sales differs most from its share of units.
-const S = data.reduce((a, o) => a + o.Sales, 0), U = data.reduce((a, o) => a + o.Units, 0);
-const g = data.map((o) => ({ f: o.Family, s: S ? o.Sales / S : 0, u: U ? o.Units / U : 0 })).sort((a, b) => Math.abs(b.s - b.u) - Math.abs(a.s - a.u))[0];
+const g = FO.map((f) => ({ f, s: S ? sum('Sales', f) / S : 0, u: U ? sum('Units', f) / U : 0 })).sort((a, b) => Math.abs(b.s - b.u) - Math.abs(a.s - a.u))[0];
 AZ.maya({
   type: 'waffle', x: 'Family', y: ['Sales', 'Units'], select: true, colors: AZ.T.family,
-  title: g ? g.f + ' takes ' + AZ.pct(g.s, 0) + ' of sales from ' + AZ.pct(g.u, 0) + ' of units' : '',
-  subtitle: g ? 'Each square is 1% of ' + AZ.money(S) + ' in sales or ' + AZ.int(U) + ' units' : '',
+  title: S ? g.f + ' takes ' + AZ.pct(g.s, 0) + ' of sales from ' + AZ.pct(g.u, 0) + ' of units' : '',
+  subtitle: S ? 'Each square is 1% of ' + AZ.money(S) + ' in sales or ' + AZ.int(U) + ' units' : '',
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Units: { notation: 'compact', maximumFractionDigits: 1 } },
   text: { noData: 'No rows yet: bind [sales] [quantity purchased] [item type]' },
   data

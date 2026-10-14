@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -252,23 +257,18 @@ const AZ = (function () {
 
 // Search: [sales] [quantity purchased] [region] [state] [item type]
 // Interactions: hover or arrow-key to a cell for its price per unit; click a cell (or Enter) to drill into that region's states; the breadcrumb, Back, Escape or a click on empty space goes back up.
-const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, R = c(/^region/i, 'region'), ST = c(/state/i, 'state'), I = c(/item/i, 'item type'), V = c(/sales/i, 'Total sales'), U = c(/quantity|units/i, 'Total quantity purchased');
-// Family from item type (an editorial grouping, not a model column), in the Liveboard's fixed family order.
-const fo = Object.keys(AZ.T.family).concat(['Other']);
-const data = rows.map((r) => ({ Region: r[R], State: r[ST], Family: AZ.familyOf(r[I]), Sales: AZ.num(r[V]), Units: AZ.num(r[U]) }));
-// Headline: price per unit (sum of sales over sum of units) by region, highest against lowest.
-const g = new Map(); data.forEach((r) => { const o = g.get(r.Region) || { s: 0, u: 0 }; o.s += r.Sales; o.u += r.Units; g.set(r.Region, o); });
-const pr = [...g].filter(([, o]) => o.u).map(([n, o]) => ({ n, p: o.s / o.u })).sort((a, b) => b.p - a.p), usd = (n) => '$' + n.toFixed(2);
-const hi = pr[0], lo = pr[pr.length - 1];
-// Rows: largest region by sales on top; columns: families in their fixed order (both follow data order).
-data.sort((a, b) => g.get(b.Region).s - g.get(a.Region).s || fo.indexOf(a.Family) - fo.indexOf(b.Family));
+const { rows } = AZ.liveData() ?? { rows: [] };
+const fo = Object.keys(AZ.T.family).concat(['Other']), g = new Map();
+const data = rows.map((r) => ({ Region: r.region, State: r.state, Family: AZ.familyOf(r['item type']), Sales: r['Total sales'], Units: r['Total quantity purchased'] }));
+data.forEach((r) => { const o = g.get(r.Region) || { s: 0, u: 0 }; o.s += r.Sales; o.u += r.Units; g.set(r.Region, o); });
+const pr = [...g].filter(([, o]) => o.u).map(([n, o]) => ({ n, p: o.s / o.u })).sort((a, b) => b.p - a.p), hi = pr[0], lo = pr[pr.length - 1];
 AZ.maya({
   type: 'heatmap', path: ['Region', 'State'], drill: true, x: 'Family', y: 'Price', aggregate: { ratio: ['Sales', 'Units'] }, labels: true,
-  title: pr.length > 1 ? hi.n + ' sells at ' + usd(hi.p) + ' per unit, ' + AZ.pct(hi.p / lo.p - 1, 1) + ' above ' + lo.n : 'Price per unit by region and family',
+  title: pr.length > 1 ? hi.n + ' sells at $' + hi.p.toFixed(2) + ' per unit, ' + AZ.pct(hi.p / lo.p - 1, 1) + ' above ' + lo.n : 'Price per unit by region and family',
   subtitle: pr.length ? 'Price per unit (sales over units) by region and product family; click a row for its states' : 'Bind the search [sales] [quantity purchased] [region] [state] [item type]',
   format: { Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 2 } },
   titles: { Price: 'Price per unit' },
   text: { noData: 'Nothing to pivot' },
-  data
+  // Largest region by sales on top; families in the Liveboard's fixed order.
+  data: data.sort((a, b) => g.get(b.Region).s - g.get(a.Region).s || fo.indexOf(a.Family) - fo.indexOf(b.Family))
 });

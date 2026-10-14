@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -255,7 +260,6 @@ const AZ = (function () {
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const opt = { optional: true }, RG = AZ.col(schema, /region/i, opt) ?? 'Region', IT = AZ.col(schema, /item/i, opt) ?? 'Item Type', V = AZ.col(schema, /sales/i, opt) ?? 'Total Sales';
 const data = rows.filter((r) => AZ.num(r[V]) > 0).map((r) => ({ ...r, Family: AZ.familyOf(r[IT]) }));
-// Headline: the largest region-to-family flow and its share of all sales.
 const flow = new Map(), total = data.reduce((a, r) => a + AZ.num(r[V]), 0);
 data.forEach((r) => { const k = r[RG] + ' to ' + r.Family; flow.set(k, (flow.get(k) || 0) + AZ.num(r[V])); });
 const top = [...flow].reduce((a, b) => (b[1] > a[1] ? b : a), ['', 0]);
@@ -263,7 +267,7 @@ AZ.maya({
   type: 'chord', path: [RG, 'Family'], y: V, drill: true, colors: AZ.T.family,
   title: total ? 'Biggest flow: ' + top[0] + ', ' + AZ.pct(top[1] / total, 1) + ' of sales' : '',
   subtitle: total ? 'Click a region to see its family mix' : '',
-  titles: { [RG]: 'Region', [IT]: 'Item type', [V]: 'Sales' },
+  titles: { [RG]: 'Region', [V]: 'Sales' },
   format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
   text: { noData: 'No rows yet: bind [sales] [region] [item type]' },
   data

@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -254,8 +259,6 @@ const AZ = (function () {
 // Interactions: hover a bar for its rank, sales and cumulative share; the frame control steps the scope (each of the top 6 item types, then All) and Play runs through them; click a bar to select it (Escape clears).
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, P = c(/product/i, 'Product'), I = c(/item/i, 'Item Type'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
-// One frame per scope: the 6 largest item types, then All last (MayaCharts opens on the last frame).
-// Inside each scope the products are ranked by sales with a running share, and the 80% product is marked.
 const live = rows.filter((r) => AZ.num(r[V]) > 0), byI = new Map();
 live.forEach((r) => byI.set(r[I], (byI.get(r[I]) || 0) + AZ.num(r[V])));
 const scopes = [...byI].sort((a, b) => b[1] - a[1]).slice(0, 6).map((e) => e[0]).concat(live.length ? ['All'] : []);
@@ -267,12 +270,12 @@ scopes.forEach((s) => {
   if (hit) annotate.push({ x: '#' + hit + ' ' + ps[hit - 1][P], text: '80% at #' + hit + ' of ' + ps.length });
 });
 const all = data.filter((r) => r.Scope === 'All'), n80 = all.findIndex((r) => r.Cumulative >= 0.8) + 1;
-AZ.maya(Object.assign({
-  type: 'bar', x: 'Rank', y: 'Sales', y2: 'Cumulative', frame: 'Scope', select: true, xAxis: false, tooltip: { fields: ['Units'] },
-  title: n80 ? 'Products that make 80% of sales' : '', // MayaCharts appends the scope: ', Jackets'
+AZ.maya({
+  type: 'bar', x: 'Rank', y: 'Sales', y2: 'Cumulative', frame: 'Scope', select: true, xAxis: false, tooltip: { fields: ['Units'] }, annotate,
+  title: n80 ? 'Products that make 80% of sales' : '',
   subtitle: n80 ? n80 + ' of ' + all.length + ' overall. Bars rank products by sales; the line is the running share.' : '',
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Units: { notation: 'compact', maximumFractionDigits: 1 }, Cumulative: { style: 'percent', maximumFractionDigits: 0 } },
   titles: { Rank: 'Product', Cumulative: 'Cumulative share', Scope: 'Scope' },
   text: { noData: 'No rows yet: bind [product] [item type] [sales] [quantity purchased]' },
   data
-}, annotate.length ? { annotate } : {})); // annotate: [] throws in 0.16.0
+});

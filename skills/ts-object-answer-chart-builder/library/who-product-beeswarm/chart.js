@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -254,16 +259,13 @@ const AZ = (function () {
 // Interactions: hover a dot for the product, its item type and price per unit; click dots to select several (Escape clears); click a family key to hide or show its lane.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, P = c(/product/i, 'Product'), I = c(/item/i, 'Item Type'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
-// Price per unit per product (its sales over its units). The tooltip names the product and its item type,
-// since beeswarm takes no extra tooltip rows; lanes run in the house family order.
 const FO = Object.keys(AZ.T.family).concat('Other');
-const data = rows.filter((r) => AZ.num(r[Q]) > 0).map((r) => ({ Product: r[P] + ' (' + r[I] + ')', Family: AZ.familyOf(r[I]), Price: AZ.num(r[V]) / AZ.num(r[Q]) }))
-  .sort((a, b) => FO.indexOf(a.Family) - FO.indexOf(b.Family));
-const ps = data.map((r) => r.Price).sort((a, b) => a - b), med = ps.length ? ps[Math.floor((ps.length - 1) / 2)] : 0, usd = (n) => '$' + n.toFixed(2);
+const data = rows.filter((r) => AZ.num(r[Q]) > 0).map((r) => ({ ...r, Family: AZ.familyOf(r[I]), Price: AZ.num(r[V]) / AZ.num(r[Q]) })).sort((a, b) => FO.indexOf(a.Family) - FO.indexOf(b.Family));
+const ps = data.map((r) => r.Price).sort((a, b) => a - b), usd = (n) => '$' + n.toFixed(2);
 AZ.maya({
-  type: 'beeswarm', x: 'Family', y: 'Price', series: 'Family', name: 'Product', select: 'multi', colors: AZ.T.family,
+  type: 'beeswarm', x: 'Family', y: 'Price', series: 'Family', name: P, select: 'multi', colors: AZ.T.family, tooltip: { fields: [I] },
   title: 'Every product by price per unit',
-  subtitle: ps.length ? ps.length + ' products, ' + usd(ps[0]) + ' to ' + usd(ps[ps.length - 1]) + ' a unit, median ' + usd(med) : '',
+  subtitle: ps.length ? ps.length + ' products, ' + usd(ps[0]) + ' to ' + usd(ps[ps.length - 1]) + ' a unit, median ' + usd(ps[Math.floor((ps.length - 1) / 2)]) : '',
   titles: { Price: 'Price per unit' },
   format: { Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 2 } },
   text: { noData: 'No rows yet: bind [product] [item type] [sales] [quantity purchased]' },

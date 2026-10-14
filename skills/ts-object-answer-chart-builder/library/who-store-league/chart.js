@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -254,8 +259,6 @@ const AZ = (function () {
 // Interactions: click a column header (or Enter / Space on it) to sort by store, YTD sales, change, movement or form (rows start in league order); hover a row for its values; click a row to select it, Escape clears; arrow keys move between rows.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, St = c(/store/i, 'Store'), D = c(/month|date/i, 'Month(date)'), V = c(/sales/i, 'Total Sales');
-// Year to date: the first month of the latest year in the result through the latest complete month (a latest month
-// under 60% of the median of the three before it is partial and left out); last year is the same months.
 const mk = (t) => { const d = new Date(AZ.ms(t)); return d.getUTCFullYear() * 12 + d.getUTCMonth(); };
 const ST = new Map(), TOT = new Map();
 rows.forEach((r) => { const k = mk(r[D]), v = AZ.num(r[V]), m = ST.get(r[St]) ?? ST.set(r[St], new Map()).get(r[St]); m.set(k, (m.get(k) ?? 0) + v); TOT.set(k, (TOT.get(k) ?? 0) + v); });
@@ -265,13 +268,11 @@ const partial = p3.length >= 2 && TOT.get(latest) < 0.6 * p3[Math.floor(p3.lengt
 const last = full[full.length - 1] ?? 0, Y = Math.floor(last / 12), M = last % 12;
 const F = Math.min(12, ...keys.filter((k) => Math.floor(k / 12) === Y && k <= last).map((k) => k % 12)), inWin = (k) => k % 12 >= F && k % 12 <= M;
 const formKeys = full.slice(-5), hasLY = keys.some((k) => Math.floor(k / 12) === Y - 1 && inWin(k));
-// Per store: YTD, change on the same months last year, position movement on last year's league, and form
-// (how many of the last 5 complete months beat the same month a year earlier).
 const all = [...ST].map(([s, m]) => {
   let ty = 0, ly = 0; m.forEach((v, k) => { if (!inWin(k)) return; if (Math.floor(k / 12) === Y) ty += v; else if (Math.floor(k / 12) === Y - 1) ly += v; });
   return { Store: s, YTD: ty, ly, Change: hasLY && ly ? ty / ly - 1 : null, Form: hasLY ? formKeys.filter((k) => m.get(k - 12) && (m.get(k) ?? 0) > m.get(k - 12) * 1.0005).length : null };
 });
-all.sort((a, b) => b.YTD - a.YTD).forEach((s, i) => { s.pos = i + 1; }); // rows arrive in league order
+all.sort((a, b) => b.YTD - a.YTD).forEach((s, i) => { s.pos = i + 1; });
 if (hasLY) [...all].sort((a, b) => b.ly - a.ly).forEach((s, i) => { s.Move = s.ly ? i + 1 - s.pos : null; });
 const data = all.map(({ ly, pos, ...s }) => ({ Move: null, ...s }));
 const lead = all[0], up = all.filter((s) => s.Move > 0).sort((a, b) => b.Move - a.Move)[0], MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

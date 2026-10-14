@@ -17,6 +17,8 @@ Hover for the crosshair and a tooltip with the month, sales and the same month l
 ## Notes
 Built on MayaCharts 0.16.0. The headline is back: the title compares the same months of the latest year with the year before (so it stays right under a date filter), and the subtitle names the latest month through the `{last.x}` data token. Last year runs as a second, dashed slate line (`dash`) under the ink sales line; the body still pairs each month with the same month a year earlier to build it. The peak month is labelled with `annotate` and the latest month carries its value in the end label. The old step-up and step-down markers stay dropped. Colour is deliberately monochrome: hues are reserved for product families. Below about 160 px tall the title and subtitle wrap and crowd the plot, since MayaCharts keeps them in its compact frame. Preview-verified on synthetic data, not yet re-checked on a cluster.
 
+Body is 14 code lines after the core block: it still pairs each month with the same month a year earlier and derives the year-to-date headline; the Month format is the 'month' preset.
+
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.
 The block between the `amuzing core` markers is shared: change it in `library/_shared/` and run `helpers/sync-core.mjs`.

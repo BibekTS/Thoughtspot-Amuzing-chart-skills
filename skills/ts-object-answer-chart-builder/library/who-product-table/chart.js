@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -254,19 +259,17 @@ const AZ = (function () {
 // Interactions: click a column header (or Enter / Space on it) to sort; hover a row for its values; click a row to select it, Escape clears; arrow keys move between rows.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, P = c(/product/i, 'Product'), I = c(/item/i, 'Item Type'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
-// Share of all sales, price per unit, and the price against the product's item type average (its sales over its units).
-const it = new Map();
-rows.forEach((r) => { const o = it.get(r[I]) ?? it.set(r[I], { s: 0, u: 0 }).get(r[I]); o.s += AZ.num(r[V]); o.u += AZ.num(r[Q]); });
-const S = rows.reduce((a, r) => a + AZ.num(r[V]), 0);
+// Price against the product's item type average (the type's sales over its units).
+const it = {}, S = rows.reduce((a, r) => a + AZ.num(r[V]), 0);
+rows.forEach((r) => { const o = it[r[I]] ??= { s: 0, u: 0 }; o.s += AZ.num(r[V]); o.u += AZ.num(r[Q]); });
 const data = rows.map((r) => {
-  const s = AZ.num(r[V]), u = AZ.num(r[Q]), o = it.get(r[I]), p = u ? s / u : null, avg = o.u ? o.s / o.u : null;
-  return { Product: r[P] + ' (' + r[I] + ')', Sales: s, Share: S ? s / S : 0, Units: u, Price: p, 'Vs type': p != null && avg ? p / avg - 1 : null };
-});
-const top = [...data].sort((a, b) => b.Sales - a.Sales), t25 = top.slice(0, 25).reduce((a, r) => a + r.Share, 0);
+  const s = AZ.num(r[V]), u = AZ.num(r[Q]), p = u ? s / u : null, o = it[r[I]], avg = o.u ? o.s / o.u : 0;
+  return { Product: r[P] + ' (' + r[I] + ')', Sales: s, Units: u, Price: p, 'Vs type': p != null && avg ? p / avg - 1 : null };
+}).sort((a, b) => b.Sales - a.Sales), t25 = data.slice(0, 25).reduce((a, r) => a + r.Sales, 0) / S;
 AZ.maya({
   type: 'table', x: 'Product', y: ['Sales', 'Units', 'Price', 'Vs type'], sort: 'desc', select: true,
-  title: top.length ? top[0].Product.replace(/ \(.*/, '') + ' is the top product at ' + AZ.money(top[0].Sales) + ', ' + AZ.pct(top[0].Share) + ' of sales' : '',
-  subtitle: top.length > 25 ? 'The top 25 of ' + top.length + ' products hold ' + AZ.pct(t25, 0) + '. Avg price is sales per unit; vs type compares it with the item type average' : '',
+  title: S ? data[0].Product.replace(/ \(.*/, '') + ' is the top product at ' + AZ.money(data[0].Sales) + ', ' + AZ.pct(data[0].Sales / S) + ' of sales' : '',
+  subtitle: data.length > 25 ? 'The top 25 of ' + data.length + ' products hold ' + AZ.pct(t25, 0) + '. Avg price is sales per unit; vs type compares it with the item type average' : '',
   titles: { Product: 'Product (item type)', Price: 'Avg price', 'Vs type': 'vs type' },
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Units: { notation: 'compact', maximumFractionDigits: 1 }, Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }, 'Vs type': { style: 'percent', maximumFractionDigits: 0, signDisplay: 'exceptZero' } },
   text: { noData: 'No rows yet: bind [product] [item type] [sales] [quantity purchased]' },

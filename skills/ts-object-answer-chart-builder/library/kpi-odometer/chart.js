@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -252,21 +257,15 @@ const AZ = (function () {
 
 // Search: [sales] [quantity purchased] [date].monthly
 // Interactions: hover the sparkline for each year's figure over the same months (arrow keys step through years). The headline counts up on first draw.
-const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Sales', Q = AZ.col(schema, /quantity|units/i, { optional: true }) ?? 'Units';
-const M = rows.map((r) => ({ t: AZ.ms(r[D]), s: AZ.num(r[V]), u: AZ.num(r[Q]) })).filter((r) => isFinite(r.t));
-// One row per year: the same months as the latest year (Jan to the latest month), so the headline is year to date and
-// the change line reads against the same months a year earlier. Years missing any of those months are left out.
-const last = M.length ? Math.max(...M.map((r) => r.t)) : 0, lm = new Date(last).getUTCMonth();
-const by = new Map();
-M.forEach((r) => { const d = new Date(r.t); if (d.getUTCMonth() > lm) return; const k = d.getUTCFullYear(), a = by.get(k) ?? { Year: String(k), Sales: 0, Units: 0, n: 0 }; a.Sales += r.s; a.Units += r.u; a.n++; by.set(k, a); });
-const Y = [...by.values()].filter((a) => a.n === lm + 1).sort((a, b) => a.Year - b.Year).map(({ Year, Sales, Units }) => ({ Year, Sales, Units }));
+const M = (AZ.liveData()?.rows ?? []).map((r) => ({ t: AZ.ms(r['Month(date)']), s: AZ.num(r['Total sales']) })).filter((r) => isFinite(r.t));
+const last = Math.max(0, ...M.map((r) => r.t)), lm = new Date(last).getUTCMonth(), by = {};
+M.forEach((r) => { const d = new Date(r.t), a = (by[d.getUTCFullYear()] ??= { Sales: 0, n: 0 }); if (d.getUTCMonth() <= lm) { a.Sales += r.s; a.n++; } });
+const Y = Object.entries(by).filter(([, a]) => a.n === lm + 1).map(([Year, a]) => ({ Year, Sales: a.Sales }));
 AZ.maya({
   type: 'kpi', x: 'Year', y: 'Sales',
   title: Y.length ? 'Sales YTD, ' + (lm ? 'Jan to ' : '') + AZ.monthLabel(last) : '',
   subtitle: Y.length > 1 ? 'Same months in each year since ' + Y[0].Year : '',
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
   text: { noData: 'Bind [sales] [quantity purchased] [date].monthly' },
-  theme: { fontSize: Y.length ? '12px' : '10px' },
   data: Y
 });

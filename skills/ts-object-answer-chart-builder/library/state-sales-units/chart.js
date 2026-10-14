@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -250,17 +255,15 @@ const AZ = (function () {
 })();
 /* ==== end amuzing core ==== */
 
-// Search: [sales] [quantity purchased] [state]   (columns arrive as "state", "Total sales", "Total quantity purchased")
+// Search: [sales] [quantity purchased] [state]
 // Interactions: hover a dot for state, sales, units and sales per unit; click dots to select several; drag to zoom (double-click resets); the dashed diagonal is the average price.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const S = AZ.col(schema, /state/i, { optional: true }) ?? 'state', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Total sales', U = AZ.col(schema, /quantity|units/i, { optional: true }) ?? 'Total quantity purchased';
-// Sales per unit for the tooltip; the three largest states by sales get their name on the chart.
-const data = rows.map((r) => ({ ...r, Price: AZ.num(r[U]) ? AZ.num(r[V]) / AZ.num(r[U]) : null }));
-const P = data.map((r) => r.Price).filter((p) => p != null), usd = (n) => '$' + n.toFixed(2), avg = AZ.num(rows.reduce((a, r) => a + AZ.num(r[V]), 0) / rows.reduce((a, r) => a + AZ.num(r[U]), 0));
+const data = rows.map((r) => ({ ...r, Price: AZ.num(r[U]) ? AZ.num(r[V]) / AZ.num(r[U]) : null })), P = data.map((r) => r.Price).filter((p) => p != null), usd = (n) => '$' + n.toFixed(2), avg = rows.reduce((a, r) => a + AZ.num(r[V]), 0) / rows.reduce((a, r) => a + AZ.num(r[U]), 0);
 const top = [...data].sort((a, b) => AZ.num(b[V]) - AZ.num(a[V])).slice(0, 3).map((r) => ({ x: r[U], text: String(r[S]).slice(0, 40) }));
 AZ.maya({
-  type: 'scatter', x: U, y: V, name: S, select: 'multi', zoom: true, xScale: 'log', yScale: 'log', tooltip: { fields: ['Price'] }, annotate: top.length ? top : ['max'],
-  rules: [{ slope: 'mean', label: 'Average price' }],
+  type: 'scatter', x: U, y: V, name: S, select: 'multi', zoom: true, xScale: 'log', yScale: 'log', annotate: top.length ? top : ['max'],
+  tooltip: { fields: ['Price'] }, rules: [{ slope: 'mean', label: 'Average price' }],
   title: P.length ? 'Sales per unit runs ' + usd(Math.min(...P)) + ' to ' + usd(Math.max(...P)) + ' across ' + rows.length + ' states' : '',
   subtitle: P.length ? 'Dashed: the ' + usd(avg) + ' average; log scales' : '',
   titles: { [S]: 'State', [V]: 'Sales', [U]: 'Units', Price: 'Sales per unit' },

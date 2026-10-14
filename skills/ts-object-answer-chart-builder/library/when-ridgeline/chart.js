@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -252,18 +257,15 @@ const AZ = (function () {
 
 // Search: [sales] [date].monthly
 // Interactions: hover a month for that year's sales; click a year in the legend to hide or show its ridge; arrow keys step through months and years.
-const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const opt = { optional: true }, D = AZ.col(schema, /date|month/i, opt) ?? 'Month', V = AZ.col(schema, /sales/i, opt) ?? 'Sales';
-// One ridge per year over the calendar months, filled Jan to Dec (missing months null) so every ridge shares the month axis.
-const byT = new Map(rows.map((r) => [AZ.ms(r[D]), AZ.num(r[V])])), yrs = [...new Set([...byT.keys()].map(AZ.year))].sort();
-const pts = yrs.flatMap((y) => AZ.MON.map((m, i) => ({ Month: m, Year: String(y), Sales: byT.get(Date.UTC(y, i, 1)) ?? null })));
+const { rows } = AZ.liveData() ?? { rows: [] };
+const byT = new Map(rows.map((r) => [AZ.ms(r['Month(date)']), r['Total sales']])), yrs = [...new Set([...byT.keys()].map(AZ.year))].sort();
+const ramp = ['#1E1E24', '#2F3B54', '#4A5872', '#6A7891', '#8E9AAB', '#B4BDC9', '#B4BDC9', '#D5DAE1'];
 AZ.maya({
   type: 'ridgeline', x: 'Month', y: 'Sales', series: 'Year', legend: true,
-  // The latest year is ink, older years step back through the slate ramp (colour is never a family here).
-  colors: Object.fromEntries(yrs.slice(-8).reverse().map((y, i) => [String(y), ['#1E1E24', '#2F3B54', '#4A5872', '#6A7891', '#8E9AAB', '#B4BDC9', '#B4BDC9', '#D5DAE1'][i]])),
-  title: pts.length ? 'Sales ridgeline by year' : '',
-  subtitle: pts.length ? 'The shape of each year, month by month' : '',
+  colors: Object.fromEntries(yrs.slice(-8).reverse().map((y, i) => [String(y), ramp[i]])),
+  title: yrs.length ? 'Sales ridgeline by year' : '',
+  subtitle: yrs.length ? 'The shape of each year, month by month' : '',
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
   text: { noData: 'No rows yet. Bind the search [sales] [date].monthly' },
-  data: pts
+  data: yrs.flatMap((y) => AZ.MON.map((m, i) => ({ Month: m, Year: String(y), Sales: byT.get(Date.UTC(y, i, 1)) ?? null })))
 });

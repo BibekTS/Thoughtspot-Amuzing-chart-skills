@@ -17,6 +17,8 @@ Hover or arrow-key to a dot for its state, sales, units and sales per unit (othe
 ## Notes
 Built on MayaCharts 0.16.0 as a single scatter spec (units on x, sales on y, state as the point name). Both axes are log, since state volumes span two orders of magnitude and a linear axis piles half the states into the corner. The average-price diagonal through the origin is a `rules` slope of "mean" (total sales over total units). The body adds a per-row sales-per-unit field for the tooltip, labels the largest states by sales with `annotate` (labels that collide are dropped, so narrow tiles show California alone), and computes the headline: the range of sales per unit and the average, because 0.16.0 does not fill title data tokens on a scatter. Columns are matched by name pattern, so casing changes in the search output do not break it. Below about 160 px tall the title and subtitle crowd the plot. Preview-verified on synthetic data, not yet re-checked on a cluster.
 
+The body is 14 code lines after the shared core (comments aside); everything it computes is data MayaCharts cannot derive itself.
+
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.
 The block between the `amuzing core` markers is shared: change it in `library/_shared/` and run `helpers/sync-core.mjs`.

@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -252,21 +257,14 @@ const AZ = (function () {
 
 // Search: [sales] [quantity purchased] [date].monthly
 // Interactions: hover a bar for the month and its sales; click a bar to select it (Escape clears).
-const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Sales';
-const M = rows.map((r) => ({ t: AZ.ms(r[D]), v: AZ.num(r[V]) })).filter((r) => isFinite(r.t)).sort((a, b) => a.t - b.t);
-// The headline is year to date against the same months last year; the bars are the three best and three weakest
-// months in the whole filter, toned against the average month.
+const M = (AZ.liveData()?.rows ?? []).map((r) => ({ t: AZ.ms(r['Month(date)']), v: AZ.num(r['Total sales']) })).filter((r) => isFinite(r.t));
 const y = AZ.ytd(M), avg = M.reduce((a, r) => a + r.v, 0) / (M.length || 1);
 const ranked = M.slice().sort((a, b) => b.v - a.v), k = Math.min(3, Math.floor(ranked.length / 2));
-const pick = k ? ranked.slice(0, k).concat(ranked.slice(-k)) : ranked.slice(0, 1);
 AZ.maya({
-  type: 'bar', horizontal: true, x: 'Month', y: 'Sales', select: true, labels: true,
+  type: 'bar', horizontal: true, x: 'Month', y: 'Sales', select: true, labels: true, colorBy: { target: avg },
   title: y ? 'Sales YTD ' + AZ.money(y.cur, 1) + (y.comparable && y.prev ? ', ' + AZ.pct(y.pct, 1, true) + ' on ' + (y.year - 1) : '') : '',
   subtitle: M.length ? 'Best and weakest of ' + M.length + ' months; average ' + AZ.money(avg, 1) : '',
-  ...(M.length ? { colorBy: { target: avg } } : {}),
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
   text: { noData: 'Bind [sales] [quantity purchased] [date].monthly', above: 'above average', below: 'below average' },
-  theme: { fontSize: M.length ? '12px' : '10px' },
-  data: pick.map((r) => ({ Month: AZ.monthLabel(r.t), Sales: r.v }))
+  data: (k ? ranked.slice(0, k).concat(ranked.slice(-k)) : ranked.slice(0, 1)).map((r) => ({ Month: AZ.monthLabel(r.t), Sales: r.v }))
 });

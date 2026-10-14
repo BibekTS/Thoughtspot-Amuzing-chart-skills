@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -254,15 +259,13 @@ const AZ = (function () {
 // Interactions: hover or arrow-key to a bar for the region's change or a YTD total; click bars to select several, Escape clears.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, G = c(/region/i, 'region'), D = c(/date|quarter/i, 'Quarter(date)'), V = c(/sales/i, 'Total sales');
-// YTD bridge: the same quarters of the latest year and the year before, one step per region's change.
 const M = rows.map((r) => ({ g: String(r[G]), d: new Date(AZ.ms(r[D])), v: AZ.num(r[V]) })).filter((r) => isFinite(r.d));
 const last = M.length ? new Date(Math.max(...M.map((r) => r.d.getTime()))) : null, ly = last ? last.getUTCFullYear() : 0, lq = last ? Math.floor(last.getUTCMonth() / 3) : 0;
 const reg = new Map(); let cur = 0, prev = 0;
-M.forEach((r) => { const y = r.d.getUTCFullYear(); if (Math.floor(r.d.getUTCMonth() / 3) > lq || (y !== ly && y !== ly - 1)) return; const s = y === ly ? r.v : -r.v; reg.set(r.g, (reg.get(r.g) || 0) + s); if (y === ly) cur += r.v; else prev += r.v; });
+M.forEach((r) => { const y = r.d.getUTCFullYear(); if (Math.floor(r.d.getUTCMonth() / 3) > lq || (y !== ly && y !== ly - 1)) return; reg.set(r.g, (reg.get(r.g) || 0) + (y === ly ? r.v : -r.v)); if (y === ly) cur += r.v; else prev += r.v; });
 const P = (ly - 1) + ' YTD', C = ly + ' YTD', ok = cur > 0 && prev > 0;
 const steps = [...reg].sort((a, b) => b[1] - a[1]).map(([g, d]) => ({ Step: g, Change: d }));
 const data = ok ? [{ Step: P, Change: prev }].concat(steps, [{ Step: C, Change: 0 }]) : [];
-// The changes are small next to the totals, so the axis starts near the lowest running total (said in the subtitle).
 let run = prev, lo = Math.min(prev, cur), hi = Math.max(prev, cur); steps.forEach((s) => { run += s.Change; lo = Math.min(lo, run); hi = Math.max(hi, run); });
 const pad = (hi - lo || hi * 0.05) * 0.6, span = 'Q1' + (lq ? ' to Q' + (lq + 1) : '');
 AZ.maya({

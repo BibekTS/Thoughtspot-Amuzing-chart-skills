@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -249,13 +254,10 @@ const AZ = (function () {
   return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
-
 // Search: [sales] [date].monthly
 // Interactions: hover a month for the actual or both projected values; click a legend key (or a line's end label on wide tiles) to hide or show a scenario; drag to zoom (double-click or Escape resets); arrow keys step through months.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month(date)', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Total sales';
-// The year to project is the latest year (or the next one when December is already in). Its remaining months run two
-// ways from the last actual month: the same months a year earlier, and the last three months' average carried on.
 const M = rows.map((r) => ({ t: AZ.ms(r[D]), v: AZ.num(r[V]) })).filter((r) => isFinite(r.t)).sort((a, b) => a.t - b.t);
 const get = new Map(M.map((r) => [AZ.year(r.t) + '-' + new Date(r.t).getUTCMonth(), r.v])), at = (y, m) => Date.UTC(y, m, 1);
 const last = M.length ? M[M.length - 1].t : 0, ly = AZ.year(last), lm = new Date(last).getUTCMonth(), full = lm === 11, T = full ? ly + 1 : ly;
@@ -268,15 +270,14 @@ for (let m = 0; M.length && m < 12; m++) {
   else if (full || m > lm) { const a = prev ?? avg3; totA += a; totB += avg3; pts.push({ Month: at(T, m), Scenario: A, Sales: a }, { Month: at(T, m), Scenario: B, Sales: avg3 }); }
 }
 totA += ytd; totB += ytd;
-const prevYear = Array.from({ length: 12 }, (_, m) => get.get((T - 1) + '-' + m)), py = prevYear.every((v) => v != null) ? prevYear.reduce((a, v) => a + v, 0) : null;
-const on = (x) => AZ.pct(x / py - 1, 1, true);
+const prevYear = Array.from({ length: 12 }, (_, m) => get.get((T - 1) + '-' + m)), py = prevYear.every((v) => v != null) ? prevYear.reduce((a, v) => a + v, 0) : null, on = (x) => AZ.pct(x / py - 1, 1, true);
 AZ.maya({
   type: 'line', x: 'Month', y: 'Sales', series: 'Scenario', xType: 'time', zoom: true, dash: [A, B],
   rules: M.length && !full ? [{ x: at(T, lm), label: 'Projected' }] : undefined,
   title: M.length ? T + ' ends at ' + AZ.money(totA, 1) + ' on last year\'s months, ' + AZ.money(totB, 1) + ' on the recent pace' : '',
   subtitle: M.length ? (full ? ly + ' is complete in the data, so this projects ' + T + '. ' : 'Actual through ' + AZ.MON[lm] + ': ' + AZ.money(ytd, 1) + (ytdPrev ? ', ' + AZ.pct(ytd / ytdPrev - 1, 1, true) + ' on ' + (T - 1) : '') + '. ') + (py ? AZ.money(py, 1) + ' in all of ' + (T - 1) + ', the scenarios ' + on(totA) + ' and ' + on(totB) + ' on it. ' : '') + 'A projection, not a forecast.' : '',
-  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Month: { month: 'short', year: 'numeric', timeZone: 'UTC' } },
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Month: 'month' },
   colors: { Actual: '#1E1E24', [A]: '#4A5872', [B]: '#8E9AAB' },
-  text: { noData: 'No rows yet. Bind the search [sales] [date].monthly' },
+  text: { noData: 'No rows yet. Bind [sales] [date].monthly' },
   data: pts
 });

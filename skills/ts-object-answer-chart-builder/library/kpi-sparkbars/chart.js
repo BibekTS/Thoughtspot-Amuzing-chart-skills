@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -251,23 +256,17 @@ const AZ = (function () {
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [quantity purchased] [date].monthly
-// Interactions: hover or arrow keys for a month against the same month a year earlier, click a column to select it
-// (Escape clears), click the legend key to hide the year-earlier ghosts.
-const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month', S = AZ.col(schema, /sales/i, { optional: true }) ?? 'Sales';
-// The last 24 months, each with the same month a year earlier as its ghost.
-const byT = new Map(rows.map((r) => [AZ.ms(r[D]), AZ.num(r[S])]));
+// Interactions: hover or arrow keys for a month against the same month a year earlier, click a column to select it (Escape clears), click the legend key to hide the year-earlier ghosts.
+const byT = new Map((AZ.liveData()?.rows ?? []).map((r) => [AZ.ms(r['Month(date)']), AZ.num(r['Total sales'])]));
 const ago = (t) => { const d = new Date(t); d.setUTCFullYear(d.getUTCFullYear() - 1); return d.getTime(); };
-const data = [...byT.keys()].filter(isFinite).sort((a, b) => a - b).slice(-24).map((t) => ({ Month: t, Sales: byT.get(t), 'A year earlier': byT.has(ago(t)) ? byT.get(ago(t)) : null }));
+const data = [...byT.keys()].filter(isFinite).sort((a, b) => a - b).slice(-24).map((t) => ({ Month: t, Sales: byT.get(t), 'A year earlier': byT.get(ago(t)) ?? null }));
 const y = AZ.ytd([...byT].map(([t, v]) => ({ t, v })));
-// 0.16.0 leaves the was value out of the tooltip, so tooltip.fields adds it back.
-// 0.16.0 scales the value axis to the bars only, so a taller ghost would be cut at the top: fit the axis to both.
-const hi = Math.max(0, ...data.flatMap((r) => [r.Sales, r['A year earlier'] ?? 0])), step = hi > 0 ? 10 ** Math.floor(Math.log10(hi)) / 2 : 1, top = Math.ceil(hi * 1.02 / step) * step;
+const usd = { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 };
 AZ.maya({
-  type: 'bar', x: 'Month', y: 'Sales', xType: 'time', was: 'A year earlier', select: true, tooltip: { fields: ['A year earlier'] }, yDomain: hi > 0 ? [0, top] : undefined,
-  title: y && y.comparable ? AZ.money(y.cur) + ' YTD, ' + AZ.pct(y.pct, 1, true) + ' on ' + (y.year - 1) : 'Sales by month',
+  type: 'bar', x: 'Month', y: 'Sales', xType: 'time', was: 'A year earlier', select: true,
+  title: y?.comparable ? AZ.money(y.cur) + ' YTD, ' + AZ.pct(y.pct, 1, true) + ' on ' + (y.year - 1) : 'Sales by month',
   subtitle: data.length ? 'Last 24 months, dashed: a year earlier' : '',
-  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, 'A year earlier': { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Month: { month: 'short', year: 'numeric', timeZone: 'UTC' } },
-  text: { noData: 'No rows yet. Bind the search [sales] [quantity purchased] [date].monthly' },
+  format: { Sales: usd, 'A year earlier': usd, Month: { month: 'short', year: 'numeric', timeZone: 'UTC' } },
+  text: { noData: 'No rows yet. Bind [sales] [quantity purchased] [date].monthly' },
   data
 });

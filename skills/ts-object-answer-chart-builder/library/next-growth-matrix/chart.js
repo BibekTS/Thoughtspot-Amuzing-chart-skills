@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -252,25 +257,19 @@ const AZ = (function () {
 
 // Search: [sales] [quantity purchased] [item type] [date].quarterly
 // Interactions: hover a bubble for share, price, change and sales; click bubbles (or a family in the legend) to select or hide; the measure toggle switches the vertical axis between price per unit and change on last year; drag to zoom (double-click or Escape resets).
-const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, I = c(/item/i, 'item type'), D = c(/date|quarter|month/i, 'Quarter(date)'), V = c(/sales/i, 'Total sales'), Q = c(/quantity|units/i, 'Total quantity purchased');
-// Year to date: the quarters of the latest year up to the latest quarter, against the same quarters a year earlier.
-const qOf = (t) => Math.floor(new Date(t).getUTCMonth() / 3), R = rows.map((r) => ({ i: String(r[I]), t: AZ.ms(r[D]), s: AZ.num(r[V]), u: AZ.num(r[Q]) }));
-const last = R.length ? Math.max(...R.map((r) => r.t)) : 0, ly = AZ.year(last), lq = qOf(last), by = {};
-R.forEach((r) => { const y = AZ.year(r.t); if (qOf(r.t) > lq || (y !== ly && y !== ly - 1)) return; const o = by[r.i] = by[r.i] ?? { s: 0, u: 0, ps: 0 }; if (y === ly) { o.s += r.s; o.u += r.u; } else o.ps += r.s; });
+const R = (AZ.liveData()?.rows ?? []).map((r) => ({ i: String(r['item type']), t: AZ.ms(r['Quarter(date)']), s: AZ.num(r['Total sales']), u: AZ.num(r['Total quantity purchased']) }));
+const last = Math.max(0, ...R.map((r) => r.t)), ly = AZ.year(last), qOf = (t) => Math.floor(new Date(t).getUTCMonth() / 3), lq = qOf(last), by = {};
+R.forEach((r) => { const y = AZ.year(r.t); if (qOf(r.t) > lq || (y !== ly && y !== ly - 1)) return; const o = (by[r.i] ??= { s: 0, u: 0, ps: 0 }); if (y === ly) { o.s += r.s; o.u += r.u; } else o.ps += r.s; });
 const items = Object.entries(by).filter(([, o]) => o.s > 0), S = items.reduce((a, [, o]) => a + o.s, 0), U = items.reduce((a, [, o]) => a + o.u, 0);
 const data = items.map(([i, o]) => ({ 'Item type': i, Family: AZ.familyOf(i), Share: o.s / S, Price: o.u ? o.s / o.u : 0, Change: o.ps ? o.s / o.ps - 1 : null, Sales: o.s }));
 const big = [...data].sort((a, b) => b.Sales - a.Sales)[0], ch = data.map((r) => r.Change).filter((v) => v != null);
-const per = 'Q1 to Q' + (lq + 1) + ' ' + ly, usd2 = { style: 'currency', currency: 'USD', maximumFractionDigits: 2 };
 AZ.maya({
-  type: 'scatter', x: 'Share', y: ch.length ? ['Price', 'Change'] : 'Price', size: 'Sales', series: 'Family', name: 'Item type', select: 'multi', zoom: true,
+  type: 'scatter', x: 'Share', y: ch.length ? ['Price', 'Change'] : 'Price', size: 'Sales', series: 'Family', name: 'Item type', select: 'multi', zoom: true, legend: 'bottom', colors: AZ.T.family,
   annotate: data.length ? [{ x: big.Share, text: big['Item type'] }] : undefined,
   title: data.length ? big['Item type'] + ' carry ' + AZ.pct(big.Share, 1) + ' of sales at ' + AZ.money(big.Price, 2) + ' a unit' : '',
-  subtitle: data.length ? per + '. Area is sales; overall ' + AZ.money(U ? S / U : 0, 2) + ' a unit' + (ch.length ? ', change ' + AZ.pct(Math.min(...ch), 1, true) + ' to ' + AZ.pct(Math.max(...ch), 1, true) + ' on ' + (ly - 1) : '') : '',
+  subtitle: data.length ? 'Q1 to Q' + (lq + 1) + ' ' + ly + '. Area is sales; overall ' + AZ.money(U ? S / U : 0, 2) + ' a unit' + (ch.length ? ', change ' + AZ.pct(Math.min(...ch), 1, true) + ' to ' + AZ.pct(Math.max(...ch), 1, true) + ' on ' + (ly - 1) : '') : '',
   titles: { Share: 'Share of sales', Price: 'Sales per unit', Change: 'Change on last year' },
-  format: { Share: { style: 'percent', maximumFractionDigits: 1 }, Price: usd2, Change: { style: 'percent', maximumFractionDigits: 1, signDisplay: 'exceptZero' }, Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
-  colors: AZ.T.family,
-  legend: 'bottom',
-  text: { noData: 'No rows yet. Bind the search [sales] [quantity purchased] [item type] [date].quarterly' },
+  format: { Share: { style: 'percent', maximumFractionDigits: 1 }, Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }, Change: { style: 'percent', maximumFractionDigits: 1, signDisplay: 'exceptZero' }, Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
+  text: { noData: 'No rows yet. Bind [sales] [quantity purchased] [item type] [date].quarterly' },
   data
 });

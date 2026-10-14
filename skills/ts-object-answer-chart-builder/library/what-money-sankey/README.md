@@ -17,6 +17,8 @@ Hover or arrow-key to a node or flow for its sales and to highlight the flows it
 ## Notes
 Built on MayaCharts 0.16.0 as a single sankey spec over the path region, family, item type. Family is an editorial grouping derived in the JS with `AZ.familyOf`, not a model column. Colours come from `colors: AZ.T.family`, a map keyed by node name: families and their item types (and the flows into them) take the family hues, and the region names are left out of the map so region nodes stay neutral grey. The map never moves when a family is missing from the rows, so no row sort is needed. Known gap in 0.16.0: once drilled into a region, the whole branch (region, families, item types) draws in that region's palette slot instead of the family hues, and the region is no longer grey; the root view is correct. Thin nodes are unlabelled and named in the tooltip. Render-complete fires on `maya-settled`. Columns are matched by name pattern, so casing changes in the search output do not break it. Preview-verified on synthetic data, not yet re-checked on a cluster.
 
+The body is 9 code lines after the shared core (comments aside); everything it computes is data MayaCharts cannot derive itself.
+
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.
 The block between the `amuzing core` markers is shared: change it in `library/_shared/` and run `helpers/sync-core.mjs`.

@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -250,20 +255,18 @@ const AZ = (function () {
 })();
 /* ==== end amuzing core ==== */
 
-// Search: [sales] [quantity purchased] [item type] [date].quarterly   (Family is an editorial grouping of Item Type, derived here)
-// Interactions: Play steps through the quarters (axes hold still); hover a bubble for its quarter, units, price and sales; click a bubble or a legend family to select it, Escape clears.
+// Search: [sales] [quantity purchased] [item type] [date].quarterly   (Family is derived from Item Type; price is sales over units)
+// Interactions: Play steps through the quarters (axes hold still); hover a bubble for details; click a bubble or legend family to select it, Escape clears.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const opt = { optional: true }, I = AZ.col(schema, /item/i, opt) ?? 'Item type', D = AZ.col(schema, /date|quarter/i, opt) ?? 'Quarter', V = AZ.col(schema, /sales/i, opt) ?? 'Sales', U = AZ.col(schema, /quantity|units/i, opt) ?? 'Units';
-// One bubble per item type and quarter: price per unit is sales over units, the quarter a label in time order.
-const qOf = (t) => { const d = new Date(t); return 'Q' + (Math.floor(d.getUTCMonth() / 3) + 1) + ' ' + d.getUTCFullYear(); };
-const pts = rows.filter((r) => AZ.num(r[U]) > 0 && AZ.num(r[V]) > 0).sort((a, b) => AZ.ms(a[D]) - AZ.ms(b[D]))
-  .map((r) => ({ 'Item type': r[I], Family: AZ.familyOf(r[I]), Quarter: qOf(AZ.ms(r[D])), Units: AZ.num(r[U]), Price: AZ.num(r[V]) / AZ.num(r[U]), Sales: AZ.num(r[V]) }));
+const qOf = (t) => { const d = new Date(AZ.ms(t)); return 'Q' + (Math.floor(d.getUTCMonth() / 3) + 1) + ' ' + d.getUTCFullYear(); };
+const data = rows.filter((r) => AZ.num(r[U]) > 0 && AZ.num(r[V]) > 0).sort((a, b) => AZ.ms(a[D]) - AZ.ms(b[D])).map((r) => ({ ...r, Family: AZ.familyOf(r[I]), Quarter: qOf(r[D]), Price: r[V] / r[U] }));
 AZ.maya({
-  type: 'scatter', x: 'Units', y: 'Price', size: 'Sales', series: 'Family', name: 'Item type', frame: 'Quarter', select: true, colors: AZ.T.family,
-  title: pts.length ? 'Item types by units and price' : '',
-  subtitle: pts.length ? 'Area is sales in the quarter; press Play to step through the quarters' : '',
-  titles: { Units: 'Units sold', Price: 'Price per unit' },
-  format: { Units: { notation: 'compact', maximumFractionDigits: 1 }, Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }, Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
-  text: { noData: 'No rows yet. Bind the search [sales] [quantity purchased] [item type] [date].quarterly' },
-  data: pts
+  type: 'scatter', x: U, y: 'Price', size: V, series: 'Family', name: I, frame: 'Quarter', select: true, colors: AZ.T.family,
+  title: data.length ? 'Item types by units and price' : '',
+  subtitle: data.length ? 'Area is sales in the quarter; press Play to step through the quarters' : '',
+  titles: { [U]: 'Units sold', Price: 'Price per unit', [I]: 'Item type', [V]: 'Sales' },
+  format: { [U]: { notation: 'compact', maximumFractionDigits: 1 }, Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }, [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
+  text: { noData: 'No rows yet: bind [sales] [quantity purchased] [item type] [date].quarterly' },
+  data
 });

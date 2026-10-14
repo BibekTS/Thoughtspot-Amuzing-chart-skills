@@ -56,7 +56,7 @@ tile is 3 lines of `chart.js`.
 
 ```js
 const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js';
-const go = () => maya.host.thoughtspot(viz, { type: 'bar', x: /item/i, y: /sales/i, title: '{max.x} leads with {max.y}' });
+const go = () => maya.host.thoughtspot(viz, { type: 'bar', x: 'Item Type', y: 'Total Sales', title: '{max.x} leads with {max.y}' });
 if (window.maya?.host) go(); else { const s = document.querySelector('script[src="' + MAYA + '"]') ?? document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA })); s.addEventListener('load', go); s.addEventListener('error', () => { (document.getElementById('chart') ?? document.body).textContent = 'MayaCharts could not load from ' + MAYA; viz?.events?.emitRenderCompletedEvent?.(); }); }
 ```
 

@@ -15,7 +15,9 @@ How close is this year to the same months last year?
 Hover the dial for the share of last year and its status. The arc sweeps in on first draw.
 
 ## Notes
-Built on MayaCharts 0.16.0 as a `gauge` (module type, so the tile loads maya.global.js): the value is year to date as a share of the same months last year, `yDomain: [0, 1.3]` keeps the old 130% full scale, and `colorBy: { target: 1, warn: 0.95 }` puts the tick at 100% and tones the arc ahead, close or behind. Both money figures moved to the subtitle, since a gauge tooltip shows only its one value. Under a filter with no prior year the tile falls back to a `kpi` of the year-to-date figure with a plain subtitle. Dropped from the old chart: the full ring (a gauge is a half dial), the Sales, Units, Price toggle and the hover card with both years. Preview-verified on synthetic data, not yet re-checked on a cluster.
+Built on MayaCharts 0.16.0, since moved to 0.18.1 as a `gauge` (module type, so the tile loads maya.global.js): the value is year to date as a share of the same months last year, `yDomain: [0, 1.3]` keeps the old 130% full scale, and `colorBy: { target: 1, warn: 0.95 }` puts the tick at 100% and tones the arc ahead, close or behind. Both money figures moved to the subtitle, since a gauge tooltip shows only its one value. Under a filter with no prior year the tile falls back to a `kpi` of the year-to-date figure with a plain subtitle. Dropped from the old chart: the full ring (a gauge is a half dial), the Sales, Units, Price toggle and the hover card with both years. Preview-verified on synthetic data, not yet re-checked on a cluster.
+
+Body (0.18.1): 12 code lines. The share of last year and the kpi fallback are still derived from the year-to-date read; the column names are plain and the font size comes from the core CSS.
 
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.

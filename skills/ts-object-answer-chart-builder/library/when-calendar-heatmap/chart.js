@@ -136,7 +136,7 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
@@ -144,6 +144,11 @@ const AZ = (function () {
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
+      const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
+      draw() || document.addEventListener('load', draw, true);
+      return el;
+    }
     // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
     el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
@@ -254,19 +259,14 @@ const AZ = (function () {
 // Interactions: toggle Sales / Units / Price per unit; hover a cell for its value; click a cell to select it (Escape clears); arrow keys move between months and years.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const opt = { optional: true }, D = AZ.col(schema, /date|month/i, opt) ?? 'Month', V = AZ.col(schema, /sales/i, opt) ?? 'Sales', U = AZ.col(schema, /quantity|units/i, opt) ?? 'Units';
-// One cell per month: a year row and a calendar-month column; price per unit is that month's sales over its units.
-// The grid is filled Jan to Dec for every year (missing months null) so the columns and rows keep calendar order.
 const byT = new Map(rows.map((r) => [AZ.ms(r[D]), r])), yrs = [...new Set([...byT.keys()].map(AZ.year))].sort();
-const pts = AZ.MON.flatMap((m, i) => yrs.map((y) => {
-  const r = byT.get(Date.UTC(y, i, 1)), s = r ? AZ.num(r[V]) : null, u = r ? AZ.num(r[U]) : null;
-  return { Month: m, Year: String(y), Sales: s, Units: u, Price: u > 0 ? s / u : null };
-}));
+const data = AZ.MON.flatMap((m, i) => yrs.map((y) => { const r = byT.get(Date.UTC(y, i, 1)); return { Month: m, Year: String(y), Sales: r?.[V] ?? null, Units: r?.[U] ?? null }; })); // every month for every year keeps calendar order
 AZ.maya({
-  type: 'heatmap', x: 'Month', series: 'Year', y: ['Sales', 'Units', 'Price'], select: true, labels: false,
-  title: pts.length ? 'Monthly sales, units and price by year' : '',
-  subtitle: pts.length ? 'Each row is a year; darker is higher' : '',
+  type: 'heatmap', x: 'Month', series: 'Year', y: ['Sales', 'Units', 'Price'], aggregate: { Price: { ratio: ['Sales', 'Units'] } }, select: true, labels: false,
+  title: data.length ? 'Monthly sales, units and price by year' : '',
+  subtitle: data.length ? 'Each row is a year; darker is higher' : '',
   titles: { Price: 'Price per unit' },
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Units: { notation: 'compact', maximumFractionDigits: 1 }, Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 2 } },
   text: { noData: 'No rows yet. Bind the search [sales] [quantity purchased] [date].monthly' },
-  data: pts
+  data
 });
