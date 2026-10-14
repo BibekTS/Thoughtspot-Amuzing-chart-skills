@@ -1,336 +1,134 @@
-# Thoughtspot Amuzing chart skills
+<div align="center">
 
-Claude skills for building ThoughtSpot custom charts (BYOC), in Claude Code and the
-Claude app.
+# ThoughtSpot Amuzing chart skills
 
-Two skills:
+**Describe a chart. Get a ThoughtSpot custom chart that has already been rendered and checked.**
 
-- **ts-object-answer-chart-builder** writes the three files a BYOC tile takes (`chart.html`,
-  `chart.css`, `chart.js`) and iterates them in a real browser until the render is right,
-  instead of handing you code it has never run. Charts are built on [MayaCharts](https://bbekshr.github.io/mayacharts/)
-  by default, where a whole tile is 3 lines of `chart.js`. It carries a library of 58 charts, and can save a
-  finished chart as a ThoughtSpot answer through the MCP.
-- **ts-object-liveboard-chart-builder** builds a whole storytelling Liveboard of those charts on a
-  real model through the ThoughtSpot MCP: plans the tabs, has each tile built by the chart
-  skill, writes the banners, adds filters, imports, proves the import, and screenshots every
-  tab in a logged-in browser. It needs the chart skill installed beside it.
+Two Claude skills that build ThoughtSpot custom charts (BYOC), and whole Liveboards of them,<br>by running the code in a real browser until it looks right.
 
-## What it does
+**[Install](#install)** · **[How it works](#how-it-works)** · **[Chart libraries](#chart-libraries)** · **[The chart library](#the-chart-library)** · **[Check your setup](#check-your-setup)**
 
-The preview runs the same three files you will paste, through a `viz` stub, inside an
-`AsyncFunction` — the shape the real ThoughtSpot host uses. So there is no porting step
-at the end: what was iterated is what ships.
+</div>
 
-A run goes:
+<br>
 
-1. Settle the data mode and write a frozen sample dataset.
-2. Open the preview — a browser window you watch, or headless screenshots where no
-   window can open.
-3. Loop, up to 8 attempts: edit the files → screenshot → read the screenshot with
-   vision → critique → fix the top defect. It stops early on a match, and stops and
-   asks you if it is getting nowhere.
-4. Check what the loop did not exercise: missing, object-wrapped and empty data, no
-   host at all, and a narrow and a wide tile (the chart must follow its container, as
-   it does when a Liveboard is resized).
-5. Emit the three files, a screenshot of the final render, and a README.
+<table>
+  <tr>
+    <td><img src="skills/ts-object-answer-chart-builder/library/what-sunburst/preview.png" alt="A sunburst of sales by family, item type and product that drills on click"></td>
+    <td><img src="skills/ts-object-answer-chart-builder/library/where-hex-cartogram/preview.png" alt="A US hex map of sales by state with a Sales and Share toggle"></td>
+    <td><img src="skills/ts-object-answer-chart-builder/library/when-calendar-heatmap/preview.png" alt="A calendar heatmap of monthly sales by year with a measure toggle"></td>
+  </tr>
+</table>
 
-### Where it runs
+## What you get
 
-| | Claude Code | Claude app (claude.ai, desktop app) |
-|---|---|---|
-| Preview | A Chromium window you watch; it reloads on every edit | Headless; each attempt comes back as a PNG |
-| First run | Installs Playwright + Chromium (~2 min, asked once) | Installs `playwright-core` (~30 s), uses the sandbox's Chromium |
-| Deliverables | `~/.cache/ts-charts/output/<chart-name>/` | `<chart-name>/` in the chat's outputs folder |
-| Chart libraries | All; you pick one, or let Claude pick by shape | HTML tables and raw SVG are fully previewed; CDN libraries (MayaCharts, Chart.js, Plotly, gridjs) are usually blocked, so those charts are written but marked *not previewed* |
+- **A chart that was seen, not guessed.** Claude writes `chart.html`, `chart.css` and `chart.js`, screenshots the render, reads the screenshot, fixes the worst defect and repeats, up to 8 times.
+- **No porting step.** The preview runs the same three files you paste, through a stub of ThoughtSpot's `viz` host, so what was checked is what ships.
+- **Edge cases checked.** Missing, object-wrapped and empty data, no host at all, and narrow and wide tiles.
+- **Real data when connected.** With the ThoughtSpot MCP, each chart is built on the exact output of its own search, and can be saved as an answer.
+- **Whole Liveboards.** The second skill plans numbered tabs on a real model, has each tile built, adds filters, imports, proves the import and screenshots every tab.
+- **Your choice of library.** You pick one, or let Claude pick by shape: MayaCharts, D3, ECharts, Plotly, Chart.js, gridjs, HTML tables or raw SVG.
 
-If a window cannot open in Claude Code either — no display, or Chromium fails to start
-headed — it falls back to headless on its own and says so.
+## Two skills
 
-### Chart libraries
+| Skill | Use it to |
+|---|---|
+| **ts-object-answer-chart-builder** | Build, rebuild, debug or convert one chart. Start from a description, a screenshot of a chart, or a tile that misbehaves. Ships 58 proven charts. |
+| **ts-object-liveboard-chart-builder** | Build a storytelling Liveboard of those charts on a real model through the ThoughtSpot MCP. Needs the chart skill installed beside it. |
 
-The intake asks which library to use: pick one, or let Claude pick by shape. When Claude picks,
-[MayaCharts](https://bbekshr.github.io/mayacharts/) (MIT, no dependencies) is the first fit for standard business
-shapes: bar, line, area, scatter, KPI, waterfall, heatmap, table, treemap, sunburst, sankey, funnel, box plot and
-gauge. One JSON spec gives the marks, tooltip, keyboard focus, selection, drill, empty state and resize, so a complete
-tile is 3 lines of `chart.js`.
+## Install
 
-```js
-const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js';
-const go = () => maya.host.thoughtspot(viz, { type: 'bar', x: 'Item Type', y: 'Total Sales', title: '{max.x} leads with {max.y}' });
-if (window.maya?.host) go(); else { const s = document.querySelector('script[src="' + MAYA + '"]') ?? document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA })); s.addEventListener('load', go); s.addEventListener('error', () => { (document.getElementById('chart') ?? document.body).textContent = 'MayaCharts could not load from ' + MAYA; viz?.events?.emitRenderCompletedEvent?.(); }); }
-```
-
-MayaCharts' ThoughtSpot adapter, `maya.host.thoughtspot`, reads the search, unwraps object cells, matches the fields
-(written as a RegExp, so `Total Sales` and `Total sales` both match) against the columns ThoughtSpot returns, mounts
-the chart (even when the HTML tab is pasted empty), and tells ThoughtSpot the tile is done once it has finished
-drawing, errors included. The last line loads the library if the HTML tab has not. The tile was checked in the
-preview on live, missing, wrapped and empty data, 130 to 1400 px tiles, a missing column and a CDN that fails to load.
-
-MayaCharts ships often. The doctor asks jsDelivr (then npm) for the latest release on every run and prints it as
-`mayacharts:`; each chart pins that exact release, so a saved tile never changes under you.
-
-Drill-down is built in too: a sunburst, treemap, sankey or chord, or a bar, line, area, dumbbell, table, heatmap or
-marimekko with a `path`, zooms into what you click with an animated transition, a breadcrumb and a way back, all from
-`drill: true`; with `select` as well, a click cross-filters and a double-click drills.
-
-Headlines that quote the data, reference lines, bands and diagonals, annotations, dashed series, extra tooltip fields,
-log scales, ratio measures that roll up correctly, and drill together with cross-filter are all spec options (0.16.0;
-the skill's requests are BbekShr/mayacharts#59 to #72, all shipped; what 0.16.0 still gets wrong is #76). The skill reaches for something else only for a
-layout or interaction no spec can say: D3 for force layouts, hand-built SVG for a what-if slider or a race.
-
-Muze is not used: ThoughtSpot's own chart library has no license to redistribute, so a Muze chart could never be
-previewed here. (`MUZE_STUDIO` still appears in the answer and Liveboard TML: it is ThoughtSpot's type name for every
-custom chart, whatever draws it.)
-
-## Install in Claude Code
-
-Copy the skill folder into the project where you want to use it:
+**Claude Code.** Copy both skills into your project, or symlink them once for every project:
 
 ```bash
 git clone git@github.com:BibekTS/Thoughtspot-Amuzing-chart-skills.git
-mkdir -p /path/to/your-project/.claude/skills
-cp -R Thoughtspot-Amuzing-chart-skills/skills/ts-object-answer-chart-builder \
-      Thoughtspot-Amuzing-chart-skills/skills/ts-object-liveboard-chart-builder \
-      /path/to/your-project/.claude/skills/
+mkdir -p your-project/.claude/skills
+cp -R Thoughtspot-Amuzing-chart-skills/skills/* your-project/.claude/skills/
+# or: for s in ts-object-answer-chart-builder ts-object-liveboard-chart-builder; do ln -s "$PWD/Thoughtspot-Amuzing-chart-skills/skills/$s" ~/.claude/skills/$s; done
 ```
 
-Or symlink it once for every project, and update it with `git pull`:
+Needs Node 20+. The first run installs Playwright and Chromium (about 2 min, asked once).
+
+**Claude app.** Turn on *Settings → Capabilities → Code execution and file creation*, build the bundle, and upload it under *Settings → Capabilities → Skills*:
 
 ```bash
-for s in ts-object-answer-chart-builder ts-object-liveboard-chart-builder; do
-  ln -s "$PWD/Thoughtspot-Amuzing-chart-skills/skills/$s" ~/.claude/skills/$s
-done
+cd skills && zip -r ../ts-object-answer-chart-builder.zip ts-object-answer-chart-builder -x '*/node_modules/*' '*.DS_Store' '*/library/*/preview.png'
 ```
 
-Either way, runs and deliverables land in `~/.cache/ts-charts/runs/` and `~/.cache/ts-charts/output/`
-(or under `$XDG_CACHE_HOME`), never inside a repo: runs hold live search results and screenshots of
-real Liveboards. `TS_CHART_HOME` and `TS_CHART_OUTPUT_ROOT` override them. Charts you publish with
-`library-emit`, Liveboard working folders, backups and sign-in profiles live under `~/.cache/ts-charts`
-too.
+Same for `ts-object-liveboard-chart-builder`. In the app the Liveboard skill cannot take the in-cluster screenshots, because they need a browser window you sign in to.
 
-Requirements: Node 20+ and npm. The first run installs Playwright and Chromium into
-`helpers/node_modules` (~2 min, asked for once). That directory is gitignored.
+**Use it.** Ask for a chart (*"a diverging bar of revenue vs target by region"*), attach a screenshot, point it at a tile that misbehaves, or run `/ts-object-answer-chart-builder`. Paste `chart.html`, `chart.css` and `chart.js` into the HTML, CSS and JS tabs of your custom chart.
 
-## Install in the Claude app
+Runs and deliverables land in `~/.cache/ts-charts/` (or `$XDG_CACHE_HOME`), never inside a repo. `TS_CHART_HOME` and `TS_CHART_OUTPUT_ROOT` override that.
 
-1. Turn on **Settings → Capabilities → Code execution and file creation**.
-2. Build the upload bundle from a checkout of this repo:
+## How it works
 
-   ```bash
-   cd skills && zip -r ../ts-object-answer-chart-builder.zip ts-object-answer-chart-builder \
-     -x '*/node_modules/*' '*.DS_Store' '*/library/*/preview.png'
-   ```
+1. **Intake.** Pick-from-a-list questions: model, data mode, search, chart library, destination.
+2. **Frozen sample.** The data mode is settled and the rows are frozen for the run (your CSV if you bring one).
+3. **Loop.** Edit, screenshot, critique with vision, fix. It stops early on a match, and asks you if it is getting nowhere.
+4. **Checks.** Data edge cases, tile resizes and pointer interaction.
+5. **Deliverables.** The three files, a `preview.png` and a `README.md` naming the exact search to build.
 
-   The library's `preview.png` screenshots (about 6 MB) stay out of the zip; the skill does not need them to run.
+| | Claude Code | Claude app |
+|---|---|---|
+| Preview | A Chromium window you watch | Headless; each attempt comes back as a PNG |
+| First run | Installs Playwright + Chromium | Installs `playwright-core`, uses the sandbox's Chromium |
+| Libraries | All | HTML tables and raw SVG are fully previewed; CDN libraries are usually blocked, so those charts are written and marked *not previewed* |
 
-   For the Liveboard skill as well: `cd skills && zip -r ../ts-object-liveboard-chart-builder.zip ts-object-liveboard-chart-builder -x '*.DS_Store'`.
-   In the Claude app it can plan, build and import, but not take the in-cluster screenshots:
-   those need a browser window you sign in to, so check the tabs yourself there.
+## Chart libraries
 
-3. Upload `ts-object-answer-chart-builder.zip` (and `ts-object-liveboard-chart-builder.zip`) under **Settings → Capabilities → Skills**.
-4. Ask for a chart in a new chat.
+When Claude picks, [MayaCharts](https://bbekshr.github.io/mayacharts/) (MIT, no dependencies) is the first fit for standard business shapes: bar, line, area, scatter, KPI, waterfall, heatmap, table, treemap, sunburst, sankey, funnel, box plot and gauge. One JSON spec gives the marks, tooltip, keyboard focus, selection, drill, empty state and resize. A standalone tile is the spec and one adapter call:
 
-The first run installs `playwright-core` and uses the sandbox's own Chromium; it never
-tries to download a browser there (that download is blocked). Every attempt's
-screenshot is copied to the outputs folder as `<chart-name>/attempts/NN.png`, and the
-deliverables land in `<chart-name>/` beside them, ready to download. System fonts in
-the sandbox differ from ThoughtSpot's, so text can sit a pixel or two off.
+```js
+maya.host.thoughtspot(viz, { type: 'bar', x: 'Item Type', y: 'Total Sales', title: '{max.x} leads with {max.y}' });
+```
 
-After a `git pull`, rebuild the zip and upload it again.
+Fields are plain column names. The adapter reads the search, unwraps cells, mounts the chart and tells ThoughtSpot the tile is done. The doctor finds the latest MayaCharts release and every chart pins it (now 0.18.1), so a saved tile never changes under you. The theme lives in `chart.css` as `--maya-*` properties on `#chart`.
 
-## Building a chart
+## The chart library
 
-1. **Ask for one.** In Claude Code, open the project you installed the skill into; in
-   the Claude app, start a new chat. Describe the chart, or invoke the skill directly
-   with `/ts-object-answer-chart-builder`. All of these work:
-   - *"Build me a diverging bar chart of revenue vs. target by region"* (from prose)
-   - Attach a screenshot of a chart you want recreated (from an image)
-   - Point it at an existing tile's three files that misbehave (debug)
-   - *"Convert this chart from sample data to live data"* (mode conversion)
+`skills/ts-object-answer-chart-builder/library/` holds **58 charts** on *(Sample) Retail - Apparel*; 50 are arranged as the Liveboard **Amuzing chart samples**: seven tabs (About, Pulse, Where, What, When, Who, Next), custom charts only, with date, region and item-type filters. 48 are MayaCharts specs; the rest are text tiles, `next-action-list` and `next-what-if`. They were rebuilt on synthetic data and are marked *preview only* until seen on a cluster tile.
 
-2. **Answer the data-mode question if asked.** Sample-only, live-only, or live with
-   sample fallback (the default — one file that works on a live tile, an unbound
-   tile, and a plain browser). If your chart is going onto a real search, paste the
-   `Available Columns` block from your chart editor so the generated code uses your
-   exact column names.
+- [references/library.md](skills/ts-object-answer-chart-builder/references/library.md) indexes them by tab, library and search.
+- [references/examples.md](skills/ts-object-answer-chart-builder/references/examples.md) maps a chart shape to the one to copy.
+- They are one worked Liveboard, not 58 model-agnostic templates: on another model a copy needs its search, copy and a few lines changed.
 
-   **Bring your own data if you have it.** Hand over a CSV (or describe your column
-   structure) and the preview iterates against your real data shape instead of
-   invented rows — the file is parsed, capped at 30 rows, and frozen for the run. In
-   the fallback mode those same rows ship as the chart's baked-in sample data, so
-   the tile shows something realistic even before the search is attached.
-
-3. **Watch it iterate.** In Claude Code a Chromium window opens showing a tile-shaped
-   box; Claude edits the chart files, the window reloads, and each attempt is
-   screenshotted and critiqued with vision until the render matches — usually a
-   handful of attempts. In the Claude app you get each attempt's PNG and a one-line
-   verdict instead. Anything you say mid-loop ("make the bars horizontal") becomes the
-   next fix.
-
-4. **Collect the deliverables.** Each chart gets its own folder — `~/.cache/ts-charts/output/<chart-name>/`
-   in Claude Code, `<chart-name>/` in the Claude app's outputs — containing the three
-   files, a `preview.png` of the final render, and a `README.md` that states the exact
-   search to build in ThoughtSpot (including any prior-period columns needed for
-   `vs. Last Month`-style measures), which data mode the file is in, and anything that
-   could not be reproduced.
-
-5. **Paste into ThoughtSpot.** In your custom chart's editor:
-   `chart.html` → HTML tab, `chart.css` → CSS tab, `chart.js` → JS tab. Attach the
-   search from the run README. If the chart is in live-with-fallback mode you can
-   paste it before the search exists — it renders its sample rows with a
-   "sample data" badge until real rows arrive.
-
-Working artifacts stay under `~/.cache/ts-charts/runs/<chart-name>/` (chart files, attempt
-screenshots, critiques), so a run can be resumed or audited later. `output/` beside it is the
-result you keep; copy a chart folder into your project if you want it versioned there.
-
-"Verified in preview" means verified against a faithful stub of the ThoughtSpot host,
-not against your cluster — theme and version differences are real, so give the pasted
-tile a look.
-
-## Checking your setup
-
-The skill runs a doctor at the start of every run. You can run it yourself:
+## Check your setup
 
 ```bash
-node .claude/skills/ts-object-answer-chart-builder/helpers/env.mjs          # Claude Code
-node /mnt/skills/user/ts-object-answer-chart-builder/helpers/env.mjs        # Claude app (ask Claude to run it)
+node .claude/skills/ts-object-answer-chart-builder/helpers/env.mjs
 ```
 
-It prints where runs and deliverables go, whether the preview will be headed or
-headless, which Playwright and Chromium it found, whether it could actually launch
-the browser, whether CDN libraries are reachable, and the latest MayaCharts release to pin. When something is missing, its
-`fix:` line is the command that fixes it. If a run fails in the Claude app, that
-output is the thing to send to the skill author.
-
-The helpers also work by hand, which is useful when debugging a chart outside a run:
+The doctor prints where runs go, headed or headless, whether Chromium launches, whether CDN libraries are reachable and the latest MayaCharts release. Each problem has a `fix:` line. The helpers also work by hand:
 
 ```bash
 H=.claude/skills/ts-object-answer-chart-builder/helpers
-node $H/start-preview.mjs my-chart                     # open the preview window
-node $H/snap.mjs my-chart 01                           # screenshot + diagnostic block
-node $H/snap.mjs my-chart 91 --data absent             # also: wrapped, empty, noviz
-node $H/snap.mjs my-chart 95 --tile 620x400            # resize the tile, report svg-fit
-node $H/probe.mjs my-chart --tile 620x400 --sweep      # does hovering change anything (looks inside shadow DOM)
-node $H/close-preview.mjs my-chart                     # close the window
+node $H/start-preview.mjs my-chart            # open the preview window
+node $H/snap.mjs my-chart 01                  # screenshot + diagnostics
+node $H/snap.mjs my-chart 91 --data=empty     # also: absent, wrapped, noviz; --tile=620x400
+node $H/probe.mjs my-chart --sweep            # does hovering change anything
 ```
 
 ## Layout
 
 ```
-skills/ts-object-answer-chart-builder/
-  SKILL.md            the procedure: the file Claude reads
-  references/         byoc-data-modes · hard-rules · taste-rules · library ·
-                      library-starters · examples ·
-                      emit-checklist · library-contract
-  library/            58 proven live-data charts on (Sample) Retail - Apparel, and the
-                      shared core (_shared/)
-  examples/           older charts, indexed by references/examples.md
-  helpers/            env (the doctor) · serve · capture · start-preview · snap · probe ·
-                      close-preview · sync-core · library-emit · make-index ·
-                      answer-pack, answer-patch.js and backup-check (save a chart as an answer) ·
-                      cluster-shot (screenshot an answer or a Liveboard, logged in),
-                      plus the smoke-test fixture the library's smoke test renders
-  scaffold/           the preview page and the `viz` stub
-skills/ts-object-liveboard-chart-builder/
-  SKILL.md            intake, profile the model, plan the tabs, build, patch the Liveboard, screenshot
-  references/         story-and-layout · pipeline · tile-brief
-  scripts/            liveboard-pack · patch.js (runs in the MCP sandbox) ·
-                      build-narratives · cluster-shot (passes through to the chart skill's) ·
-                      chart-skill (finds the sibling)
-  narratives/         the template for About and tab-banner tiles
-  liveboards/amuzing-chart-samples/   the worked example: spec, banner configs, data notes
-scripts/
-  export-to-library.sh   copy both skills into thoughtspot-agent-skills (keeps its changelogs)
+skills/ts-object-answer-chart-builder/    SKILL.md · references/ · library/ (58 charts + shared core) · examples/ · helpers/ · scaffold/
+skills/ts-object-liveboard-chart-builder/ SKILL.md · references/ · scripts/ · narratives/ · liveboards/amuzing-chart-samples/
+scripts/export-to-library.sh              copy both skills into thoughtspot-agent-skills
 ```
 
-Everything each skill reads travels inside its folder. The Liveboard skill finds the chart
-skill as a sibling folder (or through `TS_ANSWER_CHART_SKILL`), so install both side by side.
-
-## The chart library and the Amuzing chart samples Liveboard
-
-`skills/ts-object-answer-chart-builder/library/` holds 58 charts built on the ThoughtSpot model
-**(Sample) Retail - Apparel**, and 50 of them are arranged as the Liveboard **Amuzing chart samples**:
-seven numbered tabs (About, Pulse, Where, What, When, Who, Next), each answering one question, custom
-charts only, three Liveboard filters (date, region, item type). Every chart reads only what its search
-returns, is interactive and survives a filtered view. 48 of the 58 are MayaCharts 0.16.0 specs drawn through one shared
-`AZ.maya(spec)` call; the other ten are the eight text tiles (banners and About), `next-action-list` and
-`next-what-if`, which MayaCharts cannot express yet (BbekShr/mayacharts#78, #79). The MayaCharts charts were rebuilt
-on synthetic data and are marked *preview only* until they have been on a cluster tile; each README says what the
-move dropped, and the gaps are filed upstream as BbekShr/mayacharts#78 to #93.
-`references/library.md` indexes them by tab, library and search; the "Start here" table in
-`references/examples.md` maps chart shapes to the one to copy. The library is one worked Liveboard on
-that model rather than 58 model-agnostic templates: the shared core knows the apparel item families and
-a few charts know that model's part years, so on another model a copy needs its search, copy and those
-lines changed.
-
-Two things about how they are made are worth knowing:
-
-- **Real data, no sample rows.** With the ThoughtSpot MCP connected, each chart is developed against the
-  exact output of its own search (`searchdata`), not invented rows.
-- **The Liveboard is patched in place.** The MCP sandbox has no network and no memory, so a Liveboard's
-  base64 chart code cannot be sent whole. The Liveboard skill's `liveboard-pack.mjs` splits the charts into
-  sha256-checked blocks; each one exports the Liveboard, replaces its charts' tiles, keeps the rest,
-  imports, and proves by export that every tile carries the code that was composed. A chart already on
-  another Liveboard travels as a checksum (`--reuse`), and so can the shared core (`--core-ref`). Nothing
-  else is created in ThoughtSpot. `cluster-shot.mjs` then screenshots each tab in a logged-in browser. The
-  procedure is `skills/ts-object-liveboard-chart-builder/SKILL.md`.
-
-Facts about ThoughtSpot tiles that the preview cannot show, found this way, are in the "Verified in a
-real cluster" table of the chart skill's `references/hard-rules.md` (for example: `fetch()` is blocked
-inside a tile, `<script src>` from a CDN is not), and the import-side ones in the Liveboard skill's
-`references/pipeline.md`.
-
-## Examples
-
-`skills/ts-object-answer-chart-builder/examples/` holds:
-
-- `maya-was-bars`: the MayaCharts starter (bars against a ghost of last year, 15 lines), verified in the
-  preview, not yet on a tile.
-- Older charts that render correctly in ThoughtSpot: Plotly sunbursts, gridjs and hand-built tables (pivot,
-  flat, league, scoreboard), a waffle, a funnel, a hex cartogram and a KPI card. They were written before the
-  preview loop existed, so they are correct-in-ThoughtSpot, not correct-in-preview, and most are superseded by
-  the library.
-
-`references/examples.md` indexes them by shape and says what each is worth opening for —
-mostly the workarounds for bugs that are expensive to rediscover: object-wrapped cells, TS column names
-that carry non-breaking spaces. Copy the technique, not the file.
-
-## For maintainers: the ThoughtSpot skills library
-
-The skills are being prepared for
-[thoughtspot/thoughtspot-agent-skills](https://github.com/thoughtspot/thoughtspot-agent-skills),
-under the same names, in `agents/cli/`. This repo stays the source; copy them across with:
-
-```bash
-scripts/export-to-library.sh /path/to/thoughtspot-agent-skills
-```
-
-That copies both folders as they are. Registering them in the library (README, setup docs,
-runtime coverage, naming family, changelog, smoke tests) is part of the library PR.
+Each skill's `SKILL.md` is the procedure Claude follows. The Liveboard skill finds the chart skill as a sibling folder (or through `TS_ANSWER_CHART_SKILL`).
 
 ## Status
 
-Verified on macOS (2026-09-29):
+"Verified in preview" means checked against a stub of the ThoughtSpot host, not your cluster: theme and version differences are real, so look at the pasted tile. Facts about tiles that only a cluster shows (for example, `fetch()` is blocked inside a tile) are in [references/hard-rules.md](skills/ts-object-answer-chart-builder/references/hard-rules.md).
 
-- **Headed:** the window reloads ~0.4 s after an edit; screenshots stay 2496x1340, the
-  same as earlier runs.
-- **Headless:** a read-only copy of the skill with nothing installed, forced into
-  Claude-app mode, installs `playwright-core` from the doctor's `fix:` line and
-  captures every data mode plus `--tile 620x400` and `1400x500`.
-- **Fallback:** a Chromium that cannot open a window drops to headless on its own.
+- **2026-10-14, macOS, MayaCharts 0.18.1:** all 48 MayaCharts library charts and the standalone example render in live, empty, absent and wrapped data with no console errors. Not yet checked on a cluster tile.
+- **2026-09-29, macOS:** headed and headless previews, the fall back to headless, and the hand-built SVG KPI.
+- **Not yet run inside the Claude app itself.** The doctor output from a first run there is the thing to check.
 
-Verified on macOS (2026-10-12), on MayaCharts 0.16.0:
-
-- The doctor reports the latest MayaCharts release (0.16.0) and the core and full build URLs.
-- The 3-line adapter tile, `examples/maya-was-bars` and the 48 MayaCharts library charts pass every data mode,
-  280x300 and 1400x500 tiles and the hover sweep; the adapter tile also passes an empty HTML tab, a missing column, a
-  failing CDN and a 130 px tall tile. The smoke fixture and the hand-built SVG KPI still pass.
-- Not yet checked: the rebuilt charts on a real cluster tile.
-
-Not yet run inside the Claude app itself; the doctor output from a first run there is
-the thing to check.
+For maintainers: these skills are being prepared for [thoughtspot/thoughtspot-agent-skills](https://github.com/thoughtspot/thoughtspot-agent-skills). This repo stays the source; copy with `scripts/export-to-library.sh /path/to/thoughtspot-agent-skills`.
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE)
