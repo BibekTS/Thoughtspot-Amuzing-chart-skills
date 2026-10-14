@@ -13,9 +13,9 @@ How did each item type do this year, against the year before?
 
 ## What MayaCharts does here
 `chart.js` is 6 lines: the comment, the pinned URL, one adapter call holding the spec (3 lines; the theme is `--maya-*` in `chart.css`), and the line that loads the
-library. `maya.host.thoughtspot(viz, spec)` reads the search, unwraps cells, matches `/item/i`, `/sales/i` and
-`/year|date/i` against the columns ThoughtSpot returns, mounts `#chart`, and signals render-complete once the chart
-has settled, errors included. `was: { by: /year|date/i }` takes the search's one row per item type and year as it is:
+library. `maya.host.thoughtspot(viz, spec)` reads the search, unwraps cells, matches `'Item Type'`, `'Total Sales'` and
+`'Year(Date)'` against the columns ThoughtSpot returns (plain names, case-insensitive), mounts `#chart`, and signals render-complete once the chart
+has settled, errors included. `was: { by: 'Year(Date)' }` takes the search's one row per item type and year as it is:
 the latest year is the bar, the year before is the dashed ghost. `title` quotes the data with tokens
 (`{max.x} leads with {max.y}`). Bars, ghosts, legend, axis, tooltip, hover dimming, keyboard focus, selection,
 the empty state, the roll-up into Other on a short tile and the resize all come from the spec.

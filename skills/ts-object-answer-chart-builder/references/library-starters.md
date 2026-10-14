@@ -35,16 +35,19 @@ screenshotted on a cluster: say "verified in preview" until it has been.
   fails, a column that is not there (MayaCharts paints the error, listing the columns it found) and 130 to 1400 px:
   ```js
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js';
-  const go = () => maya.host.thoughtspot(viz, { type: 'bar', x: /item/i, y: /sales/i });
+  const go = () => maya.host.thoughtspot(viz, { type: 'bar', x: 'Item Type', y: 'Total Sales' });
   if (window.maya?.host) go(); else { const s = document.querySelector('script[src="' + MAYA + '"]') ?? document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA })); s.addEventListener('load', go); s.addEventListener('error', () => { (document.getElementById('chart') ?? document.body).textContent = 'MayaCharts could not load from ' + MAYA; viz?.events?.emitRenderCompletedEvent?.(); }); }
   ```
   `chart.html` is `<maya-chart id="chart"></maya-chart>` (plus the Geist link); `chart.css` is
   `html, body { height: 100%; margin: 0; background: #fff; } #chart { display: block; height: 100%; color-scheme: light; --maya-font: Geist, system-ui, sans-serif; --maya-fg: #1E1E24; --maya-accent: #1E1E24; }`
   (the theme lives here, see Theme below). 0.18.1 signals render-complete on the first draw, so a cold load no
   longer shows "Something went wrong" on a tile.
-  The adapter's spec takes every option except `data`; field options (`x`, `y`, `series`, `path`, `size`, `name`,
-  `frame`, `y2`, `was.by`, `tooltip.fields`) take a RegExp, so a cluster that names the column `Total sales` or
-  `Total Sales` both match.
+  The adapter's spec takes every option except `data`. **Write fields as plain column names**: `x: 'Item Type',
+  y: 'Total Sales'`. The adapter matches a name to the search's columns case-insensitively and exactly (not as a
+  substring: `'sales'` does not find `Total Sales`), so take the real names from the search's columns (`searchdata`,
+  Step 3 of SKILL.md). A name that matches nothing is an `unknown-field` error listing the columns the host sent.
+  The fields are `x`, `y`, `series`, `path`, `size`, `name`, `frame`, `y2`, `was.by`, `tooltip.fields`. A RegExp
+  (`y: /sales/i`) is the fallback for one tile that must work on clusters naming the column differently.
 - **When the spec needs a field the search does not return** (a family derived from item type, a per-row price, a
   top-N roll-up), read the rows yourself. In a library chart (core block present) the body is the rows, the derived
   fields and one `AZ.maya(spec)` call; `AZ.maya(spec, 'maya.global.js')` for a module type:
@@ -58,6 +61,8 @@ screenshotted on a cluster: say "verified in preview" until it has been.
   the spec and signals render-complete once, on the first `maya-render` or `maya-settled` (also after an error),
   never on `customElements.whenDefined`. The house theme is not in JS: it is `--maya-*` on `maya-chart#chart` in
   `core.css`. It returns the element, for `el.view` or a `maya-select` listener.
+  With no `data` key, `AZ.maya(spec)` hands the spec to MayaCharts' adapter instead: plain column names, cells unwrapped,
+  render-complete signalled, so a chart that needs no derived rows is `AZ.maya({ type: 'bar', x: 'Item Type', y: 'Total Sales' })`.
   `AZ.col(schema, /re/i, { optional: true }) ?? 'Name'` reads a column without throwing on absent data. Do not copy
   the loader lines into a library chart, and do not restate the house theme.
 - **Theme in `chart.css`, not in JS (0.18.0).** Every theme token is a custom property on the chart element: kebab
