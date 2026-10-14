@@ -259,8 +259,6 @@ const AZ = (function () {
 // Interactions: click a column header (or Enter / Space on it) to sort by store, YTD sales, change, movement or form (rows start in league order); hover a row for its values; click a row to select it, Escape clears; arrow keys move between rows.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, St = c(/store/i, 'Store'), D = c(/month|date/i, 'Month(date)'), V = c(/sales/i, 'Total Sales');
-// Year to date: the first month of the latest year in the result through the latest complete month (a latest month
-// under 60% of the median of the three before it is partial and left out); last year is the same months.
 const mk = (t) => { const d = new Date(AZ.ms(t)); return d.getUTCFullYear() * 12 + d.getUTCMonth(); };
 const ST = new Map(), TOT = new Map();
 rows.forEach((r) => { const k = mk(r[D]), v = AZ.num(r[V]), m = ST.get(r[St]) ?? ST.set(r[St], new Map()).get(r[St]); m.set(k, (m.get(k) ?? 0) + v); TOT.set(k, (TOT.get(k) ?? 0) + v); });
@@ -270,13 +268,11 @@ const partial = p3.length >= 2 && TOT.get(latest) < 0.6 * p3[Math.floor(p3.lengt
 const last = full[full.length - 1] ?? 0, Y = Math.floor(last / 12), M = last % 12;
 const F = Math.min(12, ...keys.filter((k) => Math.floor(k / 12) === Y && k <= last).map((k) => k % 12)), inWin = (k) => k % 12 >= F && k % 12 <= M;
 const formKeys = full.slice(-5), hasLY = keys.some((k) => Math.floor(k / 12) === Y - 1 && inWin(k));
-// Per store: YTD, change on the same months last year, position movement on last year's league, and form
-// (how many of the last 5 complete months beat the same month a year earlier).
 const all = [...ST].map(([s, m]) => {
   let ty = 0, ly = 0; m.forEach((v, k) => { if (!inWin(k)) return; if (Math.floor(k / 12) === Y) ty += v; else if (Math.floor(k / 12) === Y - 1) ly += v; });
   return { Store: s, YTD: ty, ly, Change: hasLY && ly ? ty / ly - 1 : null, Form: hasLY ? formKeys.filter((k) => m.get(k - 12) && (m.get(k) ?? 0) > m.get(k - 12) * 1.0005).length : null };
 });
-all.sort((a, b) => b.YTD - a.YTD).forEach((s, i) => { s.pos = i + 1; }); // rows arrive in league order
+all.sort((a, b) => b.YTD - a.YTD).forEach((s, i) => { s.pos = i + 1; });
 if (hasLY) [...all].sort((a, b) => b.ly - a.ly).forEach((s, i) => { s.Move = s.ly ? i + 1 - s.pos : null; });
 const data = all.map(({ ly, pos, ...s }) => ({ Move: null, ...s }));
 const lead = all[0], up = all.filter((s) => s.Move > 0).sort((a, b) => b.Move - a.Move)[0], MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

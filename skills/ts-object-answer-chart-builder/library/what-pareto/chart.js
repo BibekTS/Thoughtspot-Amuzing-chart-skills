@@ -259,8 +259,6 @@ const AZ = (function () {
 // Interactions: hover a bar for its rank, sales and cumulative share; the frame control steps the scope (each of the top 6 item types, then All) and Play runs through them; click a bar to select it (Escape clears).
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, P = c(/product/i, 'Product'), I = c(/item/i, 'Item Type'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
-// One frame per scope: the 6 largest item types, then All last (MayaCharts opens on the last frame).
-// Inside each scope the products are ranked by sales with a running share, and the 80% product is marked.
 const live = rows.filter((r) => AZ.num(r[V]) > 0), byI = new Map();
 live.forEach((r) => byI.set(r[I], (byI.get(r[I]) || 0) + AZ.num(r[V])));
 const scopes = [...byI].sort((a, b) => b[1] - a[1]).slice(0, 6).map((e) => e[0]).concat(live.length ? ['All'] : []);
@@ -272,12 +270,12 @@ scopes.forEach((s) => {
   if (hit) annotate.push({ x: '#' + hit + ' ' + ps[hit - 1][P], text: '80% at #' + hit + ' of ' + ps.length });
 });
 const all = data.filter((r) => r.Scope === 'All'), n80 = all.findIndex((r) => r.Cumulative >= 0.8) + 1;
-AZ.maya(Object.assign({
-  type: 'bar', x: 'Rank', y: 'Sales', y2: 'Cumulative', frame: 'Scope', select: true, xAxis: false, tooltip: { fields: ['Units'] },
-  title: n80 ? 'Products that make 80% of sales' : '', // MayaCharts appends the scope: ', Jackets'
+AZ.maya({
+  type: 'bar', x: 'Rank', y: 'Sales', y2: 'Cumulative', frame: 'Scope', select: true, xAxis: false, tooltip: { fields: ['Units'] }, annotate,
+  title: n80 ? 'Products that make 80% of sales' : '',
   subtitle: n80 ? n80 + ' of ' + all.length + ' overall. Bars rank products by sales; the line is the running share.' : '',
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Units: { notation: 'compact', maximumFractionDigits: 1 }, Cumulative: { style: 'percent', maximumFractionDigits: 0 } },
   titles: { Rank: 'Product', Cumulative: 'Cumulative share', Scope: 'Scope' },
   text: { noData: 'No rows yet: bind [product] [item type] [sales] [quantity purchased]' },
   data
-}, annotate.length ? { annotate } : {})); // annotate: [] throws in 0.16.0
+});

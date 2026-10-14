@@ -254,10 +254,9 @@ const AZ = (function () {
   return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
-
 // Search: [sales] [store] [date].quarterly
 // Interactions: hover a store for sales this year and last, and the change; click stores to select them (Escape clears); arrow keys step through stores.
-const THRESHOLD = -0.05; // stores below this change on last year are flagged red; edit to move the line
+const THRESHOLD = -0.05; // stores below this change on last year are flagged red
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, N = c(/store/i, 'store'), D = c(/date|quarter|month/i, 'Quarter(date)'), V = c(/sales/i, 'Total sales');
 // Year to date: the quarters of the latest year up to the latest quarter, against the same quarters a year earlier.
@@ -266,14 +265,13 @@ const last = R.length ? Math.max(...R.map((r) => r.t)) : 0, ly = AZ.year(last), 
 R.forEach((r) => { const y = AZ.year(r.t); if (qOf(r.t) > lq || (y !== ly && y !== ly - 1)) return; const o = by[r.n] = by[r.n] ?? { s: 0, ps: 0 }; if (y === ly) o.s += r.s; else o.ps += r.s; });
 const data = Object.entries(by).filter(([, o]) => o.ps > 0 && o.s > 0).map(([n, o]) => ({ Store: n, Change: o.s / o.ps - 1, Gap: o.s - o.ps, Sales: o.s, 'Last year': o.ps }));
 const low = [...data].sort((a, b) => a.Change - b.Change)[0], flagged = data.filter((r) => r.Change < THRESHOLD).length, per = 'Q' + (lq + 1);
-const pct1 = { style: 'percent', maximumFractionDigits: 1, signDisplay: 'exceptZero' }, usd = { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 };
 AZ.maya({
-  type: 'bar', horizontal: true, x: 'Store', y: 'Change', sort: 'asc', select: 'multi', aggregate: { ratio: ['Gap', 'Last year'] }, colorBy: { target: THRESHOLD }, legend: false, tooltip: { fields: ['Sales', 'Last year'] },
-  rules: [THRESHOLD], yDomain: data.length ? [Math.floor(Math.min(THRESHOLD - 0.01, ...data.map((r) => r.Change)) / 0.02) * 0.02, Math.ceil(Math.max(0.02, ...data.map((r) => r.Change)) / 0.02) * 0.02] : undefined, // even steps keep the end ticks apart
+  type: 'bar', horizontal: true, x: 'Store', y: 'Change', sort: 'asc', select: 'multi', aggregate: { ratio: ['Gap', 'Last year'] }, colorBy: { target: THRESHOLD }, legend: false, tooltip: { fields: ['Sales', 'Last year'] }, rules: [THRESHOLD],
+  yDomain: data.length ? [Math.floor(Math.min(THRESHOLD - 0.01, ...data.map((r) => r.Change)) / 0.02) * 0.02, Math.ceil(Math.max(0.02, ...data.map((r) => r.Change)) / 0.02) * 0.02] : undefined, // even steps keep the end ticks apart
   title: data.length ? (flagged ? flagged + ' of ' + data.length + ' stores are below ' + AZ.pct(THRESHOLD, 0) + ' on last year' : 'No store is below ' + AZ.pct(THRESHOLD, 0) + '; the lowest is ' + low.Store + ' at ' + AZ.pct(low.Change, 1, true)) : '',
   subtitle: data.length ? 'Sales, Q1 to ' + per + ' ' + ly + ' against Q1 to ' + per + ' ' + (ly - 1) + ', lowest first' : '',
   titles: { Change: 'Sales change on last year', Sales: 'Sales Q1 to ' + per + ' ' + ly, 'Last year': 'Sales Q1 to ' + per + ' ' + (ly - 1) },
-  format: { Change: pct1, Sales: usd, 'Last year': usd },
-  text: { above: 'above the line', below: 'below the line', noData: 'No rows yet. Bind the search [sales] [store] [date].quarterly' },
+  format: { Change: { style: 'percent', maximumFractionDigits: 1, signDisplay: 'exceptZero' }, Sales: '${value:compact}', 'Last year': '${value:compact}' },
+  text: { above: 'above the line', below: 'below the line', noData: 'No rows yet. Bind [sales] [store] [date].quarterly' },
   data
 });

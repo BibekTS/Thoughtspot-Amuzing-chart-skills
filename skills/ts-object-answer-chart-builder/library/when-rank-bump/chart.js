@@ -257,19 +257,16 @@ const AZ = (function () {
 
 // Search: [sales] [item type] [date].yearly
 // Interactions: hover a dot to light that item type's thread and see the year's order; click a thread or a legend key to select it (Escape clears); arrow keys step through years and item types.
-const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const opt = { optional: true }, I = AZ.col(schema, /item/i, opt) ?? 'Item type', D = AZ.col(schema, /date|year/i, opt) ?? 'Year', V = AZ.col(schema, /sales/i, opt) ?? 'Sales';
-// A weave holds 8 threads: keep the 8 item types with the most sales over the years shown (ranks are among those 8).
+const { rows } = AZ.liveData() ?? { rows: [] };
 const tot = new Map();
-for (const r of rows) tot.set(r[I], (tot.get(r[I]) ?? 0) + (AZ.num(r[V]) || 0));
-const top = new Set([...tot].sort((a, b) => b[1] - a[1]).slice(0, 8).map((e) => e[0]));
-const pts = rows.filter((r) => top.has(r[I])).map((r) => ({ Year: String(AZ.year(AZ.ms(r[D]))), 'Item type': r[I], Sales: AZ.num(r[V]) })).sort((a, b) => a.Year.localeCompare(b.Year));
+rows.forEach((r) => tot.set(r['item type'], (tot.get(r['item type']) ?? 0) + r['Total sales']));
+const top = [...tot].sort((a, b) => b[1] - a[1]).slice(0, 8).map((e) => e[0]);
 AZ.maya({
   type: 'weave', x: 'Year', y: 'Sales', series: 'Item type', select: true,
-  colors: Object.fromEntries([...top].map((k) => [k, AZ.familyColor(k)])),
-  title: pts.length ? 'Item type rank by year' : '',
+  colors: Object.fromEntries(top.map((k) => [k, AZ.familyColor(k)])),
+  title: top.length ? 'Item type rank by year' : '',
   subtitle: tot.size > 8 ? 'Top 8 of ' + tot.size + ' item types by sales; colour is product family' : '',
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
   text: { noData: 'No rows yet. Bind the search [sales] [item type] [date].yearly' },
-  data: pts
+  data: rows.filter((r) => top.includes(r['item type'])).map((r) => ({ Year: String(AZ.year(AZ.ms(r['Year(date)']))), 'Item type': r['item type'], Sales: r['Total sales'] })).sort((a, b) => a.Year.localeCompare(b.Year))
 }, 'maya.global.js');

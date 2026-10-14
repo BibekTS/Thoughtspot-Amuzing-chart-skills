@@ -259,19 +259,17 @@ const AZ = (function () {
 // Interactions: click a column header (or Enter / Space on it) to sort; hover a row for its values; click a row to select it, Escape clears; arrow keys move between rows.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, P = c(/product/i, 'Product'), I = c(/item/i, 'Item Type'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
-// Share of all sales, price per unit, and the price against the product's item type average (its sales over its units).
-const it = new Map();
-rows.forEach((r) => { const o = it.get(r[I]) ?? it.set(r[I], { s: 0, u: 0 }).get(r[I]); o.s += AZ.num(r[V]); o.u += AZ.num(r[Q]); });
-const S = rows.reduce((a, r) => a + AZ.num(r[V]), 0);
+// Price against the product's item type average (the type's sales over its units).
+const it = {}, S = rows.reduce((a, r) => a + AZ.num(r[V]), 0);
+rows.forEach((r) => { const o = it[r[I]] ??= { s: 0, u: 0 }; o.s += AZ.num(r[V]); o.u += AZ.num(r[Q]); });
 const data = rows.map((r) => {
-  const s = AZ.num(r[V]), u = AZ.num(r[Q]), o = it.get(r[I]), p = u ? s / u : null, avg = o.u ? o.s / o.u : null;
-  return { Product: r[P] + ' (' + r[I] + ')', Sales: s, Share: S ? s / S : 0, Units: u, Price: p, 'Vs type': p != null && avg ? p / avg - 1 : null };
-});
-const top = [...data].sort((a, b) => b.Sales - a.Sales), t25 = top.slice(0, 25).reduce((a, r) => a + r.Share, 0);
+  const s = AZ.num(r[V]), u = AZ.num(r[Q]), p = u ? s / u : null, o = it[r[I]], avg = o.u ? o.s / o.u : 0;
+  return { Product: r[P] + ' (' + r[I] + ')', Sales: s, Units: u, Price: p, 'Vs type': p != null && avg ? p / avg - 1 : null };
+}).sort((a, b) => b.Sales - a.Sales), t25 = data.slice(0, 25).reduce((a, r) => a + r.Sales, 0) / S;
 AZ.maya({
   type: 'table', x: 'Product', y: ['Sales', 'Units', 'Price', 'Vs type'], sort: 'desc', select: true,
-  title: top.length ? top[0].Product.replace(/ \(.*/, '') + ' is the top product at ' + AZ.money(top[0].Sales) + ', ' + AZ.pct(top[0].Share) + ' of sales' : '',
-  subtitle: top.length > 25 ? 'The top 25 of ' + top.length + ' products hold ' + AZ.pct(t25, 0) + '. Avg price is sales per unit; vs type compares it with the item type average' : '',
+  title: S ? data[0].Product.replace(/ \(.*/, '') + ' is the top product at ' + AZ.money(data[0].Sales) + ', ' + AZ.pct(data[0].Sales / S) + ' of sales' : '',
+  subtitle: data.length > 25 ? 'The top 25 of ' + data.length + ' products hold ' + AZ.pct(t25, 0) + '. Avg price is sales per unit; vs type compares it with the item type average' : '',
   titles: { Product: 'Product (item type)', Price: 'Avg price', 'Vs type': 'vs type' },
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Units: { notation: 'compact', maximumFractionDigits: 1 }, Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }, 'Vs type': { style: 'percent', maximumFractionDigits: 0, signDisplay: 'exceptZero' } },
   text: { noData: 'No rows yet: bind [product] [item type] [sales] [quantity purchased]' },

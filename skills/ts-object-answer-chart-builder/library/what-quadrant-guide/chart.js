@@ -255,25 +255,22 @@ const AZ = (function () {
 })();
 /* ==== end amuzing core ==== */
 
-// Search: [sales] [quantity purchased] [item type]   (Family is an editorial grouping of Item Type, derived here)
-// Interactions: hover a bar for its sales and units; click a quadrant to drill into its item types; Back, Escape or a click on empty space goes up; click a legend key to hide a family.
+// Search: [sales] [quantity purchased] [item type]   (Family is derived from Item Type; quadrants are set by the average price and median units)
+// Interactions: hover a bar for its sales and units; click a quadrant to drill into its item types; Back, Escape or an empty click goes up; click a legend key to hide a family.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, I = c(/item/i, 'Item Type'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
-// Same two lines as what-price-volume: the units-weighted average price and the median units. Higher means strictly above.
-const live = rows.filter((r) => AZ.num(r[Q]) > 0);
-const S = live.reduce((a, r) => a + AZ.num(r[V]), 0), U = live.reduce((a, r) => a + AZ.num(r[Q]), 0), avg = U ? S / U : 0;
-const us = live.map((r) => AZ.num(r[Q])).sort((a, b) => a - b), med = us.length ? (us[(us.length - 1) >> 1] + us[us.length >> 1]) / 2 : 0;
+const live = rows.filter((r) => AZ.num(r[Q]) > 0), S = live.reduce((a, r) => a + r[V], 0), avg = S / live.reduce((a, r) => a + r[Q], 0);
+const us = live.map((r) => r[Q]).sort((a, b) => a - b), med = (us[(us.length - 1) >> 1] + us[us.length >> 1]) / 2;
 const QS = ['Stars', 'Premium', 'Volume', 'Long tail'], FO = Object.keys(AZ.T.family); // above both lines, price only, units only, neither
-const quad = (r) => QS[(AZ.num(r[V]) / AZ.num(r[Q]) > avg ? 0 : 2) + (AZ.num(r[Q]) > med ? 0 : 1)];
-const data = live.map((r) => ({ Quadrant: quad(r), [I]: r[I], Family: AZ.familyOf(r[I]), Sales: AZ.num(r[V]), Units: AZ.num(r[Q]) }))
-  .sort((a, b) => QS.indexOf(a.Quadrant) - QS.indexOf(b.Quadrant) || FO.indexOf(a.Family) - FO.indexOf(b.Family) || b.Sales - a.Sales);
-const top = data.filter((r) => r.Quadrant === QS[0]), share = S ? top.reduce((a, r) => a + r.Sales, 0) / S : 0;
+const data = live.map((r) => ({ ...r, Quadrant: QS[(r[V] / r[Q] > avg ? 0 : 2) + (r[Q] > med ? 0 : 1)], Family: AZ.familyOf(r[I]) }))
+  .sort((a, b) => QS.indexOf(a.Quadrant) - QS.indexOf(b.Quadrant) || FO.indexOf(a.Family) - FO.indexOf(b.Family) || b[V] - a[V]);
+const top = data.filter((r) => r.Quadrant === QS[0]);
 AZ.maya({
-  type: 'bar', horizontal: true, path: ['Quadrant', I], drill: true, y: 'Sales', series: 'Family', stack: true, colors: AZ.T.family, tooltip: { fields: ['Units'] },
-  title: top.length ? 'Stars: ' + top.map((r) => r[I]).join(', ') + ', ' + AZ.pct(share, 0) + ' of sales' : (data.length ? 'No item type beats both the average price and the median units' : ''),
+  type: 'bar', horizontal: true, path: ['Quadrant', I], drill: true, y: V, series: 'Family', stack: true, colors: AZ.T.family, tooltip: { fields: [Q] },
+  title: top.length ? 'Stars: ' + top.map((r) => r[I]).join(', ') + ', ' + AZ.pct(top.reduce((a, r) => a + r[V], 0) / S, 0) + ' of sales' : (data.length ? 'No item type beats both the average price and the median units' : ''),
   subtitle: data.length ? 'Stars beat both the ' + AZ.money(avg, 2) + ' average price and ' + AZ.int(med) + ' median units; Premium beats price only, Volume units only.' : '',
-  titles: { [I]: 'Item type', Sales: 'Sales', Units: 'Units sold' },
-  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Units: { notation: 'compact', maximumFractionDigits: 1 } },
+  titles: { [I]: 'Item type', [V]: 'Sales', [Q]: 'Units sold' },
+  format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, [Q]: { notation: 'compact', maximumFractionDigits: 1 } },
   text: { noData: 'No rows yet: bind [sales] [quantity purchased] [item type]' },
   data
 });

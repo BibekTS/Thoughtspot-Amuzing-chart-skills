@@ -260,7 +260,6 @@ const AZ = (function () {
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const opt = { optional: true }, RG = AZ.col(schema, /region/i, opt) ?? 'Region', IT = AZ.col(schema, /item/i, opt) ?? 'Item Type', V = AZ.col(schema, /sales/i, opt) ?? 'Total Sales';
 const data = rows.filter((r) => AZ.num(r[V]) > 0).map((r) => ({ ...r, Family: AZ.familyOf(r[IT]) }));
-// Headline: the largest region-to-family flow and its share of all sales.
 const flow = new Map(), total = data.reduce((a, r) => a + AZ.num(r[V]), 0);
 data.forEach((r) => { const k = r[RG] + ' to ' + r.Family; flow.set(k, (flow.get(k) || 0) + AZ.num(r[V])); });
 const top = [...flow].reduce((a, b) => (b[1] > a[1] ? b : a), ['', 0]);
@@ -268,7 +267,7 @@ AZ.maya({
   type: 'chord', path: [RG, 'Family'], y: V, drill: true, colors: AZ.T.family,
   title: total ? 'Biggest flow: ' + top[0] + ', ' + AZ.pct(top[1] / total, 1) + ' of sales' : '',
   subtitle: total ? 'Click a region to see its family mix' : '',
-  titles: { [RG]: 'Region', [IT]: 'Item type', [V]: 'Sales' },
+  titles: { [RG]: 'Region', [V]: 'Sales' },
   format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
   text: { noData: 'No rows yet: bind [sales] [region] [item type]' },
   data

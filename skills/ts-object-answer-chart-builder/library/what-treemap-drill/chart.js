@@ -255,10 +255,10 @@ const AZ = (function () {
 })();
 /* ==== end amuzing core ==== */
 
-// Search: [sales] [item type] [product]   (Family is an editorial grouping of Item Type, derived here)
-// Interactions: hover a rectangle for sales; click a family or item type to zoom in; Back, Escape or a click on empty space goes up.
+// Search: [sales] [item type] [product]   (Family is derived from Item Type)
+// Interactions: hover a rectangle for sales; click a family or item type to zoom in; Back, Escape or an empty click goes up.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const opt = { optional: true }, I = AZ.col(schema, /item/i, opt) ?? 'Item Type', P = AZ.col(schema, /product/i, opt) ?? 'Product', V = AZ.col(schema, /sales/i, opt) ?? 'Total Sales';
+const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, I = c(/item/i, 'Item Type'), P = c(/product/i, 'Product'), V = c(/sales/i, 'Total Sales');
 AZ.maya({
   type: 'treemap', path: ['Family', I, P], y: V, drill: true, depth: 2, colors: AZ.T.family,
   titles: { [I]: 'Item type', [V]: 'Sales' },

@@ -259,8 +259,6 @@ const AZ = (function () {
 // Interactions: hover a line for the store and its five values; click lines to select several (the rest fade), Escape clears; arrow keys step between stores.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, St = c(/store/i, 'Store'), D = c(/date|quarter/i, 'Quarter(date)'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
-// Per store: totals over every quarter, price per unit, year-to-date change (the latest year's quarters up to the
-// latest quarter against the same quarters a year earlier) and total sales as a share of the largest store.
 const last = rows.reduce((m, r) => Math.max(m, AZ.ms(r[D])), 0), ly = AZ.year(last), lq = new Date(last).getUTCMonth();
 const by = new Map();
 rows.forEach((r) => {

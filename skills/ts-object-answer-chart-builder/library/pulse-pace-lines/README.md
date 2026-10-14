@@ -17,6 +17,8 @@ Hover a month for every year's cumulative sales. Click a point on a line to sele
 ## Notes
 Built on MayaCharts 0.16.0: a `line` with months as categories and one series per year. The latest year is in ink and earlier years run from light to dark slate through `colors`. The body still sums sales into cumulative totals and drops years with fewer than 3 months. Months before a partial year's first month go in as nulls, so months run Jan to Dec and years stay in order. The title compares the latest year with the year before through the same month, and the subtitle names any partial years. Dropped against the old chart: clicking a year to open its monthly columns against the previous year (MayaCharts has no per-series drill to another view), the thicker latest line and the draw-on animation (MayaCharts runs its own entrance). Preview-verified on synthetic data, not yet re-checked on a cluster.
 
+The body is 22 code lines after the shared core (comments aside); everything it computes is data MayaCharts cannot derive itself.
+
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.
 The block between the `amuzing core` markers is shared: change it in `library/_shared/` and run `helpers/sync-core.mjs`.

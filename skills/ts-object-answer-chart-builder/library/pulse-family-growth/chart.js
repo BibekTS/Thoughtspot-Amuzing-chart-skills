@@ -254,42 +254,35 @@ const AZ = (function () {
   return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
-
 // Search: [sales] [quantity purchased] [item type] [date].monthly
 // Interactions: the measure toggle switches between latest full year and year to date; hover a bar for both effects and the sales change; click a family (or Enter) to drill into its item types, Back or Escape returns; click a legend key to hide an effect; arrow keys step through families.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, I = c(/item/i, 'item type'), D = c(/date|month/i, 'Month(date)'), V = c(/sales/i, 'Total sales'), Q = c(/quantity|units/i, 'Total quantity purchased');
-// Periods from the rows. Year to date: the latest year's months up to the latest month, against the same months a
-// year earlier. Latest full year: the newest year with all 12 months whose prior year also has 12.
 const R = rows.map((r) => { const t = AZ.ms(r[D]); return { i: String(r[I]), y: AZ.year(t), m: new Date(t).getUTCMonth(), t, s: AZ.num(r[V]), u: AZ.num(r[Q]) }; });
 const last = R.length ? Math.max(...R.map((r) => r.t)) : 0, ly = AZ.year(last), lm = new Date(last).getUTCMonth(), ym = {};
 R.forEach((r) => (ym[r.y] = ym[r.y] ?? new Set()).add(r.m));
 const fy = Object.keys(ym).map(Number).sort().reverse().find((y) => ym[y].size === 12 && ym[y - 1]?.size === 12);
 const common = Array.from({ length: lm + 1 }, (_, m) => m).filter((m) => ym[ly]?.has(m) && ym[ly - 1]?.has(m));
-const P = [];
-if (fy) P.push({ k: 'Latest full year', cur: (r) => r.y === fy, prev: (r) => r.y === fy - 1, lab: fy + ' against ' + (fy - 1) });
-if (common.length) P.push({ k: 'Year to date', cur: (r) => r.y === ly && common.includes(r.m), prev: (r) => r.y === ly - 1 && common.includes(r.m), lab: AZ.MON[common[0]] + ' to ' + AZ.MON[common[common.length - 1]] + ' ' + ly + ' against ' + (ly - 1) });
-// Per item type: units effect = (units now - units before) x price before; price effect = (price now - price before) x units now.
-// They sum exactly to the sales change, and the families and the total add up from the item types.
-const items = [...new Set(R.map((r) => r.i))], data = [];
-items.forEach((i) => {
-  const row = (e) => ({ Family: AZ.familyOf(i), 'Item type': i, Effect: e });
-  const u = row('Units effect'), p = row('Price effect');
+const P = [fy && { k: 'Latest full year', cur: (r) => r.y === fy, prev: (r) => r.y === fy - 1, lab: fy + ' against ' + (fy - 1) },
+  common.length && { k: 'Year to date', cur: (r) => r.y === ly && common.includes(r.m), prev: (r) => r.y === ly - 1 && common.includes(r.m), lab: AZ.MON[common[0]] + ' to ' + AZ.MON[common[common.length - 1]] + ' ' + ly + ' against ' + (ly - 1) }].filter(Boolean);
+// Units effect = (units now - units before) x price before; price effect = (price now - price before) x units now. They sum to the sales change.
+const data = [];
+[...new Set(R.map((r) => r.i))].forEach((i) => {
+  const row = (e) => ({ Family: AZ.familyOf(i), 'Item type': i, Effect: e }), u = row('Units effect'), p = row('Price effect');
   P.forEach((per) => {
     const sum = (f, k) => R.reduce((a, r) => (r.i === i && f(r) ? a + r[k] : a), 0), s1 = sum(per.cur, 's'), u1 = sum(per.cur, 'u'), s0 = sum(per.prev, 's'), u0 = sum(per.prev, 'u');
-    const p0 = u0 ? s0 / u0 : 0, p1 = u1 ? s1 / u1 : 0, tiny = (x) => (Math.abs(x) < Math.abs(s0) * 1e-6 ? 0 : x); // identical months otherwise show float noise
+    const p0 = u0 ? s0 / u0 : 0, p1 = u1 ? s1 / u1 : 0, tiny = (x) => (Math.abs(x) < Math.abs(s0) * 1e-6 ? 0 : x);
     u[per.k] = u0 ? tiny((u1 - u0) * p0) : s1 - s0; p[per.k] = u0 ? tiny((p1 - p0) * u1) : 0;
   });
   data.push(u, p);
 });
 data.sort((a, b) => Object.keys(AZ.T.family).indexOf(a.Family) - Object.keys(AZ.T.family).indexOf(b.Family));
-const money = { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1, signDisplay: 'exceptZero' };
 AZ.maya({
   type: 'bar', horizontal: true, path: ['Family', 'Item type'], drill: true, series: 'Effect', stack: true, y: P.length > 1 ? P.map((p) => p.k) : P[0]?.k ?? 'Sales change',
   title: P.length ? 'Sales changed {total}: units or price?' : '',
   subtitle: P.length ? P.map((p) => p.k + ': ' + p.lab).join('. ') + '. Families are editorial groupings.' : '',
-  format: Object.fromEntries(P.map((p) => [p.k, money])),
+  format: Object.fromEntries(P.map((p) => [p.k, { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1, signDisplay: 'exceptZero' }])),
   colors: { 'Units effect': '#2F3B54', 'Price effect': '#B4BDC9' },
-  text: { noData: 'No rows yet. Bind the search [sales] [quantity purchased] [item type] [date].monthly (needs a year and the year before it)' },
+  text: { noData: 'No rows yet. Bind [sales] [quantity purchased] [item type] [date].monthly (needs two years)' },
   data: P.length ? data : []
 });

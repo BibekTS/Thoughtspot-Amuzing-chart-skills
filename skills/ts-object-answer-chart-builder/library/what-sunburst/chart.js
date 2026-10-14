@@ -255,14 +255,13 @@ const AZ = (function () {
 })();
 /* ==== end amuzing core ==== */
 
-// Search: [sales] [item type] [product]
-// Family > Item type > Product. Family is editorial (AZ.familyOf) and keys the colours, so hues hold through drill.
-// Thin wedges fold into MayaCharts' grey "Other (n)" at the zoom shown; drilling in unfolds them.
+// Search: [sales] [item type] [product]   (Family is derived from Item Type)
+// Interactions: hover a wedge for sales and share; click to zoom in; Back, Escape or an empty click goes up. Thin wedges fold into Other (n).
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, I = c(/item/i, 'Item Type'), P = c(/product/i, 'Product'), V = c(/sales/i, 'Total Sales');
 AZ.maya({
   type: 'sunburst', path: ['Family', I, P], y: V, drill: true, colors: AZ.T.family, minAngle: 5,
   format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
   titles: { [I]: 'Item type', [V]: 'Sales' }, text: { noData: 'No rows yet: bind [sales] [item type] [product]' },
-  data: rows.filter((r) => AZ.num(r[V]) > 0).map((r) => ({ Family: AZ.familyOf(r[I]), [I]: r[I], [P]: r[P], [V]: AZ.num(r[V]) }))
+  data: rows.filter((r) => AZ.num(r[V]) > 0).map((r) => ({ ...r, Family: AZ.familyOf(r[I]) }))
 }, 'maya.global.js');

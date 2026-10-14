@@ -259,16 +259,13 @@ const AZ = (function () {
 // Interactions: hover a dot for the product, its item type and price per unit; click dots to select several (Escape clears); click a family key to hide or show its lane.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, P = c(/product/i, 'Product'), I = c(/item/i, 'Item Type'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
-// Price per unit per product (its sales over its units). The tooltip names the product and its item type,
-// since beeswarm takes no extra tooltip rows; lanes run in the house family order.
 const FO = Object.keys(AZ.T.family).concat('Other');
-const data = rows.filter((r) => AZ.num(r[Q]) > 0).map((r) => ({ Product: r[P] + ' (' + r[I] + ')', Family: AZ.familyOf(r[I]), Price: AZ.num(r[V]) / AZ.num(r[Q]) }))
-  .sort((a, b) => FO.indexOf(a.Family) - FO.indexOf(b.Family));
-const ps = data.map((r) => r.Price).sort((a, b) => a - b), med = ps.length ? ps[Math.floor((ps.length - 1) / 2)] : 0, usd = (n) => '$' + n.toFixed(2);
+const data = rows.filter((r) => AZ.num(r[Q]) > 0).map((r) => ({ ...r, Family: AZ.familyOf(r[I]), Price: AZ.num(r[V]) / AZ.num(r[Q]) })).sort((a, b) => FO.indexOf(a.Family) - FO.indexOf(b.Family));
+const ps = data.map((r) => r.Price).sort((a, b) => a - b), usd = (n) => '$' + n.toFixed(2);
 AZ.maya({
-  type: 'beeswarm', x: 'Family', y: 'Price', series: 'Family', name: 'Product', select: 'multi', colors: AZ.T.family,
+  type: 'beeswarm', x: 'Family', y: 'Price', series: 'Family', name: P, select: 'multi', colors: AZ.T.family, tooltip: { fields: [I] },
   title: 'Every product by price per unit',
-  subtitle: ps.length ? ps.length + ' products, ' + usd(ps[0]) + ' to ' + usd(ps[ps.length - 1]) + ' a unit, median ' + usd(med) : '',
+  subtitle: ps.length ? ps.length + ' products, ' + usd(ps[0]) + ' to ' + usd(ps[ps.length - 1]) + ' a unit, median ' + usd(ps[Math.floor((ps.length - 1) / 2)]) : '',
   titles: { Price: 'Price per unit' },
   format: { Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 2 } },
   text: { noData: 'No rows yet: bind [product] [item type] [sales] [quantity purchased]' },

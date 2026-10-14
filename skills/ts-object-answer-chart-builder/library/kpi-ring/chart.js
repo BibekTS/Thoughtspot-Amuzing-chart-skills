@@ -257,24 +257,15 @@ const AZ = (function () {
 
 // Search: [sales] [quantity purchased] [date].monthly
 // Interactions: hover the dial for the share of last year and its status (both money figures are in the subtitle).
-const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Sales';
-// Year to date against the same months of the year before; the dial reads it as a share of last year.
-const y = AZ.ytd(rows.map((r) => ({ t: AZ.ms(r[D]), v: AZ.num(r[V]) })).filter((r) => isFinite(r.t)));
-const ok = !!(y && y.comparable && y.prev), span = y ? (y.month ? AZ.MON[0] + ' to ' : '') + y.through : '';
-const money = { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 };
+const y = AZ.ytd((AZ.liveData()?.rows ?? []).map((r) => ({ t: AZ.ms(r['Month(date)']), v: AZ.num(r['Total sales']) })).filter((r) => isFinite(r.t)));
+const ok = !!(y?.comparable && y.prev);
 AZ.maya(Object.assign({
-  title: y ? 'Sales YTD, ' + span : '',
-  text: { noData: 'Bind [sales] [quantity purchased] [date].monthly', target: 'Prior', onTrack: 'Ahead of last year', atRisk: 'Close to last year', offTrack: 'Behind last year', above: 'ahead', near: 'close', below: 'behind' },
-  theme: { fontSize: y ? '12px' : '10px' }
+  title: y ? 'Sales YTD, ' + (y.month ? AZ.MON[0] + ' to ' : '') + y.through : '',
+  text: { noData: 'Bind [sales] [quantity purchased] [date].monthly', target: 'Prior', onTrack: 'Ahead of last year', atRisk: 'Close to last year', offTrack: 'Behind last year', above: 'ahead', near: 'close', below: 'behind' }
 }, ok ? {
-  // Full dial is 130% of last year; the target tick marks 100%.
-  type: 'gauge', y: 'Share', yDomain: [0, 1.3], colorBy: { target: 1, warn: 0.95 },
-  subtitle: AZ.money(y.cur, 1) + ' against ' + AZ.money(y.prev, 1) + ' a year earlier',
-  format: { Share: { style: 'percent', maximumFractionDigits: 1 } }, titles: { Share: 'Share of last year' },
-  data: [{ Share: y.cur / y.prev }]
+  type: 'gauge', y: 'Share', yDomain: [0, 1.3], colorBy: { target: 1, warn: 0.95 }, subtitle: AZ.money(y.cur, 1) + ' against ' + AZ.money(y.prev, 1) + ' a year earlier',
+  format: { Share: { style: 'percent', maximumFractionDigits: 1 } }, titles: { Share: 'Share of last year' }, data: [{ Share: y.cur / y.prev }]
 } : {
-  // No prior year in the filter: the year-to-date figure alone.
   type: 'kpi', y: 'Sales', subtitle: y ? 'No prior year in the current filter to compare against' : '',
-  format: { Sales: money }, data: y ? [{ Sales: y.cur }] : []
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } }, data: y ? [{ Sales: y.cur }] : []
 }), 'maya.global.js');

@@ -17,6 +17,8 @@ Hover or arrow-key to a block for its region, with every family's sales and shar
 ## Notes
 Built on MayaCharts 0.16.0 as a `marimekko` with `x` region, `series` family and `select: true`. Column width is the region's share of sales and each block's height is the family's share of that region, labelled on the block. Family is an editorial grouping derived from Item type with `AZ.familyOf`; colours come from `colors: AZ.T.family`, so region is never a hue. The body sorts rows by region total (widest column first) and by family in house order so the stacks line up, and computes the headline (largest region's share, and its largest family's share inside it). Dropped against the old SVG chart: the click that widened a region to the full tile and split its families into item types. MayaCharts' marimekko can drill on `path`, but the series stays fixed, so drilling into a region gives one 100% column per item type rather than the region's families split into item types; the drill was left out. The narrowest region columns lose their labels on small tiles; the tooltip still names them. Render-complete fires on `maya-settled`. Preview-verified on synthetic data, not yet re-checked on a cluster.
 
+The body is 16 code lines after the shared core (comments aside); everything it computes is data MayaCharts cannot derive itself.
+
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.
 The block between the `amuzing core` markers is shared: change it in `library/_shared/` and run `helpers/sync-core.mjs`.

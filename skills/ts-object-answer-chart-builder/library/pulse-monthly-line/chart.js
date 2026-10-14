@@ -254,23 +254,19 @@ const AZ = (function () {
   return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
-
 // Search: [sales] [date].monthly
 // Interactions: hover crosshair and tooltip, click a legend key to hide a line, drag to zoom (double-click or Escape resets), arrow keys step through months.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Sales';
-// Pair each month with the same month a year earlier, so last year runs as a second, dashed line.
-const byT = new Map(rows.map((r) => [AZ.ms(r[D]), AZ.num(r[V])]));
-const ago = (t) => { const d = new Date(t); d.setUTCFullYear(d.getUTCFullYear() - 1); return d.getTime(); };
-const pts = [...byT].flatMap(([t, v]) => [{ Month: t, Series: 'Sales', Sales: v }].concat(byT.has(ago(t)) ? [{ Month: t, Series: 'Last year', Sales: byT.get(ago(t)) }] : []));
-// Headline: the same months of the latest year against the year before, so it stays right under a date filter.
-const y = AZ.ytd([...byT].map(([t, v]) => ({ t, v }))), peak = [...byT].reduce((a, b) => (b[1] > a[1] ? b : a), [0, -Infinity]);
+const m = new Map(rows.map((r) => [AZ.ms(r[D]), AZ.num(r[V])])), ago = (t) => new Date(t).setUTCFullYear(new Date(t).getUTCFullYear() - 1);
+const data = [...m].flatMap(([t, v]) => [{ Month: t, Series: 'Sales', Sales: v }, ...(m.has(ago(t)) ? [{ Month: t, Series: 'Last year', Sales: m.get(ago(t)) }] : [])]);
+const y = AZ.ytd([...m].map(([t, v]) => ({ t, v }))), peak = [...m].reduce((a, b) => (b[1] > a[1] ? b : a), [0, -Infinity]);
 AZ.maya({
-  type: 'line', x: 'Month', y: 'Sales', series: 'Series', xType: 'time', zoom: true, dash: ['Last year'], annotate: ['last'].concat(rows.length ? [{ x: peak[0], text: 'Peak ' + AZ.money(peak[1]) }] : []),
-  title: y && y.comparable ? AZ.money(y.cur) + ' year to date, ' + AZ.pct(y.pct, 1, true) + ' on ' + (y.year - 1) : '',
-  subtitle: rows.length ? 'Monthly sales through {last.x}, last year dashed' : '',
-  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Month: { month: 'short', year: 'numeric', timeZone: 'UTC' } },
-  colors: { 'Sales': '#1E1E24', 'Last year': '#B4BDC9' },
-  text: { noData: 'No rows yet. Bind the search [sales] [date].monthly' },
-  data: pts
+  type: 'line', x: 'Month', y: 'Sales', series: 'Series', xType: 'time', zoom: true, dash: ['Last year'], annotate: ['last'].concat(data.length ? [{ x: peak[0], text: 'Peak ' + AZ.money(peak[1]) }] : []),
+  title: y?.comparable ? AZ.money(y.cur) + ' year to date, ' + AZ.pct(y.pct, 1, true) + ' on ' + (y.year - 1) : '',
+  subtitle: data.length ? 'Monthly sales through {last.x}, last year dashed' : '',
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Month: 'month' },
+  colors: { Sales: '#1E1E24', 'Last year': '#B4BDC9' },
+  text: { noData: 'No rows yet. Bind [sales] [date].monthly' },
+  data
 });

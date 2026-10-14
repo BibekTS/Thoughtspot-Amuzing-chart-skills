@@ -259,17 +259,15 @@ const AZ = (function () {
 // Interactions: Sales / Units toggle; hover a square or a key for the family's share; click a family (square or key) to select it, Escape clears.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, I = c(/item/i, 'Item Type'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
-// One row per family, in the house family order, so squares and key keep the same order on both measures.
-const fam = new Map(Object.keys(AZ.T.family).map((f) => [f, { Family: f, Sales: 0, Units: 0 }]));
-rows.forEach((r) => { const f = AZ.familyOf(r[I]), o = fam.get(f) ?? fam.set(f, { Family: f, Sales: 0, Units: 0 }).get(f); o.Sales += AZ.num(r[V]); o.Units += AZ.num(r[Q]); });
-const data = [...fam.values()].filter((o) => o.Sales > 0 || o.Units > 0);
+const FO = Object.keys(AZ.T.family).concat('Other');
+const data = rows.map((r) => ({ Family: AZ.familyOf(r[I]), Sales: AZ.num(r[V]), Units: AZ.num(r[Q]) })).sort((a, b) => FO.indexOf(a.Family) - FO.indexOf(b.Family));
+const sum = (k, f) => data.filter((o) => !f || o.Family === f).reduce((a, o) => a + o[k], 0), S = sum('Sales'), U = sum('Units');
 // Headline: the family whose share of sales differs most from its share of units.
-const S = data.reduce((a, o) => a + o.Sales, 0), U = data.reduce((a, o) => a + o.Units, 0);
-const g = data.map((o) => ({ f: o.Family, s: S ? o.Sales / S : 0, u: U ? o.Units / U : 0 })).sort((a, b) => Math.abs(b.s - b.u) - Math.abs(a.s - a.u))[0];
+const g = FO.map((f) => ({ f, s: S ? sum('Sales', f) / S : 0, u: U ? sum('Units', f) / U : 0 })).sort((a, b) => Math.abs(b.s - b.u) - Math.abs(a.s - a.u))[0];
 AZ.maya({
   type: 'waffle', x: 'Family', y: ['Sales', 'Units'], select: true, colors: AZ.T.family,
-  title: g ? g.f + ' takes ' + AZ.pct(g.s, 0) + ' of sales from ' + AZ.pct(g.u, 0) + ' of units' : '',
-  subtitle: g ? 'Each square is 1% of ' + AZ.money(S) + ' in sales or ' + AZ.int(U) + ' units' : '',
+  title: S ? g.f + ' takes ' + AZ.pct(g.s, 0) + ' of sales from ' + AZ.pct(g.u, 0) + ' of units' : '',
+  subtitle: S ? 'Each square is 1% of ' + AZ.money(S) + ' in sales or ' + AZ.int(U) + ' units' : '',
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Units: { notation: 'compact', maximumFractionDigits: 1 } },
   text: { noData: 'No rows yet: bind [sales] [quantity purchased] [item type]' },
   data

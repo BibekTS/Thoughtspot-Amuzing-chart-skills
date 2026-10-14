@@ -257,22 +257,16 @@ const AZ = (function () {
 
 // Search: [sales] [quantity purchased] [date].monthly
 // Interactions: hover a dot for its month and sales; click a dot to select it (Escape clears); click a legend key to select a group.
-const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Sales';
-const M = rows.map((r) => ({ Month: AZ.ms(r[D]), Sales: AZ.num(r[V]) })).filter((r) => isFinite(r.Month)).sort((a, b) => a.Month - b.Month);
-// Rank of the latest month among every month in view; each dot is grouped against it (latest in ink, above and below in slate).
-const L = M[M.length - 1], above = L ? M.filter((r) => r.Sales > L.Sales).length : 0;
+const M = (AZ.liveData()?.rows ?? []).map((r) => ({ Month: AZ.ms(r['Month(date)']), Sales: AZ.num(r['Total sales']) })).filter((r) => isFinite(r.Month));
+const L = M.reduce((a, r) => (r.Month > a.Month ? r : a), M[0]), above = L ? M.filter((r) => r.Sales > L.Sales).length : 0;
 const ord = (n) => { const a = n % 100, b = n % 10; return n + (a >= 11 && a <= 13 ? 'th' : b === 1 ? 'st' : b === 2 ? 'nd' : b === 3 ? 'rd' : 'th'); };
-const pts = M.map((r) => ({ ...r, Group: r === L ? 'Latest month' : r.Sales > L.Sales ? 'Above it' : 'Below it' }));
 AZ.maya({
   type: 'scatter', x: 'Month', y: 'Sales', series: 'Group', name: 'Label', select: true, legend: 'bottom',
   title: L ? AZ.monthLabel(L.Month) + ' sales ranks ' + ord(above + 1) + ' of ' + M.length : '',
   subtitle: L ? AZ.money(L.Sales, 1) + '; ' + above + ' month' + (above === 1 ? '' : 's') + ' sit above the dashed line' : '',
   ...(L ? { rules: [{ y: L.Sales, label: 'Latest' }] } : {}),
-  // theme.series1 would override the colors map, so the slots are set by colors alone.
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Month: { month: 'short', year: 'numeric', timeZone: 'UTC' } },
   colors: { 'Latest month': '#1E1E24', 'Above it': '#6A7891', 'Below it': '#B4BDC9' },
   text: { noData: 'Bind [sales] [quantity purchased] [date].monthly' },
-  theme: { fontSize: L ? '12px' : '10px' },
-  data: pts.map((r) => ({ ...r, Label: AZ.monthLabel(r.Month) }))
+  data: M.map((r) => ({ ...r, Label: AZ.monthLabel(r.Month), Group: r === L ? 'Latest month' : r.Sales > L.Sales ? 'Above it' : 'Below it' }))
 });

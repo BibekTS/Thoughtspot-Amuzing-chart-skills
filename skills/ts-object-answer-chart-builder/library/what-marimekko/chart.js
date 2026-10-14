@@ -260,18 +260,15 @@ const AZ = (function () {
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const opt = { optional: true }, RG = AZ.col(schema, /region/i, opt) ?? 'Region', IT = AZ.col(schema, /item/i, opt) ?? 'Item Type', V = AZ.col(schema, /sales/i, opt) ?? 'Total Sales';
 const sum = (f) => rows.reduce((m, r) => m.set(f(r), (m.get(f(r)) || 0) + AZ.num(r[V])), new Map());
-const byRg = sum((r) => r[RG]), total = [...byRg.values()].reduce((a, b) => a + b, 0);
-// Widest column first (rows sorted by region total), families in house order so the stacks line up.
-const FO = Object.keys(AZ.T.family);
+const byRg = sum((r) => r[RG]), total = [...byRg.values()].reduce((a, b) => a + b, 0), FO = Object.keys(AZ.T.family);
 const data = rows.filter((r) => AZ.num(r[V]) > 0).map((r) => ({ ...r, Family: AZ.familyOf(r[IT]) })).sort((a, b) => byRg.get(b[RG]) - byRg.get(a[RG]) || FO.indexOf(a.Family) - FO.indexOf(b.Family));
-// Headline: the largest region's share, and the largest family's share inside it.
 const lead = [...byRg].reduce((a, b) => (b[1] > a[1] ? b : a), ['', 0]);
 const fam = [...sum((r) => (r[RG] === lead[0] ? AZ.familyOf(r[IT]) : ''))].filter((e) => e[0]).reduce((a, b) => (b[1] > a[1] ? b : a), ['', 0]);
 AZ.maya({
   type: 'marimekko', x: RG, series: 'Family', y: V, select: true, colors: AZ.T.family,
   title: total ? lead[0] + ' is ' + AZ.pct(lead[1] / total, 0) + ' of sales, and ' + fam[0] + ' is ' + AZ.pct(fam[1] / lead[1], 0) + ' of it' : '',
   subtitle: total ? 'Width: region share of sales. Height: family share of the region.' : '',
-  titles: { [RG]: 'Region', [IT]: 'Item type', [V]: 'Sales' },
+  titles: { [RG]: 'Region', [V]: 'Sales' },
   format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
   text: { noData: 'No rows yet: bind [sales] [region] [item type]' },
   data

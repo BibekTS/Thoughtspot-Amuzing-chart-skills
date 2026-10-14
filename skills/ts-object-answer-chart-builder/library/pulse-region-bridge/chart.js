@@ -259,15 +259,13 @@ const AZ = (function () {
 // Interactions: hover or arrow-key to a bar for the region's change or a YTD total; click bars to select several, Escape clears.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, G = c(/region/i, 'region'), D = c(/date|quarter/i, 'Quarter(date)'), V = c(/sales/i, 'Total sales');
-// YTD bridge: the same quarters of the latest year and the year before, one step per region's change.
 const M = rows.map((r) => ({ g: String(r[G]), d: new Date(AZ.ms(r[D])), v: AZ.num(r[V]) })).filter((r) => isFinite(r.d));
 const last = M.length ? new Date(Math.max(...M.map((r) => r.d.getTime()))) : null, ly = last ? last.getUTCFullYear() : 0, lq = last ? Math.floor(last.getUTCMonth() / 3) : 0;
 const reg = new Map(); let cur = 0, prev = 0;
-M.forEach((r) => { const y = r.d.getUTCFullYear(); if (Math.floor(r.d.getUTCMonth() / 3) > lq || (y !== ly && y !== ly - 1)) return; const s = y === ly ? r.v : -r.v; reg.set(r.g, (reg.get(r.g) || 0) + s); if (y === ly) cur += r.v; else prev += r.v; });
+M.forEach((r) => { const y = r.d.getUTCFullYear(); if (Math.floor(r.d.getUTCMonth() / 3) > lq || (y !== ly && y !== ly - 1)) return; reg.set(r.g, (reg.get(r.g) || 0) + (y === ly ? r.v : -r.v)); if (y === ly) cur += r.v; else prev += r.v; });
 const P = (ly - 1) + ' YTD', C = ly + ' YTD', ok = cur > 0 && prev > 0;
 const steps = [...reg].sort((a, b) => b[1] - a[1]).map(([g, d]) => ({ Step: g, Change: d }));
 const data = ok ? [{ Step: P, Change: prev }].concat(steps, [{ Step: C, Change: 0 }]) : [];
-// The changes are small next to the totals, so the axis starts near the lowest running total (said in the subtitle).
 let run = prev, lo = Math.min(prev, cur), hi = Math.max(prev, cur); steps.forEach((s) => { run += s.Change; lo = Math.min(lo, run); hi = Math.max(hi, run); });
 const pad = (hi - lo || hi * 0.05) * 0.6, span = 'Q1' + (lq ? ' to Q' + (lq + 1) : '');
 AZ.maya({

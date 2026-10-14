@@ -255,25 +255,20 @@ const AZ = (function () {
 })();
 /* ==== end amuzing core ==== */
 
-// Search: [sales] [quantity purchased] [item type]   (Family is an editorial grouping of Item Type, derived here)
-// Interactions: hover a bubble for units, price and sales; click a family in the legend to hide or show it; click a bubble to select it (Escape clears); drag to zoom (double-click or Escape resets).
+// Search: [sales] [quantity purchased] [item type]   (Family is derived from Item Type; price is sales over units)
+// Interactions: hover a bubble for units, price and sales; click a legend family to hide it; click a bubble to select it; drag to zoom.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, I = c(/item/i, 'Item Type'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
-// Price is sales over units per item type. Reference lines: the units-weighted average price and the median units.
 const FO = Object.keys(AZ.T.family);
-const data = rows.filter((r) => AZ.num(r[Q]) > 0 && AZ.num(r[V]) > 0).map((r) => ({ [I]: r[I], Family: AZ.familyOf(r[I]), Units: AZ.num(r[Q]), Price: AZ.num(r[V]) / AZ.num(r[Q]), Sales: AZ.num(r[V]) })).sort((a, b) => FO.indexOf(a.Family) - FO.indexOf(b.Family));
-const S = data.reduce((a, r) => a + r.Sales, 0), U = data.reduce((a, r) => a + r.Units, 0), avg = U ? S / U : 0;
-const us = data.map((r) => r.Units).sort((a, b) => a - b), med = us.length ? (us[(us.length - 1) >> 1] + us[us.length >> 1]) / 2 : 0;
-const lead = data.reduce((a, r) => (r.Price > avg && r.Units > med && (!a || r.Sales > a.Sales) ? r : a), null);
-const money2 = (v) => '$' + v.toFixed(0);
-AZ.maya(Object.assign({
-  type: 'scatter', x: 'Units', y: 'Price', size: 'Sales', series: 'Family', name: I, colors: AZ.T.family, select: true, zoom: true, legend: 'top',
-  title: lead ? lead[I] + ' sell at ' + money2(lead.Price) + ' a unit against a ' + money2(avg) + ' average, on ' + AZ.int(lead.Units) + ' units' : '',
-  titles: { Units: 'Units sold', Price: 'Average selling price', [I]: 'Item type' },
-  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Units: { notation: 'compact', maximumFractionDigits: 1 }, Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 2 } },
+const data = rows.filter((r) => AZ.num(r[Q]) > 0 && AZ.num(r[V]) > 0).map((r) => ({ ...r, Family: AZ.familyOf(r[I]), Price: r[V] / r[Q] })).sort((a, b) => FO.indexOf(a.Family) - FO.indexOf(b.Family));
+const avg = data.reduce((a, r) => a + r[V], 0) / data.reduce((a, r) => a + r[Q], 0), us = data.map((r) => r[Q]).sort((a, b) => a - b), med = (us[(us.length - 1) >> 1] + us[us.length >> 1]) / 2;
+const lead = data.reduce((a, r) => (r.Price > avg && r[Q] > med && (!a || r[V] > a[V]) ? r : a), null);
+AZ.maya({
+  type: 'scatter', x: Q, y: 'Price', size: V, series: 'Family', name: I, colors: AZ.T.family, select: true, zoom: true, legend: 'top',
+  title: lead ? lead[I] + ' sell at ' + AZ.money(lead.Price, 0) + ' a unit against a ' + AZ.money(avg, 0) + ' average, on ' + AZ.int(lead[Q]) + ' units' : '',
+  titles: { [Q]: 'Units sold', Price: 'Average selling price', [I]: 'Item type', [V]: 'Sales' },
+  format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, [Q]: { notation: 'compact', maximumFractionDigits: 1 }, Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 2 } },
   text: { noData: 'No rows yet: bind [sales] [quantity purchased] [item type]' },
-  data
-}, data.length ? {
-  rules: [{ y: avg, label: 'Average price' }, { x: med, label: 'Median units' }],
-  annotate: data.slice().sort((a, b) => b.Sales - a.Sales).slice(0, 4).map((r) => ({ x: r.Units, text: r[I] })) // name the 4 largest bubbles
-} : {}));
+  data,
+  ...(data.length && { rules: [{ y: avg, label: 'Average price' }, { x: med, label: 'Median units' }], annotate: data.slice().sort((a, b) => b[V] - a[V]).slice(0, 4).map((r) => ({ x: r[Q], text: r[I] })) })
+});

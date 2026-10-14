@@ -256,17 +256,14 @@ const AZ = (function () {
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [date].monthly
-// Interactions: hover a month for every year's cumulative sales; click a line or a legend key to select a year (the others dim; Escape clears); click a legend key on narrow tiles to hide or show a year; arrow keys step through months and years.
+// Interactions: hover a month for every year's cumulative sales; click a line or a legend key to select a year (Escape clears); arrow keys step through months and years.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month(date)', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Total sales';
-// Cumulative sales through each month, one line per year; a year needs at least 3 months.
 const by = new Map();
 rows.forEach((r) => { const t = AZ.ms(r[D]), y = AZ.year(t), m = new Date(t).getUTCMonth(); if (!by.has(y)) by.set(y, new Array(12).fill(null)); by.get(y)[m] = (by.get(y)[m] ?? 0) + AZ.num(r[V]); });
 const years = [...by.keys()].sort().filter((y) => by.get(y).filter((v) => v != null).length >= 3), cum = new Map();
 years.forEach((y) => { let c = 0; cum.set(y, by.get(y).map((v) => (v == null ? null : (c += v)))); });
-// Months before a year's first month go in as null, so months run Jan to Dec and years stay in order everywhere.
 const data = AZ.MON.flatMap((mon, m) => years.filter((y) => m === 0 || cum.get(y)[m] != null).map((y) => ({ Month: mon, Year: String(y), Sales: cum.get(y)[m] })));
-// Headline: the latest year against the year before through the same month.
 const ly = years[years.length - 1], lm = ly ? by.get(ly).reduce((a, v, i) => (v != null ? i : a), -1) : -1, prev = by.get(ly - 1);
 const sumTo = (arr) => arr.slice(0, lm + 1).reduce((a, v) => a + (v ?? 0), 0), cur = ly ? sumTo(by.get(ly)) : 0, was = prev ? sumTo(prev) : 0;
 const part = years.filter((y) => by.get(y)[0] == null).map((y) => y + ' starts in ' + AZ.MON[by.get(y).findIndex((v) => v != null)]);
@@ -279,6 +276,6 @@ AZ.maya({
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 0 } },
   titles: { Sales: 'Sales to date' },
   colors: years.length <= 8 ? colors : undefined,
-  text: { noData: 'No rows yet. Bind the search [sales] [date].monthly (a year needs at least 3 months)' },
+  text: { noData: 'No rows yet. Bind [sales] [date].monthly.' },
   data
 });

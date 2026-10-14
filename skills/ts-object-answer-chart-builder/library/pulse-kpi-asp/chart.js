@@ -254,24 +254,21 @@ const AZ = (function () {
   return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
-
 // Search: [sales] [quantity purchased] [date].monthly
 // Interactions: hover or arrow keys along the sparkline for each year's total over the same months, Space pins the tooltip.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month', S = AZ.col(schema, /sales/i, { optional: true }) ?? 'Sales', U = AZ.col(schema, /quantity|units/i, { optional: true }) ?? 'Units';
-// Year to date: each year's sales over its units for the same months as the latest year (Jan to the latest month), so the
-// headline change is this year against the same months last year and holds under a date filter.
-const all = rows.map((r) => ({ t: AZ.ms(r[D]), s: AZ.num(r[S]), u: AZ.num(r[U]) })).filter((r) => isFinite(r.t)).sort((a, b) => a.t - b.t);
-const last = all.length ? all[all.length - 1].t : 0, ly = AZ.year(last), lm = new Date(last).getUTCMonth(), span = lm ? 'Jan to ' + AZ.MON[lm] : 'Jan';
+// Each year's months up to the latest month, for the years that have all of them: the kpi divides a year's sales by its units and compares it with the year before.
+const all = rows.map((r) => ({ t: AZ.ms(r[D]), Sales: AZ.num(r[S]), Units: AZ.num(r[U]) })).filter((r) => isFinite(r.t)).sort((a, b) => a.t - b.t);
+const lt = all.length ? all[all.length - 1].t : 0, lm = new Date(lt).getUTCMonth(), span = lm ? 'Jan to ' + AZ.MON[lm] : 'Jan';
 const M = all.filter((r) => new Date(r.t).getUTCMonth() <= lm), n = (y) => M.filter((r) => AZ.year(r.t) === y).length;
-// A year whose months are missing (the first year of the data, a date filter) would not compare, so it is left out.
-const data = M.filter((r) => n(AZ.year(r.t)) === n(ly)).map((r) => ({ Year: String(AZ.year(r.t)), Sales: r.s, Units: r.u }));
+const data = M.filter((r) => n(AZ.year(r.t)) === n(AZ.year(lt))).map((r) => ({ Year: String(AZ.year(r.t)), Sales: r.Sales, Units: r.Units }));
 AZ.maya({
   type: 'kpi', x: 'Year', y: 'Price', aggregate: { ratio: ['Sales', 'Units'] },
   title: data.length ? 'Average selling price, ' + span : 'Average selling price, year to date',
   subtitle: data.length ? 'Each point a year, same months' : '',
   titles: { Price: 'Price per unit, ' + span },
-  format: { Price: { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 } },
-  text: { noData: 'No rows yet. Bind the search [sales] [quantity purchased] [date].monthly' },
+  format: { Price: 'currency' },
+  text: { noData: 'No rows yet. Bind [sales] [quantity purchased] [date].monthly' },
   data
 });

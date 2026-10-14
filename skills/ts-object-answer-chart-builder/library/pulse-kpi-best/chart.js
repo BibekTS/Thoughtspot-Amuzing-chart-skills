@@ -254,22 +254,18 @@ const AZ = (function () {
   return { tip, row, settle, reduced, EASE, tween, animator, countUp, lerp, crumbs, wireCrumbs, T, FAMILY_OF, familyOf, familyColor, host, cellVal, liveData, col, num, ms, money, int, pct, pts, monthLabel, monthShort, year, isoDay, MON, ytd, loadScript, mount, paint, esc, boot, maya };
 })();
 /* ==== end amuzing core ==== */
-
 // Search: [sales] [quantity purchased] [date].monthly
 // Interactions: hover or arrow keys for each month's sales, drag to zoom into a span of months (double-click or Escape resets).
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month', S = AZ.col(schema, /sales/i, { optional: true }) ?? 'Sales';
 const data = rows.map((r) => ({ Month: AZ.ms(r[D]), Sales: AZ.num(r[S]) })).filter((r) => isFinite(r.Month)).sort((a, b) => a.Month - b.Month);
-// How far above normal: the best month over the average month in this view. The value axis keeps 15% headroom so
-// the Best label above the peak has room (0.16.0 drops an annotation that would sit above the plot).
-const mean = data.reduce((a, r) => a + r.Sales, 0) / (data.length || 1), best = data.reduce((a, r) => Math.max(a, r.Sales), 0);
-const step = best > 0 ? 10 ** Math.floor(Math.log10(best)) / 2 : 1, top = Math.ceil(best * 1.15 / step) * step;
+const mean = data.reduce((a, r) => a + r.Sales, 0) / (data.length || 1), peak = data.reduce((a, r) => (r.Sales > a.Sales ? r : a), { Sales: 0 }), step = peak.Sales > 0 ? 10 ** Math.floor(Math.log10(peak.Sales)) / 2 : 1;
 AZ.maya({
-  type: 'line', x: 'Month', y: 'Sales', xType: 'time', zoom: true, yDomain: best > 0 ? [0, top] : undefined, rules: [{ y: 'mean', label: 'Average' }],
+  type: 'line', x: 'Month', y: 'Sales', xType: 'time', zoom: true, yDomain: peak.Sales > 0 ? [0, Math.ceil(peak.Sales * 1.15 / step) * step] : undefined, rules: [{ y: 'mean', label: 'Average' }],
   title: data.length ? 'Best month {max.x}, {max.y}' : 'Best month',
-  subtitle: data.length && mean ? (best / mean).toFixed(1) + 'x the average month, ' + data.length + ' months' : '',
-  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Month: { month: 'short', year: 'numeric', timeZone: 'UTC' } },
-  text: { noData: 'No rows yet. Bind the search [sales] [quantity purchased] [date].monthly' },
-  annotate: data.length ? [{ x: data.find((r) => r.Sales === best).Month, text: 'Best' }] : undefined,
+  subtitle: data.length && mean ? (peak.Sales / mean).toFixed(1) + 'x the average month, ' + data.length + ' months' : '',
+  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Month: 'month' },
+  text: { noData: 'No rows yet. Bind [sales] [quantity purchased] [date].monthly' },
+  annotate: data.length ? [{ x: peak.Month, text: 'Best' }] : undefined,
   data
 });

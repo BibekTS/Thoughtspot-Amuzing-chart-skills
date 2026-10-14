@@ -17,6 +17,8 @@ The measure toggle switches between latest full year and year to date. Hover a b
 ## Notes
 Built on MayaCharts 0.16.0: a horizontal stacked `bar` with `path: [Family, Item type]` and `drill`. `series` is the effect (units in dark slate, price in light slate) and the `y` array is the two periods, which gives the measure toggle. Each effect is computed per item type: units effect = (units now - units before) x price before, and price effect = (price now - price before) x units now. Families and the total add up from the item types, so a family's price effect no longer includes the mix shift between its item types (the old All families card did). The title's `{total}` token gives the sales change for the period shown. Periods come from the rows as before: year to date is the latest year's months against the same months a year earlier, and the latest full year needs 12 months in both years. Dropped against the old chart: the card layout, family hues (families are now the category axis, and effects are the only colour), the All families card (now the title), the per-family percent change, and the period tween. Preview-verified on synthetic data, not yet re-checked on a cluster.
 
+Body is 29 code lines after the core block: it still derives the units and price effect rows; MayaCharts has no native price-volume split.
+
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.
 The block between the `amuzing core` markers is shared: change it in `library/_shared/` and run `helpers/sync-core.mjs`.

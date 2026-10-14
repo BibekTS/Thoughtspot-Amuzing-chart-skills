@@ -259,19 +259,14 @@ const AZ = (function () {
 // Interactions: toggle Sales / Units / Price per unit; hover a cell for its value; click a cell to select it (Escape clears); arrow keys move between months and years.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const opt = { optional: true }, D = AZ.col(schema, /date|month/i, opt) ?? 'Month', V = AZ.col(schema, /sales/i, opt) ?? 'Sales', U = AZ.col(schema, /quantity|units/i, opt) ?? 'Units';
-// One cell per month: a year row and a calendar-month column; price per unit is that month's sales over its units.
-// The grid is filled Jan to Dec for every year (missing months null) so the columns and rows keep calendar order.
 const byT = new Map(rows.map((r) => [AZ.ms(r[D]), r])), yrs = [...new Set([...byT.keys()].map(AZ.year))].sort();
-const pts = AZ.MON.flatMap((m, i) => yrs.map((y) => {
-  const r = byT.get(Date.UTC(y, i, 1)), s = r ? AZ.num(r[V]) : null, u = r ? AZ.num(r[U]) : null;
-  return { Month: m, Year: String(y), Sales: s, Units: u, Price: u > 0 ? s / u : null };
-}));
+const data = AZ.MON.flatMap((m, i) => yrs.map((y) => { const r = byT.get(Date.UTC(y, i, 1)); return { Month: m, Year: String(y), Sales: r?.[V] ?? null, Units: r?.[U] ?? null }; })); // every month for every year keeps calendar order
 AZ.maya({
-  type: 'heatmap', x: 'Month', series: 'Year', y: ['Sales', 'Units', 'Price'], select: true, labels: false,
-  title: pts.length ? 'Monthly sales, units and price by year' : '',
-  subtitle: pts.length ? 'Each row is a year; darker is higher' : '',
+  type: 'heatmap', x: 'Month', series: 'Year', y: ['Sales', 'Units', 'Price'], aggregate: { Price: { ratio: ['Sales', 'Units'] } }, select: true, labels: false,
+  title: data.length ? 'Monthly sales, units and price by year' : '',
+  subtitle: data.length ? 'Each row is a year; darker is higher' : '',
   titles: { Price: 'Price per unit' },
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Units: { notation: 'compact', maximumFractionDigits: 1 }, Price: { style: 'currency', currency: 'USD', maximumFractionDigits: 2 } },
   text: { noData: 'No rows yet. Bind the search [sales] [quantity purchased] [date].monthly' },
-  data: pts
+  data
 });

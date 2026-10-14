@@ -255,17 +255,15 @@ const AZ = (function () {
 })();
 /* ==== end amuzing core ==== */
 
-// Search: [sales] [quantity purchased] [state]   (columns arrive as "state", "Total sales", "Total quantity purchased")
+// Search: [sales] [quantity purchased] [state]
 // Interactions: hover a dot for state, sales, units and sales per unit; click dots to select several; drag to zoom (double-click resets); the dashed diagonal is the average price.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const S = AZ.col(schema, /state/i, { optional: true }) ?? 'state', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Total sales', U = AZ.col(schema, /quantity|units/i, { optional: true }) ?? 'Total quantity purchased';
-// Sales per unit for the tooltip; the three largest states by sales get their name on the chart.
-const data = rows.map((r) => ({ ...r, Price: AZ.num(r[U]) ? AZ.num(r[V]) / AZ.num(r[U]) : null }));
-const P = data.map((r) => r.Price).filter((p) => p != null), usd = (n) => '$' + n.toFixed(2), avg = AZ.num(rows.reduce((a, r) => a + AZ.num(r[V]), 0) / rows.reduce((a, r) => a + AZ.num(r[U]), 0));
+const data = rows.map((r) => ({ ...r, Price: AZ.num(r[U]) ? AZ.num(r[V]) / AZ.num(r[U]) : null })), P = data.map((r) => r.Price).filter((p) => p != null), usd = (n) => '$' + n.toFixed(2), avg = rows.reduce((a, r) => a + AZ.num(r[V]), 0) / rows.reduce((a, r) => a + AZ.num(r[U]), 0);
 const top = [...data].sort((a, b) => AZ.num(b[V]) - AZ.num(a[V])).slice(0, 3).map((r) => ({ x: r[U], text: String(r[S]).slice(0, 40) }));
 AZ.maya({
-  type: 'scatter', x: U, y: V, name: S, select: 'multi', zoom: true, xScale: 'log', yScale: 'log', tooltip: { fields: ['Price'] }, annotate: top.length ? top : ['max'],
-  rules: [{ slope: 'mean', label: 'Average price' }],
+  type: 'scatter', x: U, y: V, name: S, select: 'multi', zoom: true, xScale: 'log', yScale: 'log', annotate: top.length ? top : ['max'],
+  tooltip: { fields: ['Price'] }, rules: [{ slope: 'mean', label: 'Average price' }],
   title: P.length ? 'Sales per unit runs ' + usd(Math.min(...P)) + ' to ' + usd(Math.max(...P)) + ' across ' + rows.length + ' states' : '',
   subtitle: P.length ? 'Dashed: the ' + usd(avg) + ' average; log scales' : '',
   titles: { [S]: 'State', [V]: 'Sales', [U]: 'Units', Price: 'Sales per unit' },

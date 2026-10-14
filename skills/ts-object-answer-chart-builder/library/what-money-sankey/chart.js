@@ -260,7 +260,7 @@ const AZ = (function () {
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const opt = { optional: true }, RG = AZ.col(schema, /region/i, opt) ?? 'Region', IT = AZ.col(schema, /item/i, opt) ?? 'Item Type', V = AZ.col(schema, /sales/i, opt) ?? 'Total Sales';
 AZ.maya({
-  type: 'sankey', path: [RG, 'Family', IT], y: V, drill: true, colors: AZ.T.family, // regions are not in the map, so they stay neutral
+  type: 'sankey', path: [RG, 'Family', IT], y: V, drill: true, colors: AZ.T.family,
   titles: { [RG]: 'Region', [IT]: 'Item type', [V]: 'Sales' },
   format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
   text: { noData: 'No rows yet: bind [sales] [region] [item type]' },

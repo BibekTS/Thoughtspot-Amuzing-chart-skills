@@ -256,27 +256,19 @@ const AZ = (function () {
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [quantity purchased] [date].monthly
-// Interactions: Sales and Units toggle, hover or arrow keys for a pair, click a quarter (or Enter) to drill into its
-// months (Back, Escape or a click on empty space returns), click a legend key to hide a year.
-const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month', S = AZ.col(schema, /sales/i, { optional: true }) ?? 'Sales', U = AZ.col(schema, /quantity|units/i, { optional: true }) ?? 'Units';
-// The months of the latest year, each with the same month of the year before, grouped into quarters. Only quarters with
-// data in the latest year are drawn, and a part quarter (marked *) is compared on the same months only.
-const M = rows.map((r) => ({ t: AZ.ms(r[D]), s: AZ.num(r[S]), u: AZ.num(r[U]) })).filter((r) => isFinite(r.t));
-const ly = M.length ? Math.max(...M.map((r) => AZ.year(r.t))) : 0, mo = (r) => new Date(r.t).getUTCMonth();
-const cur = M.filter((r) => AZ.year(r.t) === ly).sort((a, b) => a.t - b.t), q = (r) => Math.floor(mo(r) / 3);
-const part = (k) => cur.filter((r) => q(r) === k).length < 3;
+// Interactions: Sales and Units toggle, hover or arrow keys for a pair, click a quarter (or Enter) to drill into its months (Back, Escape or a click on empty space returns), click a legend key to hide a year.
+const M = (AZ.liveData()?.rows ?? []).map((r) => ({ t: AZ.ms(r['Month(date)']), s: AZ.num(r['Total sales']), u: AZ.num(r['Total quantity purchased']) })).filter((r) => isFinite(r.t));
+const ly = Math.max(0, ...M.map((r) => AZ.year(r.t))), mo = (r) => new Date(r.t).getUTCMonth(), q = (r) => Math.floor(mo(r) / 3);
+const cur = M.filter((r) => AZ.year(r.t) === ly), part = (r) => cur.filter((c) => q(c) === q(r)).length < 3;
 const data = cur.flatMap((r) => M.filter((p) => AZ.year(p.t) === ly - 1 && mo(p) === mo(r)).concat([r])).map((r) => ({
-  Quarter: 'Q' + (q(r) + 1) + (part(q(r)) ? '*' : ''), Month: AZ.MON[mo(r)], Year: String(AZ.year(r.t)), Sales: r.s, Units: r.u
+  Quarter: 'Q' + (q(r) + 1) + (part(r) ? '*' : ''), Month: AZ.MON[mo(r)], Year: String(AZ.year(r.t)), Sales: r.s, Units: r.u
 }));
 AZ.maya({
   type: 'bar', path: ['Quarter', 'Month'], drill: true, y: ['Sales', 'Units'], series: 'Year',
   title: data.length ? 'Each quarter of ' + ly + ' against ' + (ly - 1) : 'Quarter pairs',
-  subtitle: data.length ? 'Click a quarter for its months' + (cur.some((r) => part(q(r))) ? ', * part quarter' : '') : '',
-  // Colour by year through colors only: in 0.16.0 theme series1/series2 override a colors map.
-  colors: { [String(ly)]: '#1E1E24', [String(ly - 1)]: '#B4BDC9' },
-  titles: { Units: 'Units sold' },
+  subtitle: data.length ? 'Click a quarter for its months' + (cur.some(part) ? ', * part quarter' : '') : '',
+  colors: { [ly]: '#1E1E24', [ly - 1]: '#B4BDC9' }, titles: { Units: 'Units sold' },
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Units: { notation: 'compact', maximumFractionDigits: 1 } },
-  text: { noData: 'No rows yet. Bind the search [sales] [quantity purchased] [date].monthly' },
+  text: { noData: 'No rows yet. Bind [sales] [quantity purchased] [date].monthly' },
   data
 });

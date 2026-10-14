@@ -257,21 +257,14 @@ const AZ = (function () {
 
 // Search: [sales] [quantity purchased] [date].monthly
 // Interactions: hover a bar for the month and its sales; click a bar to select it (Escape clears).
-const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Sales';
-const M = rows.map((r) => ({ t: AZ.ms(r[D]), v: AZ.num(r[V]) })).filter((r) => isFinite(r.t)).sort((a, b) => a.t - b.t);
-// The headline is year to date against the same months last year; the bars are the three best and three weakest
-// months in the whole filter, toned against the average month.
+const M = (AZ.liveData()?.rows ?? []).map((r) => ({ t: AZ.ms(r['Month(date)']), v: AZ.num(r['Total sales']) })).filter((r) => isFinite(r.t));
 const y = AZ.ytd(M), avg = M.reduce((a, r) => a + r.v, 0) / (M.length || 1);
 const ranked = M.slice().sort((a, b) => b.v - a.v), k = Math.min(3, Math.floor(ranked.length / 2));
-const pick = k ? ranked.slice(0, k).concat(ranked.slice(-k)) : ranked.slice(0, 1);
 AZ.maya({
-  type: 'bar', horizontal: true, x: 'Month', y: 'Sales', select: true, labels: true,
+  type: 'bar', horizontal: true, x: 'Month', y: 'Sales', select: true, labels: true, colorBy: { target: avg },
   title: y ? 'Sales YTD ' + AZ.money(y.cur, 1) + (y.comparable && y.prev ? ', ' + AZ.pct(y.pct, 1, true) + ' on ' + (y.year - 1) : '') : '',
   subtitle: M.length ? 'Best and weakest of ' + M.length + ' months; average ' + AZ.money(avg, 1) : '',
-  ...(M.length ? { colorBy: { target: avg } } : {}),
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
   text: { noData: 'Bind [sales] [quantity purchased] [date].monthly', above: 'above average', below: 'below average' },
-  theme: { fontSize: M.length ? '12px' : '10px' },
-  data: pick.map((r) => ({ Month: AZ.monthLabel(r.t), Sales: r.v }))
+  data: (k ? ranked.slice(0, k).concat(ranked.slice(-k)) : ranked.slice(0, 1)).map((r) => ({ Month: AZ.monthLabel(r.t), Sales: r.v }))
 });

@@ -256,17 +256,16 @@ const AZ = (function () {
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [quantity purchased] [item type] [product]
-// Premium or volume: each row's share of sales minus its share of units, in points. Shares are of the whole
-// search, so they and the gap add up from product to item type, and the default sum is right at both levels.
+// Interactions: hover a bar for its shares; click a bar to drill from item type into products; Back, Escape or a click on empty space goes up.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, I = c(/item/i, 'Item Type'), P = c(/product/i, 'Product'), V = c(/sales/i, 'Total Sales'), Q = c(/quantity|units/i, 'Total Quantity Purchased');
 const tot = (k) => rows.reduce((a, r) => a + AZ.num(r[k]), 0), S = tot(V), U = tot(Q), pct = { style: 'percent', maximumFractionDigits: 1 };
 const data = rows.map((r) => ({ [I]: r[I], [P]: r[P], Sales: S ? AZ.num(r[V]) / S : 0, Units: U ? AZ.num(r[Q]) / U : 0 })).map((r) => ({ ...r, Gap: 100 * (r.Sales - r.Units) }));
 AZ.maya({
   type: 'bar', horizontal: true, path: [I, P], drill: true, y: 'Gap', sort: 'desc', labels: true, colorBy: 'sign', tooltip: { fields: ['Sales', 'Units'] },
-  title: 'Premium or volume', subtitle: data.length ? 'Share of sales minus share of units. {max.x} leads at {max.y}.' : '', // tokens print raw with no rows
+  title: 'Premium or volume', subtitle: 'Share of sales minus share of units. {max.x} leads at {max.y}.',
   format: { Gap: { maximumFractionDigits: 2, signDisplay: 'exceptZero', suffix: ' pts' }, Sales: pct, Units: pct },
   titles: { Gap: 'Share of sales minus share of units', Sales: 'Share of sales', Units: 'Share of units', [I]: 'Item type' },
-  text: { positive: 'Premium', negative: 'Volume', noData: 'No rows. The search needs [sales] [quantity purchased] [item type] [product].' },
+  text: { positive: 'Premium', negative: 'Volume', noData: 'No rows. Bind [sales] [quantity purchased] [item type] [product].' },
   data
 });

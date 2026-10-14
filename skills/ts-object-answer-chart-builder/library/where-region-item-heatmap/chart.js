@@ -257,17 +257,14 @@ const AZ = (function () {
 
 // Search: [sales] [region] [item type]
 // Interactions: Sales / Share of region toggle; hover or arrow-key to a cell for region, item type and value; click cells to select several, Escape clears.
-const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const R = AZ.col(schema, /region/i, { optional: true }) ?? 'region', I = AZ.col(schema, /item/i, { optional: true }) ?? 'item type', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Total sales';
-// Share of region for the measure toggle; rows ordered so the largest region is the top row.
-const rt = new Map(); rows.forEach((r) => rt.set(r[R], (rt.get(r[R]) || 0) + AZ.num(r[V])));
-const data = rows.map((r) => ({ [R]: r[R], [I]: r[I], [V]: AZ.num(r[V]), Share: rt.get(r[R]) ? AZ.num(r[V]) / rt.get(r[R]) : 0 })).sort((a, b) => rt.get(b[R]) - rt.get(a[R]));
+const { rows } = AZ.liveData() ?? { rows: [] };
+const rt = new Map(); rows.forEach((r) => rt.set(r.region, (rt.get(r.region) || 0) + r['Total sales']));
 AZ.maya({
-  type: 'heatmap', x: I, series: R, y: [V, 'Share'], sort: 'desc', select: 'multi',
+  type: 'heatmap', x: 'item type', series: 'region', y: ['Total sales', 'Share'], sort: 'desc', select: 'multi',
   title: 'Sales by region and item type',
   subtitle: 'Item types by total sales, largest first',
-  titles: { [R]: 'Region', [I]: 'Item type', [V]: 'Sales', Share: 'Share of region' },
-  format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Share: { style: 'percent', maximumFractionDigits: 0 } },
+  titles: { region: 'Region', 'item type': 'Item type', 'Total sales': 'Sales', Share: 'Share of region' },
+  format: { 'Total sales': { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Share: { style: 'percent', maximumFractionDigits: 0 } },
   text: { noData: 'No rows yet. Bind the search [sales] [region] [item type]' },
-  data
+  data: rows.map((r) => ({ ...r, Share: r['Total sales'] / rt.get(r.region) })).sort((a, b) => rt.get(b.region) - rt.get(a.region))
 });

@@ -257,18 +257,15 @@ const AZ = (function () {
 
 // Search: [sales] [date].monthly
 // Interactions: hover a segment for that month and year; click a segment or a year in the legend to select that year (Escape clears); arrow keys step through months and years.
-const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const opt = { optional: true }, D = AZ.col(schema, /date|month/i, opt) ?? 'Month', V = AZ.col(schema, /sales/i, opt) ?? 'Sales';
-// One series per year over the calendar months, filled Jan to Dec (missing months null) so every year shares the month axis.
-const byT = new Map(rows.map((r) => [AZ.ms(r[D]), AZ.num(r[V])])), yrs = [...new Set([...byT.keys()].map(AZ.year))].sort();
-const pts = yrs.flatMap((y) => AZ.MON.map((m, i) => ({ Month: m, Year: String(y), Sales: byT.get(Date.UTC(y, i, 1)) ?? null })));
+const { rows } = AZ.liveData() ?? { rows: [] };
+const byT = new Map(rows.map((r) => [AZ.ms(r['Month(date)']), r['Total sales']])), yrs = [...new Set([...byT.keys()].map(AZ.year))].sort();
+const ramp = ['#1E1E24', '#2F3B54', '#4A5872', '#6A7891', '#8E9AAB', '#B4BDC9', '#B4BDC9', '#D5DAE1'];
 AZ.maya({
   type: 'radial', x: 'Month', y: 'Sales', series: 'Year', select: true,
-  // The latest year is ink, older years step back through the slate ramp (colour is never a family here).
-  colors: Object.fromEntries(yrs.slice(-8).reverse().map((y, i) => [String(y), ['#1E1E24', '#2F3B54', '#4A5872', '#6A7891', '#8E9AAB', '#B4BDC9', '#B4BDC9', '#D5DAE1'][i]])),
-  title: pts.length ? 'Monthly sales around the year' : '',
-  subtitle: pts.length ? 'Each month stacks its years, latest outermost in ink' : '',
+  colors: Object.fromEntries(yrs.slice(-8).reverse().map((y, i) => [String(y), ramp[i]])),
+  title: yrs.length ? 'Monthly sales around the year' : '',
+  subtitle: yrs.length ? 'Each month stacks its years, latest outermost in ink' : '',
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
   text: { noData: 'No rows yet. Bind the search [sales] [date].monthly' },
-  data: pts
+  data: yrs.flatMap((y) => AZ.MON.map((m, i) => ({ Month: m, Year: String(y), Sales: byT.get(Date.UTC(y, i, 1)) ?? null })))
 }, 'maya.global.js');

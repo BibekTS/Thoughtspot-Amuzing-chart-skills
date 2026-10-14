@@ -257,17 +257,14 @@ const AZ = (function () {
 
 // Search: [sales] [state]
 // Interactions: Sales / Share of total toggle; hover or arrow-key to a hex for its state, sales and share; click hexes to select several, Escape clears.
-const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const S = AZ.col(schema, /state/i, { optional: true }) ?? 'state', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Total sales';
-// Share of total for the measure toggle.
-const tot = rows.reduce((a, r) => a + AZ.num(r[V]), 0);
-const data = rows.map((r) => ({ [S]: r[S], [V]: AZ.num(r[V]), Share: tot ? AZ.num(r[V]) / tot : 0 }));
+const { rows } = AZ.liveData() ?? { rows: [] };
+const tot = rows.reduce((a, r) => a + AZ.num(r['Total sales']), 0);
 AZ.maya({
-  type: 'hexmap', x: S, y: [V, 'Share'], select: 'multi',
+  type: 'hexmap', x: 'state', y: ['Total sales', 'Share'], select: 'multi',
   title: 'Sales by state, hex map',
-  subtitle: data.length ? '{max.x} leads with {max.y}; ' + data.length + ' states have sales' : '',
-  titles: { [S]: 'State', [V]: 'Sales', Share: 'Share of total' },
-  format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Share: { style: 'percent', maximumFractionDigits: 1 } },
+  subtitle: rows.length ? '{max.x} leads with {max.y}; ' + rows.length + ' states have sales' : '',
+  titles: { state: 'State', 'Total sales': 'Sales', Share: 'Share of total' },
+  format: { 'Total sales': { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Share: { style: 'percent', maximumFractionDigits: 1 } },
   text: { noData: 'No rows yet. Bind the search [sales] [state]' },
-  data
+  data: rows.map((r) => ({ ...r, Share: r['Total sales'] / tot }))
 }, 'maya.global.js');

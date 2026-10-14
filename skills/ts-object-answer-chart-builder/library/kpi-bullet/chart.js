@@ -257,19 +257,10 @@ const AZ = (function () {
 
 // Search: [sales] [quantity purchased] [date].monthly
 // Interactions: hover the sparkline for each month and its sales (arrow keys step through months); the bullet below sets the latest month against the average and the best month.
-const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const D = AZ.col(schema, /date|month/i, { optional: true }) ?? 'Month', V = AZ.col(schema, /sales/i, { optional: true }) ?? 'Sales';
-const M = rows.map((r) => ({ Month: AZ.ms(r[D]), Sales: AZ.num(r[V]) })).filter((r) => isFinite(r.Month)).sort((a, b) => a.Month - b.Month);
-// MayaCharts draws the empty state on one line, so it is short and set in 10px to fit a 280 px tile.
-// The bullet: bands end at the average month (warn) and the best month (target), on a scale a little past the best.
-const best = M.reduce((a, b) => (b.Sales > a.Sales ? b : a), { Sales: 0 }), avg = M.reduce((a, r) => a + r.Sales, 0) / (M.length || 1);
+const v = (AZ.liveData()?.rows ?? []).map((r) => AZ.num(r['Total sales'])), best = Math.max(1, ...v), avg = v.reduce((a, b) => a + b, 0) / (v.length || 1);
 AZ.maya({
-  type: 'kpi', x: 'Month', y: 'Sales',
-  title: M.length ? 'Sales, latest month' : '',
-  subtitle: M.length ? 'Average month ' + AZ.money(avg, 1) + ', best ' + AZ.monthLabel(best.Month) : '',
-  yDomain: [0, Math.max(best.Sales, 1) * 1.06], ...(M.length ? { colorBy: { target: best.Sales, warn: avg } } : {}),
-  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, Month: { month: 'short', year: 'numeric', timeZone: 'UTC' } },
-  text: { noData: 'Bind [sales] [quantity purchased] [date].monthly', target: 'best month', onTrack: 'Best month', atRisk: 'Above average', offTrack: 'Below average', near: 'above average', above: 'best month', below: 'below average' },
-  theme: { fontSize: M.length ? '12px' : '10px' },
-  data: M
+  type: 'kpi', x: 'Month(date)', y: 'Total sales', yDomain: [0, best * 1.06], colorBy: { target: best, warn: avg },
+  title: 'Sales, latest month', subtitle: 'Average month {mean}, best {max.x}',
+  format: { 'Total sales': { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }, 'Month(date)': { month: 'short', year: 'numeric', timeZone: 'UTC' } },
+  text: { noData: 'Bind [sales] [quantity purchased] [date].monthly', target: 'best month', onTrack: 'Best month', atRisk: 'Above average', offTrack: 'Below average', near: 'above average', above: 'best month', below: 'below average' }
 });

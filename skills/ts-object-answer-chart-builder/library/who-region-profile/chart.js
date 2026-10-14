@@ -259,7 +259,6 @@ const AZ = (function () {
 // Interactions: Gap / Share toggle; hover a bar for the region, family and value; click a family key to hide or show it; click bars to select, Escape clears.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, Rg = c(/region/i, 'Region'), I = c(/item/i, 'Item Type'), V = c(/sales/i, 'Total Sales');
-// Each region's family mix (share of its own sales) and its gap in points from the all-region mix.
 const FO = Object.keys(AZ.T.family).concat('Other'), reg = new Map(), all = new Map();
 rows.forEach((r) => {
   const f = AZ.familyOf(r[I]), v = AZ.num(r[V]), m = reg.get(r[Rg]) ?? reg.set(r[Rg], new Map()).get(r[Rg]);

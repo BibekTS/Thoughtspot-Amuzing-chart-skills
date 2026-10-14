@@ -255,22 +255,20 @@ const AZ = (function () {
 })();
 /* ==== end amuzing core ==== */
 
-// Search: [sales] [item type] [product]   (Family is an editorial grouping of Item Type, derived here)
-// Interactions: hover a bar for its sales; click a bar to select it (Escape clears); click a family in the legend to select its item types.
+// Search: [sales] [item type] [product]   (Family is derived from Item Type; product rows sum to one bar per item type)
+// Interactions: hover a bar for its sales; click a bar to select it (Escape clears); click a legend family to select its item types.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-const opt = { optional: true }, I = AZ.col(schema, /item/i, opt) ?? 'Item Type', P = AZ.col(schema, /product/i, opt) ?? 'Product', V = AZ.col(schema, /sales/i, opt) ?? 'Total Sales';
-// Product rows roll up to one bar per item type (MayaCharts sums them); families in house order for the legend.
-const FO = Object.keys(AZ.T.family);
-const data = rows.filter((r) => AZ.num(r[V]) > 0).map((r) => ({ [I]: r[I], Family: AZ.familyOf(r[I]), Sales: AZ.num(r[V]) })).sort((a, b) => FO.indexOf(a.Family) - FO.indexOf(b.Family));
-// Headline: the three largest item types and their share of all sales.
-const byI = new Map(); data.forEach((r) => byI.set(r[I], (byI.get(r[I]) || 0) + r.Sales));
-const rank = [...byI].sort((a, b) => b[1] - a[1]), tot = rank.reduce((a, e) => a + e[1], 0), t3 = rank.slice(0, 3);
+const opt = { optional: true }, I = AZ.col(schema, /item/i, opt) ?? 'Item Type', V = AZ.col(schema, /sales/i, opt) ?? 'Total Sales';
+const FO = Object.keys(AZ.T.family), by = new Map();
+const data = rows.filter((r) => AZ.num(r[V]) > 0).map((r) => ({ ...r, Family: AZ.familyOf(r[I]) })).sort((a, b) => FO.indexOf(a.Family) - FO.indexOf(b.Family));
+data.forEach((r) => by.set(r[I], (by.get(r[I]) || 0) + r[V]));
+const rank = [...by].sort((a, b) => b[1] - a[1]), t3 = rank.slice(0, 3); // the three largest item types and their share of sales
 AZ.maya({
-  type: 'radial', x: I, y: 'Sales', series: 'Family', sort: 'desc', select: true, colors: AZ.T.family,
-  title: rank.length > 3 ? 'The top three item types, ' + t3.map((e) => e[0]).join(', ') + ', make up ' + AZ.pct(t3.reduce((a, e) => a + e[1], 0) / tot, 0) + ' of sales' : '',
+  type: 'radial', x: I, y: V, series: 'Family', sort: 'desc', select: true, colors: AZ.T.family,
+  title: rank.length > 3 ? 'The top three item types, ' + t3.map((e) => e[0]).join(', ') + ', make up ' + AZ.pct(t3.reduce((a, e) => a + e[1], 0) / rank.reduce((a, e) => a + e[1], 0), 0) + ' of sales' : '',
   subtitle: rank.length ? 'Bar length is sales; colour is the family' : '',
-  titles: { [I]: 'Item type' },
-  format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
+  titles: { [I]: 'Item type', [V]: 'Sales' },
+  format: { [V]: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
   text: { noData: 'No rows yet: bind [sales] [item type] [product]' },
   data
 }, 'maya.global.js');

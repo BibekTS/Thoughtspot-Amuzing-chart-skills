@@ -256,23 +256,20 @@ const AZ = (function () {
 /* ==== end amuzing core ==== */
 
 // Search: [sales] [store] [date].quarterly
-// Interactions: Play steps through the quarters (bars re-rank as cumulative sales build); hover a bar for the store, its cumulative sales and that quarter's sales; click stores to select them, Escape clears.
+// Interactions: Play steps through the quarters (bars re-rank as cumulative sales build); hover a bar for the store, its cumulative and that quarter's sales; click stores to select, Escape clears.
 const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
 const c = (re, d) => AZ.col(schema, re, { optional: true }) ?? d, St = c(/store/i, 'Store'), D = c(/date|quarter/i, 'Quarter(date)'), V = c(/sales/i, 'Total Sales');
-// Cumulative sales per store at the end of every quarter (a store with no sales in a quarter carries its total forward).
 const qName = (t) => { const d = new Date(t); return 'Q' + (Math.floor(d.getUTCMonth() / 3) + 1) + ' ' + d.getUTCFullYear(); };
 const ts = [...new Set(rows.map((r) => AZ.ms(r[D])))].sort((a, b) => a - b), stores = [...new Set(rows.map((r) => r[St]))];
 const q = new Map(rows.map((r) => [r[St] + '|' + AZ.ms(r[D]), AZ.num(r[V])])), run = new Map(stores.map((s) => [s, 0]));
 const data = ts.flatMap((t) => stores.map((s) => { const v = q.get(s + '|' + t) ?? 0; run.set(s, run.get(s) + v); return { Quarter: qName(t), Store: s, Cumulative: run.get(s), 'Quarter sales': v }; }));
-// Each quarter keeps its own top 10, so a store enters and leaves the race as it climbs or falls.
 const money = { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 };
-const top = ts.flatMap((t) => data.filter((r) => r.Quarter === qName(t)).sort((a, b) => b.Cumulative - a.Cumulative).slice(0, 10));
 AZ.maya({
-  type: 'bar', horizontal: true, x: 'Store', y: 'Cumulative', frame: 'Quarter', sort: 'desc', labels: true, select: 'multi', tooltip: { fields: ['Quarter sales'] },
-  title: top.length ? '{max.x} leads with {max.y}' : '', // tokens follow the frame shown
-  subtitle: ts.length ? 'Cumulative sales since ' + qName(ts[0]) + ', top 10 stores; press Play to race through the quarters' : '',
+  type: 'bar', horizontal: true, x: 'Store', y: 'Cumulative', frame: 'Quarter', sort: 'desc', limit: 10, other: false, labels: true, select: 'multi', tooltip: { fields: ['Quarter sales'] },
+  title: '{max.x} leads with {max.y}',
+  subtitle: data.length ? 'Cumulative sales since ' + data[0].Quarter + ', top 10 stores; press Play to race through the quarters' : '',
   titles: { Cumulative: 'Cumulative sales' },
   format: { Cumulative: money, 'Quarter sales': money },
   text: { noData: 'No rows yet: bind [sales] [store] [date].quarterly' },
-  data: top
+  data
 });
