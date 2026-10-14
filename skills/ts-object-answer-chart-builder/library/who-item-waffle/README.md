@@ -6,10 +6,10 @@ How does each product family's share of sales compare with its share of units?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [quantity purchased] [item type]` |
-| Library | MayaCharts 0.16.0 (maya.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.global.js from jsDelivr) |
 | Tile | 6x6 grid units (06 Who tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.global.js` |
 
 ## Interactions
 Switch between Sales and Units with the toggle above the grid; the key keeps each family's share of the shown measure. Hover a square or a key entry for the family, its value and share. Click a family (a square or its key entry) to select it and dim the rest; Escape clears. The chart is keyboard navigable.

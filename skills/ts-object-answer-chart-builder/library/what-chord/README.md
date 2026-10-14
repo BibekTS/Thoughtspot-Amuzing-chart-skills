@@ -6,10 +6,10 @@ Which regions buy which product families?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [region] [item type]` |
-| Library | MayaCharts 0.16.0 (maya.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.global.js from jsDelivr) |
 | Tile | 6x7 grid units (04 What tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.global.js` |
 
 ## Interactions
 Hover or arrow-key to a region or family arc for its sales; the ribbons it touches stay lit and the rest dim. Hover a ribbon for that region-to-family flow. Click a region arc (or focus it and press Enter) to drill into it: the region stays on the left and its flows fan out to the families. The breadcrumb reads Back > region, and Back, Escape or a click on empty space goes back up.

@@ -6,10 +6,10 @@ How big is each region and how does its family mix differ?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [region] [item type]` |
-| Library | MayaCharts 0.16.0 (maya.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.global.js from jsDelivr) |
 | Tile | 6x7 grid units (04 What tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.global.js` |
 
 ## Interactions
 Hover or arrow-key to a block for its region, with every family's sales and share of that region in the tooltip; the other blocks dim. Click a block (or Enter) to select it, and click a family in the legend to select that family across every region; Escape clears.

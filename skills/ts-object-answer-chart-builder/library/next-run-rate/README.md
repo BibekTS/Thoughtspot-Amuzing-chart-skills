@@ -6,10 +6,10 @@ Where does the year end if the rest follows last year's months, or the last thre
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [date].monthly` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 6x6 grid units (07 Next tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Hover a month for the actual value or both projected values. Click a legend key to hide or show a scenario, which replaces the old scenario toggle. Wider tiles also name each line at its right end. Drag to zoom into a span of months; double-click or Escape resets. Arrow keys step through months and lines.

@@ -6,10 +6,10 @@ Is it price or volume that separates the states?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [quantity purchased] [state]` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 6x6 grid units (03 Where tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Hover or arrow-key to a dot for its state, sales, units and sales per unit (other dots dim); click dots to select several, Escape clears; drag to zoom, double-click or Escape resets. The dashed diagonal is the average price: states above it sell at more per unit.

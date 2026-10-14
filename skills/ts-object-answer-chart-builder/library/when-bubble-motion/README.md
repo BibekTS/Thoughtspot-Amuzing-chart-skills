@@ -6,10 +6,10 @@ How did each item type move between volume and price, quarter by quarter?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [quantity purchased] [item type] [date].quarterly` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 12x7 grid units (05 When tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Press Play (above the legend) to step through the quarters every 0.9 s; it stops on the last quarter, which is the one shown at first, and the title names the quarter on screen. The axes span every quarter, so the bubbles move against a still frame. Hover a bubble (or arrow-key to it) for the item type, family, units, price per unit and sales, with crosshair guides to both axes; the other bubbles dim. Click a bubble or a family in the legend to select it, Escape clears.

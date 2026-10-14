@@ -6,10 +6,10 @@ Which stores lead on cumulative sales, and how does the ranking change quarter b
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [store] [date].quarterly` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 12x7 grid units (06 Who tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Press Play to step through the quarters (every 900 ms); bars re-rank and the title follows the leader of the quarter shown. Hover a bar for the store, its cumulative sales and that quarter's sales. Click stores to select them; Escape clears. Arrow keys step between bars.

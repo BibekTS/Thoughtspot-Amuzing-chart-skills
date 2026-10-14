@@ -135,16 +135,19 @@ const AZ = (function () {
     try { host().events.emitRenderCompletedEvent(); } catch (e) { console.warn('[chart] emitRenderCompletedEvent unavailable:', e); }
   }
 
-  // -- MayaCharts: pinned build, house theme, render-complete once settled -----
-  // maya(spec, 'maya.global.js') for module types; spec.theme keys override the house theme.
-  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/';
-  const MAYA_THEME = { font: 'Geist, system-ui, sans-serif', fontSize: '12px', fg: T.ink, fgMuted: T.muted, accent: T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px', titleWeight: '600' };
+  // -- MayaCharts: pinned build, render-complete on the first draw ------------
+  // maya(spec, 'maya.global.js') for module types. The house theme is --maya-* on #chart in core.css;
+  // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
   function maya(spec, file) {
-    const src = MAYA + (file || 'maya.core.global.js'), fin = () => host()?.events?.emitRenderCompletedEvent?.();
+    const src = MAYA + (file || 'maya.core.global.js');
+    let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
     if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    // First draw, not the end of the entrance animation: a cold load plus the animation can outrun ThoughtSpot's wait.
+    el.addEventListener('maya-render', fin, { once: true });
     el.addEventListener('maya-settled', fin, { once: true });
-    el.spec = Object.assign({}, spec, { theme: Object.assign({}, MAYA_THEME, spec.theme) });
+    el.spec = spec;
     return el;
   }
 
@@ -272,6 +275,5 @@ AZ.maya({
   format: { Sales: { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 } },
   colors: { [String(ly - 1)]: '#B4BDC9', [String(ly)]: '#1E1E24' },
   text: { noData: 'No year-on-year rows' },
-  theme: { series1: '#B4BDC9', series2: '#1E1E24' },
   data
 });

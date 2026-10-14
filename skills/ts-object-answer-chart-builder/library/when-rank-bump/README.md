@@ -6,10 +6,10 @@ Which item types climb or fall in the sales ranking from year to year?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [item type] [date].yearly` |
-| Library | MayaCharts 0.16.0 (maya.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.global.js from jsDelivr) |
 | Tile | 12x6 grid units (05 When tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.global.js` |
 
 ## Interactions
 Hover a dot (or arrow-key to it) to light that item type's thread and dim the others; the tooltip lists that year's whole order with each rank and sales. Click a dot or thread to select it, Escape clears. Where two threads cross, the one that climbs passes over the one that falls.

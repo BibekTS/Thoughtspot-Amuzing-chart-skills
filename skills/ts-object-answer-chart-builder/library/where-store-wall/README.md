@@ -6,10 +6,10 @@ Which stores follow the company shape, and which have their own?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [store] [date].quarterly` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 12x7 grid units (03 Where tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Click Same scale or Own scale: Same scale colours each quarter by its sales, Own scale by its share of that store's total, so the shape of each store compares regardless of size. Hover or arrow-key to a cell for the store, quarter and value. Click cells to select several; Escape clears.

@@ -6,10 +6,10 @@ How close is this year to the same months last year?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [quantity purchased] [date].monthly` |
-| Library | MayaCharts 0.16.0 (maya.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.global.js from jsDelivr) |
 | Tile | 3x4 grid units (02 Pulse tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.global.js` |
 
 ## Interactions
 Hover the dial for the share of last year and its status. The arc sweeps in on first draw.

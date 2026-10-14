@@ -6,10 +6,10 @@ Does any region sell a different family mix from the all-region average?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [region] [item type]` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 6x6 grid units (06 Who tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Switch between Gap from average and Share of region sales with the toggle. Hover a bar for the region, the family and the value. Click a family in the key to hide or show it. Click bars to select; Escape clears. Arrow keys step through regions and families.

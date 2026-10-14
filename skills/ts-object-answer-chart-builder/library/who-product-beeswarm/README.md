@@ -6,10 +6,10 @@ Where does each of the 345 products sit on price per unit, and how does one comp
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[product] [item type] [sales] [quantity purchased]` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 6x6 grid units (06 Who tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Hover a dot for the product, its item type and its price per unit. Click dots to select several (the rest dim); Escape clears. Click a family in the key to hide or show its lane. Arrow keys step through the dots.

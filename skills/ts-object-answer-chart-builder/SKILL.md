@@ -1,6 +1,6 @@
 ---
 name: ts-object-answer-chart-builder
-description: Build a ThoughtSpot custom chart (BYOC) as three paste-ready files, chart.html, chart.css and chart.js, by iterating in a real browser until the render is right: an intake with pick-from-a-list questions (model, data mode, search, library, destination), a preview the user watches or headless screenshots where no window can open, a vision critique of every attempt, and checks for missing, wrapped and empty data, tile resizes and pointer interaction. Can save the finished chart as a ThoughtSpot answer and screenshot it in a logged-in browser. Use when the user wants a ThoughtSpot custom chart, a BYOC tile, a MayaCharts chart, or an existing chart tile rebuilt, debugged, or converted between sample and live data. Covers MayaCharts (the default), D3, ECharts, Plotly, Chart.js, gridjs, HTML tables and raw SVG, ships a library of proven live-data charts under library/, and hands finished tiles to ts-object-liveboard-chart-builder. Not for native ThoughtSpot chart configuration or non-ThoughtSpot charting work.
+description: Build a ThoughtSpot custom chart (BYOC) as three paste-ready files, chart.html, chart.css and chart.js, by iterating in a real browser until the render is right: an intake with pick-from-a-list questions (model, data mode, search, library, destination), a preview the user watches (or headless screenshots), a vision critique of every attempt, and checks for missing, wrapped and empty data, tile resizes and pointer interaction. Can save the finished chart as a ThoughtSpot answer and screenshot it in a logged-in browser. Use when the user wants a ThoughtSpot custom chart, a BYOC tile, a MayaCharts chart, or an existing chart tile rebuilt, debugged, or converted between sample and live data. The user picks the library or lets Claude pick (MayaCharts, D3, ECharts, Plotly, Chart.js, gridjs, HTML tables, raw SVG). Ships a library of proven live-data charts under library/, and hands finished tiles to ts-object-liveboard-chart-builder. Not for native ThoughtSpot chart configuration or non-ThoughtSpot charting work.
 ---
 
 # ThoughtSpot custom chart builder
@@ -117,7 +117,13 @@ Round 2, after a quick column list of the chosen model:
 | Header | Question | Options |
 |---|---|---|
 | Search | Which search should the chart run? | 2 or 3 searches you draft from the columns and the request, for example `[sales] [region] [date].monthly`. "Other" takes the user's own |
-| Library | Which chart library? | "Pick for me (Recommended)", then the two or three that fit this shape from Library choice below |
+| Library | Which chart library should draw it? | "Let Claude pick", then the three libraries that fit this shape best from Library choice below, each with a one-line reason as its description. "Other" takes any library the skill covers: MayaCharts, ECharts, D3, Plotly, Chart.js, gridjs, a hand-built HTML table, raw SVG |
+
+The library is the user's call, so ask **Library** every run unless their message names one, and mark
+none of its options "(Recommended)". With "Let Claude pick", choose by Library choice below and say
+which library and why in one line before writing code. When the user picks one, build in it: if it
+fits the shape poorly or cannot be previewed (`cdn: blocked`), say so once with the better fit, then
+use theirs unless they switch.
 
 If `AskUserQuestion` is not available, ask the same questions in one message as a numbered list with
 lettered options, and wait for the answers. Write the answers into `<RUNS>/<SLUG>/intent.txt` in Step 3.
@@ -414,14 +420,18 @@ Without that skill or the MCP, hand the user the three files and the search to b
 
 ## Library choice
 
+Build in the library from the intake. Everything below is how to pick one when the user chose "Let
+Claude pick", and which fits each shape when you name the options.
+
 Start from a library chart: the "Start here" table at the top of `references/examples.md`
 maps shapes (animated drill, map zoom, flow, KPI variants, what-if, beeswarm ...) to a
 proven chart under `library/`. Copy its technique. Keep the shared core in a chart bound for the library or a
 Liveboard (the Liveboard tooling needs it) and draw it with one `AZ.maya(spec)` call, which carries the pinned
 build, the house theme and render-complete; a standalone MayaCharts tile needs no core and starts from the 3-line
 tile in the MayaCharts section of `references/library-starters.md`. 48 of the 58 library charts are MayaCharts:
-copy the nearest one. Otherwise,
-pick by what the chart is. **MayaCharts is the default for standard business shapes** (bar, line, area,
+copy the nearest one. When the user chose another library, take the nearest chart's search, derived fields and
+interactions, and draw them in that library. Otherwise,
+pick by what the chart is. **When Claude picks, MayaCharts is the first fit for standard business shapes** (bar, line, area,
 scatter, KPI, waterfall, heatmap, table, treemap, sunburst, sankey, funnel, box plot, gauge): one JSON spec gives the
 marks, tooltip, keyboard focus, selection, drill, empty state and resize, and its ThoughtSpot adapter
 (`maya.host.thoughtspot(viz, spec)`) reads the search, matches columns by RegExp, mounts the chart and signals
@@ -430,7 +440,7 @@ spec, and the loader. Keep it that lean, and code only for a field the search do
 per-row ratio, a top-N roll-up). **Always pin the MayaCharts version the doctor's `mayacharts:` line names** (the latest release
 at build time; it ships often): never an unpinned URL, which would change a saved tile under the user, and never a
 version from memory. Headlines with data tokens, reference lines, bands and diagonals, annotations, dashed series,
-tooltip fields, log scales, ratio measures and drill with cross-filter are all spec options now (0.16.0). Reach past it
+tooltip fields, log scales, ratio measures and drill with cross-filter are all spec options now (0.16.0 to 0.18.1). Reach past it
 only for a bespoke layout or interaction a spec cannot say (a what-if slider, a force layout, a map projection, a
 race). Pick by shape — `references/examples.md`
 has a working file for each of these rows:
@@ -455,7 +465,7 @@ has a working file for each of these rows:
 
 **When the doctor reports `cdn: blocked`** (usual in the Claude app), the CDN libraries
 cannot load in the preview, so a MayaCharts / Chart.js / Plotly / gridjs chart cannot be verified
-there. Prefer a hand-built table or raw SVG when they fit. When only
+there. When Claude picks, prefer a hand-built table or raw SVG when they fit. When only
 a CDN library fits, write it anyway and tell the user it is **not previewed** — never
 report MATCH on a render that could not load its library.
 
@@ -483,7 +493,9 @@ than an honest question.
 
 | Version | Date | Summary |
 |---|---|---|
-| 4.4.0 | 2026-10-12 | The library is MayaCharts: 42 more charts moved to MayaCharts 0.16.0 (48 of 58; the rest are the 8 text tiles, `next-action-list` and `next-what-if`), preview only until they have been on a cluster tile. The shared core has `AZ.maya(spec, file)` (pinned build, house theme, render-complete on `maya-settled`), so a library body is the rows, the derived fields and one call, with no loader lines and no restated theme. What each chart dropped is in its README; the gaps are filed upstream as BbekShr/mayacharts#78 to #88 (features, including theme tokens) and #89 to #93 (0.16.0 bugs). |
+| 4.6.0 | 2026-10-14 | MayaCharts 0.18.1, which closed every issue we filed (#76, #78 to #93). **The theme is CSS**: `--maya-*` custom properties on `maya-chart#chart` itself (not `:root` or `body`, which are ignored), so a chart's `chart.js` holds the spec only. The core's house theme moved from `MAYA_THEME` in JS to `core.css`; 27 charts moved their own tokens (`series1`, `accent`, `good`, `bad`, `radius`) to their `chart.css`; `spec.theme` keeps layout tokens and values computed from data. `AZ.maya` signals render-complete on the first draw (0.18.1 fixed "Something went wrong" on a cold first load in ThoughtSpot). All 48 MayaCharts library charts and `examples/maya-was-bars` were re-run in the preview on 0.18.1: rendered, no console errors; still not seen on a cluster. The traps list drops what 0.17.0 fixed, and the starter names the new options (`facet`, `params`, `frameControl`, `list`, table `page` / `filter` / `expand`, `toggle`, named themes). Library chart READMEs keep their 0.16.0 notes on what was dropped |
+| 4.5.0 | 2026-10-13 | The library is a choice, not a default: the intake always asks **Library** (unless the request names one) with "Let Claude pick" plus the three best fits for the shape, none marked recommended, and "Other" for any covered library. Claude builds in the user's pick (saying once if it fits poorly or cannot be previewed); Library choice is now the guide for Claude's own pick, and a library chart in another library is redrawn from its search and derived fields |
+| 4.4.0 | 2026-10-12 | The library is MayaCharts: 42 more charts moved to MayaCharts 0.16.0 (48 of 58; the rest are the 8 text tiles, `next-action-list` and `next-what-if`), preview only until they have been on a cluster tile. The shared core has `AZ.maya(spec, file)` (pinned build, house theme, render-complete on the first draw), so a library body is the rows, the derived fields and one call, with no loader lines and no restated theme. What each chart dropped is in its README; the gaps are filed upstream as BbekShr/mayacharts#78 to #88 (features, including theme tokens) and #89 to #93 (0.16.0 bugs). |
 | 4.3.0 | 2026-10-12 | MayaCharts 0.16.0, which shipped every fix the skill asked for (BbekShr/mayacharts#59 to #72). A standalone tile is 3 lines through `maya.host.thoughtspot(viz, spec)` (reads the search, unwraps cells, matches columns by RegExp, mounts, render-complete once settled); `maya.core.global.js` for core types, `maya.global.js` for module types; the doctor prints both URLs. Library charts that derive a field read `AZ.liveData()` and signal on `maya-settled`. The six MayaCharts library charts are on 0.16.0 and get back what 0.15.0 dropped: last year dashed and the peak annotated, the average-price diagonal, price in the tooltip and labelled states on log scales, shares in the diverging tooltip, colour maps by family, a nested treemap (`depth: 2`), sankey drill into families, `minAngle` on the sunburst. `examples/maya-was-bars` is 7 lines (`was: { by }` replaces the pivot). The preview waits up to 6 s for a render-complete that comes after the entrance animation instead of warning at 1.2 s. 0.16.0 issues found and filed: #76 |
 | 4.2.0 | 2026-10-12 | Drill-down is MayaCharts' too: `what-sunburst` (was Plotly), `what-treemap-drill` (was D3) and `what-money-sankey` (was ECharts) are MayaCharts specs with `drill: true`, 19 to 23 body lines each, preview only. Library choice sends sunburst, treemap and sankey to MayaCharts; `library-starters.md` has a drill section (which types drill, `el.view.drill`, `maya-view`, no `select` with `drill`, ratio measures, positional colours on hierarchy and flow types and the array workaround). Gaps filed upstream: BbekShr/mayacharts#69 (ratio aggregate), #70 (drill with select, leaf event, table and heatmap drill), #71 (colours by name and through drill, nested treemap, sankey drill depth) |
 | 4.1.0 | 2026-10-12 | The ThoughtSpot data read is one fixed line in every MayaCharts tile, a plain loop over the column names that unwraps object cells: about 3x faster than building each row with `Object.fromEntries` (100k wrapped rows: 10 ms against 27 ms; 1M: 106 ms against 256 ms), and a standalone tile is now 7 lines. Library charts read with the core's `AZ.liveData()` instead of re-implementing it (bodies 17 to 21 lines). Both render-complete listeners are one line |

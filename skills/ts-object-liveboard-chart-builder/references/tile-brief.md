@@ -16,9 +16,13 @@ Read, in this order, before writing anything:
 
 Your tiles:
 
-| Slug | Title | Search | Size (w x h) | Question it answers | Shape / starting chart |
-|---|---|---|---|---|---|
-| ... | ... | ... | ... | ... | ... |
+| Slug | Title | Search | Size (w x h) | Question it answers | Shape / starting chart | Library |
+|---|---|---|---|---|---|---|
+| ... | ... | ... | ... | ... | ... | ... |
+
+Draw each tile in its **Library** column, the user's choice from the intake. "Claude picks" means you pick by
+the chart skill's Library choice. A starting chart in another library lends its search, derived fields and
+interactions; redraw it in the tile's library.
 
 For each tile: real-data fixture from its exact search, the loop, the interaction and edge checks, the
 filter-resilience check, then `library-emit`. Do **not** write to ThoughtSpot: the coordinator sends every

@@ -6,10 +6,10 @@ How do the 15 item types rank by sales, and what leads inside each?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [item type] [product]` |
-| Library | MayaCharts 0.16.0 (maya.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.global.js from jsDelivr) |
 | Tile | 6x6 grid units (04 What tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.global.js` |
 
 ## Interactions
 Hover or arrow-key to a bar for its item type and sales; the other bars dim. Click a bar (or Enter) to select it, and click a family in the legend to select that family's item types; Escape clears.

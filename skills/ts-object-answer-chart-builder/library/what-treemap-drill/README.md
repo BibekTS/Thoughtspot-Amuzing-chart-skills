@@ -6,10 +6,10 @@ Where do sales sit across families, item types and products, and how concentrate
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [item type] [product]` |
-| Library | MayaCharts 0.16.0 (maya.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.global.js from jsDelivr) |
 | Tile | 8x7 grid units (04 What tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.global.js` |
 
 ## Interactions
 The root shows each family with its item types nested inside under a name strip. Click anywhere in a family to zoom into it (its item types with their products nested inside), then click an item type to zoom into its products; the breadcrumb reads Back > Family > Item type, and Back, Escape or a click on empty space goes up one level. Hover or arrow-key to a rectangle for its sales (others dim). The product level is the last: a click there does nothing.

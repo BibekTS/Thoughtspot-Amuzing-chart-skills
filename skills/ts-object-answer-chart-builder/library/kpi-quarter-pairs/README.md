@@ -6,10 +6,10 @@ How does each quarter of this year compare with the same quarter last year?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [quantity purchased] [date].monthly` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 3x4 grid units (02 Pulse tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Sales and Units sold toggle. Hover, or use the arrow keys, for a pair. Click a quarter (or Enter) to drill into its months, paired the same way; Back, Escape or a click on empty space returns. Click a legend key to hide a year.

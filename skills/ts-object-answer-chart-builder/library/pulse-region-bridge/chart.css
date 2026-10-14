@@ -8,6 +8,8 @@
 html, body { height: 100%; margin: 0; }
 body { background: var(--az-surface); color: var(--az-ink); font-family: var(--az-font); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; overflow: hidden; }
 #chart { height: 100%; position: relative; box-sizing: border-box; }
+/* MayaCharts house theme: the tokens must sit on the maya-chart element itself (on :root or body they never reach it). */
+maya-chart#chart { display: block; color-scheme: light; --maya-font: Geist, system-ui, sans-serif; --maya-font-size: 12px; --maya-fg: #1E1E24; --maya-fg-muted: #8A8A94; --maya-accent: #1E1E24; --maya-radius: 2px; --maya-bg: #FFFFFF; --maya-title-size: 14px; --maya-title-weight: 600; }
 .az-empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 16px; text-align: center; color: var(--az-ink2); font-size: 13px; line-height: 1.4; }
 .az-empty b { color: var(--az-ink); font-size: 14px; font-weight: 600; }
 .az-err { margin: 0; padding: 12px; color: var(--az-bad); white-space: pre-wrap; font: 12px/1.5 ui-monospace, Menlo, monospace; }
@@ -33,3 +35,5 @@ body { background: var(--az-surface); color: var(--az-ink); font-family: var(--a
 /* ==== end amuzing core css ==== */
 
 #chart { display: block; height: 100%; min-height: 0; color-scheme: light; }
+/* MayaCharts tokens that differ from the house theme in the core block. */
+maya-chart#chart { --maya-series-1: #1F7A4D; --maya-series-2: #B3261E; --maya-good: #1F7A4D; --maya-bad: #B3261E; }

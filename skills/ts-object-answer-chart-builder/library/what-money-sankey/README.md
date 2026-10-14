@@ -6,10 +6,10 @@ Which regions feed which product families and item types?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [region] [item type]` |
-| Library | MayaCharts 0.16.0 (maya.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.global.js from jsDelivr) |
 | Tile | 12x7 grid units (04 What tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.global.js` |
 
 ## Interactions
 Hover or arrow-key to a node or flow for its sales and to highlight the flows it touches (the rest dim). Click a region node to drill into that region: it stays as the first column with its family and item type flows. Click a family there to drill one column further into its item types. The breadcrumb shows Back > region > family, and Back, Escape or a click on empty space goes up one level.

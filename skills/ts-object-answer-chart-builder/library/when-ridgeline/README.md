@@ -6,10 +6,10 @@ How does the shape of the year compare across years, and what does one year look
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [date].monthly` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 6x7 grid units (05 When tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Hover a month for every year's sales in that month, with a vertical guide and a dot on each ridge. Click a year in the legend to hide or show its ridge. Arrow keys step through months and years.

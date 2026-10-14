@@ -6,10 +6,10 @@ Which months are strong every year, and how does the latest year compare with ea
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [date].monthly` |
-| Library | MayaCharts 0.16.0 (maya.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.global.js from jsDelivr) |
 | Tile | 6x7 grid units (05 When tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.global.js` |
 
 ## Interactions
 Hover a segment (or arrow-key to it) for that month's sales in every year; the month is outlined and the rest dims. Click a segment or a year in the legend to select that year, Escape clears. The centre shows total sales.
