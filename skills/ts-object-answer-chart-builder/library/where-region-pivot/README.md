@@ -6,10 +6,10 @@ How does each region's sales break down by product family, and where does price 
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [quantity purchased] [region] [state] [item type]` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 12x7 grid units (03 Where tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Hover or arrow-key to a cell for its region (or state), family and price per unit. Click a cell, or focus it and press Enter, to drill into that region's states; the breadcrumb, Back, Escape or a click on empty space goes back up.

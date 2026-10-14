@@ -6,10 +6,10 @@ For each product family, did sales change because we sold more units or because 
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [quantity purchased] [item type] [date].monthly` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 12x6 grid units (02 Pulse tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 The measure toggle switches between latest full year and year to date. Hover a bar for the units effect, the price effect and their total. Click a family (or Enter) to drill into its item types; Back, Escape or a click on empty space returns. Click a legend key to hide an effect. Arrow keys step through families.

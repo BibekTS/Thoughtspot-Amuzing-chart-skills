@@ -17,8 +17,8 @@ screenshot unless marked otherwise.
 
 ## MayaCharts (mayacharts, `maya.core.global.js` / `maya.global.js`)
 
-Verified in the preview (headless Chromium, 0.16.0) on the starter below, `examples/maya-was-bars/` and the
-MayaCharts library charts (48 of 58 as of 2026-10-12): render, every data mode, 130 to 1400 px tiles, hover, click, drill, sweep. Not yet
+Verified in the preview (headless Chromium, 0.18.1) on the starter below, `examples/maya-was-bars/` and the
+MayaCharts library charts (48 of 58 as of 2026-10-14): render, every data mode, 130 to 1400 px tiles, hover, click, drill, sweep. Not yet
 screenshotted on a cluster: say "verified in preview" until it has been.
 
 - **Version: the latest release, pinned.** Take it from the doctor's `mayacharts:` line (it asks jsDelivr, then npm)
@@ -34,12 +34,14 @@ screenshotted on a cluster: say "verified in preview" until it has been.
   settled, errors included. Verified on live, absent, wrapped, empty and no-host data, an empty HTML tab, a CDN that
   fails, a column that is not there (MayaCharts paints the error, listing the columns it found) and 130 to 1400 px:
   ```js
-  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js';
-  const go = () => maya.host.thoughtspot(viz, { type: 'bar', x: /item/i, y: /sales/i, theme: THEME });
+  const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js';
+  const go = () => maya.host.thoughtspot(viz, { type: 'bar', x: /item/i, y: /sales/i });
   if (window.maya?.host) go(); else { const s = document.querySelector('script[src="' + MAYA + '"]') ?? document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA })); s.addEventListener('load', go); s.addEventListener('error', () => { (document.getElementById('chart') ?? document.body).textContent = 'MayaCharts could not load from ' + MAYA; viz?.events?.emitRenderCompletedEvent?.(); }); }
   ```
   `chart.html` is `<maya-chart id="chart"></maya-chart>` (plus the Geist link); `chart.css` is
-  `html, body { height: 100%; margin: 0; background: #fff; } #chart { display: block; height: 100%; color-scheme: light; }`.
+  `html, body { height: 100%; margin: 0; background: #fff; } #chart { display: block; height: 100%; color-scheme: light; --maya-font: Geist, system-ui, sans-serif; --maya-fg: #1E1E24; --maya-accent: #1E1E24; }`
+  (the theme lives here, see Theme below). 0.18.1 signals render-complete on the first draw, so a cold load no
+  longer shows "Something went wrong" on a tile.
   The adapter's spec takes every option except `data`; field options (`x`, `y`, `series`, `path`, `size`, `name`,
   `frame`, `y2`, `was.by`, `tooltip.fields`) take a RegExp, so a cluster that names the column `Total sales` or
   `Total Sales` both match.
@@ -52,17 +54,23 @@ screenshotted on a cluster: say "verified in preview" until it has been.
   AZ.maya({ type: 'bar', x: 'Family', y: 'Total Sales', colors: AZ.T.family, data: rows.map((r) => ({ ...r, Family: AZ.familyOf(r[I]) })) });
   ```
   `AZ.maya` finds or creates `<maya-chart id="chart">`, loads the pinned build once (the URL lives in the core, so a
-  version bump is one edit in `library/_shared/core.js` plus `sync-core`), paints a message if the CDN fails, merges
-  `spec.theme` over the house theme and signals render-complete on `maya-settled` (after the entrance animation, and
-  after an error), never on `maya-render`, which fires while the animation still runs, or
-  `customElements.whenDefined`. It returns the element, for `el.view` or a `maya-select` listener.
+  version bump is one edit in `library/_shared/core.js` plus `sync-core`), paints a message if the CDN fails, sets
+  the spec and signals render-complete once, on the first `maya-render` or `maya-settled` (also after an error),
+  never on `customElements.whenDefined`. The house theme is not in JS: it is `--maya-*` on `maya-chart#chart` in
+  `core.css`. It returns the element, for `el.view` or a `maya-select` listener.
   `AZ.col(schema, /re/i, { optional: true }) ?? 'Name'` reads a column without throwing on absent data. Do not copy
   the loader lines into a library chart, and do not restate the house theme.
-- **Theme to the house style.** `AZ.maya` applies it: `{ font: 'Geist, system-ui, sans-serif', fontSize: '12px',
-  fg: AZ.T.ink, fgMuted: AZ.T.muted, accent: AZ.T.ink, radius: '2px', bg: '#FFFFFF', titleSize: '14px',
-  titleWeight: '600' }`. Put only the tokens that differ in `spec.theme` (a slate `accent` on a ramp, `good` / `bad`).
-  Leave `series1` to `series8` out when the spec has a `colors` map: in 0.16.0 a series token beats the map.
-  Pin `color-scheme: light` on the element: ThoughtSpot tiles are light whatever the OS is.
+- **Theme in `chart.css`, not in JS (0.18.0).** Every theme token is a custom property on the chart element: kebab
+  case with a `--maya-` prefix (`fgMuted` is `--maya-fg-muted`, `series3` is `--maya-series-3`, `numeric: 'tabular'`
+  is `--maya-numeric: tabular-nums`). A library chart's `core.css` sets the house style on `maya-chart#chart`
+  (Geist, ink, 2px radius, 14px title); a tile adds only the tokens that differ, on the same selector in its own
+  `chart.css`: `maya-chart#chart { --maya-accent: #6A7891; --maya-series-1: #6A7891; --maya-good: #1F7A4D; }`.
+  **The selector must be `#chart` itself**: on `:root`, `html`, `body` or any ancestor the value is ignored, because
+  the chart sets its own defaults on the element. `spec.theme` still works and beats the CSS. Keep these in
+  `spec.theme`, since they also size the layout or make a ramp diverging: `axisSize`, `labelSize`, `heroSize`,
+  `cellGap`, `rampMid`, `rampMidValue`; so does any value computed from the data (a `fontSize` that depends on the
+  number of measures). Pin `color-scheme: light` on the element: ThoughtSpot tiles are light whatever the OS is.
+  A `colors` map key now beats the series tokens (0.17.0), so both can stay.
 - **Colours by meaning.** `colors` takes a map: by series value, by `path[0]` on treemap and sunburst, by node name on
   sankey and chord (links and inner levels inherit), by category on waffle. Slots are fixed from all rows, so hues
   hold through drill. Family hues: `colors: AZ.T.family`. Region is never a hue.
@@ -71,8 +79,8 @@ screenshotted on a cluster: say "verified in preview" until it has been.
   Display names: `titles`. Epoch-ms dates work with `xType: 'time'`; a `[date].yearly` column formats with `'year'`.
 - **Customisation that needs no code:**
   - `title` and `subtitle` with data tokens: `'{max.x} leads with {max.y}'` ({max.x} {max.y} {min.x} {min.y}
-    {first.x} {first.y} {last.x} {last.y} {total} {mean}), formatted by `format`. With no rows the raw tokens show
-    above the empty state (0.16.0 bug), so keep the empty-state text self-explanatory.
+    {first.x} {first.y} {last.x} {last.y} {total} {mean}), formatted by `format`. With no rows the tokens are dropped
+    (0.17.0) and the empty state shows alone.
   - `rules`: a value line (`100`, `'mean'`, `{ y, label }`), a category line (`{ x, label }`), a band
     (`{ band: [lo, hi] }`), and on scatter a diagonal (`{ slope: 'mean' }` is sum(y) / sum(x), through the origin).
   - `annotate: ['max', 'last', { x: 'CA', text: 'Largest store' }]` labels marks picked from the data.
@@ -93,16 +101,15 @@ screenshotted on a cluster: say "verified in preview" until it has been.
     level; a filter that removes the branch falls back to the root.
   - A date path (`path: ['year', 'month']` with ISO months) drills onto a real time axis. The drill only filters rows
     the tile has, so the search needs every level.
-- **Known 0.16.0 traps** (BbekShr/mayacharts#76, and #89 to #93: a `series1` token beats a `colors` map, `was` ghosts
-  are clipped and missing from the tooltip, labels keep dark ink on dark fills, `text.noData` does not wrap). Gaps that
-  kept a chart off MayaCharts or cost it a feature are #78 to #88; check them before hand-building.
-  Also: with no rows, `title` / `subtitle` tokens print raw, so set them
-  only when there are rows (`subtitle: data.length ? '...' : ''`, or skip tokens in an adapter tile); tokens are not
-  filled on scatter; `{total}` sums every series while `{max.y}` and `{last.y}` take one, so on a this-year /
-  last-year line quote `{x}` tokens or compute the headline; `annotate: []` throws (omit the key); in a tile under
-  ~200 x 130 a title plus subtitle crowd the plot; a slope rule shows its label but not its value; after a sankey
-  drill every node takes one colour (the map holds at the root); `aggregate: { ratio }` cannot be combined with a
-  `y` array.
+- **0.16.0 traps that 0.17.0 fixed** (every issue we filed, BbekShr/mayacharts#76 and #78 to #93, is closed): a
+  series token beat a `colors` map, `was` ghosts were clipped and missing from the tooltip, labels kept dark ink on
+  dark fills, `text.noData` did not wrap, raw tokens printed with no rows, tokens were not filled on scatter,
+  `annotate: []` and `colorBy: null` threw, a slope rule showed no value, a sankey lost its colours after a drill, and
+  `aggregate: { ratio }` could not go with a `y` array. The library charts still carry some 0.16.0 workarounds
+  (derived fields, pivots, hand-built legends); each is worth retiring when the chart is next touched, using the new
+  options: `facet`, `params`, `frameControl`, `list`, table `page` / `filter` / `expand`, `toggle`, named themes. The
+  workarounds that remain true: `{total}` sums every series while `{max.y}` and `{last.y}` take one unless you add a
+  series selector (`{max.y:2025}`, 0.17.0); in a tile under ~200 x 130 a title plus subtitle crowd the plot.
 - **Small tiles.** The chart fills its container's height and draws a compact frame under about 160 px; dense bars
   roll into Other on their own; no `min-height` or `limit` arithmetic is needed.
 - **Shadow DOM**: the marks live in the element's open shadow root (`data-maya="mark"`, `data-x`). `probe.mjs` and

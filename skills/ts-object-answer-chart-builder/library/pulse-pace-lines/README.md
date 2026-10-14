@@ -6,10 +6,10 @@ Is this year ahead of or behind the same point in earlier years?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [date].monthly` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 8x6 grid units (02 Pulse tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Hover a month for every year's cumulative sales. Click a point on a line to select it (Escape clears). On narrow tiles the legend names the years, and clicking a key hides or shows a year; wider tiles name each line at its right end with its total. Arrow keys step through months and years.

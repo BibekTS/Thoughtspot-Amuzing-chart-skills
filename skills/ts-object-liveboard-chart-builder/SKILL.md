@@ -1,6 +1,6 @@
 ---
 name: ts-object-liveboard-chart-builder
-description: Build or rebuild a whole ThoughtSpot Liveboard of custom charts (BYOC tiles) that tells one story across numbered tabs, on a real model, through the ThoughtSpot MCP. An intake checks the prerequisites and asks the model, Liveboard, story, audience, size, filters and sign-in as pick-from-a-list questions. It profiles the model, plans the tabs and the question each answers, has each tile built by ts-object-answer-chart-builder on real searches, writes the About and banner tiles, adds Liveboard filters, patches the Liveboard in checksummed blocks (validate, commit, round-trip proof) and screenshots every tab in a logged-in browser. Use when the user wants a storytelling or demo Liveboard of custom charts, wants tiles added to or rearranged on such a Liveboard, or wants the Amuzing chart samples Liveboard rebuilt. Needs ts-object-answer-chart-builder installed alongside and the ThoughtSpot MCP (execute-thoughtspot-code). Not for a single chart or for Liveboards of native ThoughtSpot charts.
+description: Build or rebuild a whole ThoughtSpot Liveboard of custom charts (BYOC tiles) that tells one story across numbered tabs, on a real model, through the ThoughtSpot MCP. An intake checks the prerequisites and asks the model, Liveboard, story, audience, size, filters, chart library and sign-in as pick-from-a-list questions. It profiles the model, plans the tabs and the question each answers, has each tile built by ts-object-answer-chart-builder on real searches, writes the About and banner tiles, adds Liveboard filters, patches the Liveboard in checksummed blocks (validate, commit, round-trip proof) and screenshots every tab in a logged-in browser. Use when the user wants a storytelling or demo Liveboard of custom charts, wants tiles added to or rearranged on such a Liveboard, or wants the Amuzing chart samples Liveboard rebuilt. Needs ts-object-answer-chart-builder installed alongside and the ThoughtSpot MCP (execute-thoughtspot-code). Not for a single chart or for Liveboards of native ThoughtSpot charts.
 ---
 
 # ThoughtSpot custom charts Liveboard builder
@@ -77,6 +77,17 @@ models by `name_pattern`, because an unfiltered listing of an org's logical tabl
 | Charts | Anything the charts must include or avoid? | "No preference (Recommended)", "Maps where the data has places", "KPIs and tables first", "Only reuse library charts" |
 | Check | The last step screenshots every tab in ThoughtSpot, which needs one SSO sign-in in a browser window. How should it go? | "Sign in for this run, sign out at the end (Recommended)", "Sign in and stay signed in on this cluster for later runs", "Skip the screenshots, report the tabs as unverified" |
 
+Round 3:
+
+| Header | Question | Options |
+|---|---|---|
+| Library | Which chart library should the tiles use? | "Let Claude pick per tile", "MayaCharts for every tile", plus the two other libraries that best fit the planned shapes (for example "ECharts for every tile", "D3 for every tile"). "Other" takes any library the chart skill covers, or a mix ("D3 for maps, MayaCharts for the rest") |
+
+The library is the user's call: ask **Library** unless their message names one, and mark none of its
+options "(Recommended)". The library charts are almost all MayaCharts, so any other library means
+those tiles are redrawn rather than reused (more build time, no `--reuse`); say so in the option's
+description. "Only reuse library charts" under **Charts** implies MayaCharts, so skip **Library** then.
+
 If 0a found no browser (usual in the Claude app), drop the sign-in option from **Check** and say the
 screenshots cannot run here. For an existing Liveboard, skip **Size** and ask what should change:
 "Add tiles", "Change tiles", "Rearrange tabs or filters".
@@ -132,7 +143,10 @@ A `refused` result means nothing was created: read the status and fix the TML be
 
 Each tile is a library chart (the user's library, or `<C>/library/<slug>/`), built by the chart skill's procedure with a **real-data
 fixture** (the tile's exact search through `searchdata`) and the library contract. Reuse a library chart
-when one fits (change its search and copy; keep the slug if it is the same chart). For many tiles,
+when one fits (change its search and copy; keep the slug if it is the same chart). Build each tile in
+the library from Step 0 and pass it to the chart skill (and in each tile brief), so its own Library
+question is already answered; with "Let Claude pick per tile", the chart skill's Library choice picks.
+A library chart drawn in another library keeps its search, derived fields and interactions. For many tiles,
 brief parallel subagents, one tab each, with `references/tile-brief.md`.
 
 Narrative tiles (About hero, guide, tab banners) are not hand-built: write one
@@ -292,6 +306,8 @@ Update the example's README when the story changes.
 
 | Version | Date | Change |
 |---|---|---|
+| 4.7.0 | 2026-10-14 | The library tiles are on MayaCharts 0.18.1 with their theme in `chart.css`; the shared core changed, so every tile was re-synced and `--core-ref` sends the new checksum. Preview only until the sample Liveboard is re-imported and screenshotted |
+| 4.6.0 | 2026-10-13 | Step 0 asks the chart library (Round 3): "Let Claude pick per tile", "MayaCharts for every tile" or another library, none marked recommended. Step 4 builds each tile in that library and passes it to the chart skill; a library chart in another library is redrawn, not reused |
 | 4.5.0 | 2026-10-12 | 42 more tiles are MayaCharts 0.16.0 (48 of 58), drawn through the shared core's new `AZ.maya(spec)`; the core changed, so every tile was re-synced and `--core-ref` sends the new checksum. Preview only until the sample Liveboard is re-imported and screenshotted; `next-action-list`, `next-what-if` and the text tiles are unchanged |
 | 4.4.0 | 2026-10-12 | The six MayaCharts tiles are on MayaCharts 0.16.0 and render-complete once their entrance animation has settled (`maya-settled`), so a PDF export no longer catches them half drawn. Still preview only until the sample Liveboard is re-imported and screenshotted |
 | 4.3.0 | 2026-10-12 | `what-sunburst`, `what-treemap-drill` and `what-money-sankey` are MayaCharts tiles now (preview only until the sample Liveboard is re-imported and screenshotted). They keep the shared core, so packing is unchanged |

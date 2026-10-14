@@ -25,7 +25,7 @@ library and search). Use the `examples/` files further down only for shapes the 
 
 | Pattern | Copy | Library | Why this one |
 |---|---|---|---|
-| Any standard business shape (bar, line, KPI, waterfall, treemap ...) | `examples/maya-was-bars` | MayaCharts | 7 lines, no shared core: one `maya.host.thoughtspot` call whose spec draws bars with a ghost of last year straight from long rows (`was: { by }`) and a data-token headline. The starter for a standalone MayaCharts tile (preview-verified, not yet on a cluster) |
+| Any standard business shape (bar, line, KPI, waterfall, treemap ...) | `examples/maya-was-bars` | MayaCharts | 6 lines of JS plus the theme in `chart.css`, no shared core: one `maya.host.thoughtspot` call whose spec draws bars with a ghost of last year straight from long rows (`was: { by }`) and a data-token headline. The starter for a standalone MayaCharts tile (preview-verified, not yet on a cluster) |
 | Hierarchy with animated zoom | `library/what-sunburst` | MayaCharts | `type: 'sunburst'` with `drill: true`: rings, centre total, shares, animated zoom and crumbs from one spec; family hues from `colors: AZ.T.family`, thin wedges folded by `minAngle` (preview only) |
 | Hierarchy as rectangles, drill by click | `library/what-treemap-drill` | MayaCharts | `type: 'treemap'` with `drill: true` and `depth: 2`: families with their item types inside, drill with crumbs and a way back (preview only) |
 | Flow between two or three dimensions | `library/what-money-sankey`, `library/what-chord` | MayaCharts / D3 | Sankey: `type: 'sankey'`, click a region, then a family, to drill into its flows (preview only). Chord (D3) drills a family, which MayaCharts' chord cannot yet |

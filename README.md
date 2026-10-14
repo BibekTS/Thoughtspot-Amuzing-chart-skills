@@ -41,20 +41,21 @@ A run goes:
 | Preview | A Chromium window you watch; it reloads on every edit | Headless; each attempt comes back as a PNG |
 | First run | Installs Playwright + Chromium (~2 min, asked once) | Installs `playwright-core` (~30 s), uses the sandbox's Chromium |
 | Deliverables | `~/.cache/ts-charts/output/<chart-name>/` | `<chart-name>/` in the chat's outputs folder |
-| Chart libraries | All; MayaCharts is the default for standard shapes | HTML tables and raw SVG are fully previewed; CDN libraries (MayaCharts, Chart.js, Plotly, gridjs) are usually blocked, so those charts are written but marked *not previewed* |
+| Chart libraries | All; you pick one, or let Claude pick by shape | HTML tables and raw SVG are fully previewed; CDN libraries (MayaCharts, Chart.js, Plotly, gridjs) are usually blocked, so those charts are written but marked *not previewed* |
 
 If a window cannot open in Claude Code either — no display, or Chromium fails to start
 headed — it falls back to headless on its own and says so.
 
 ### Chart libraries
 
-[MayaCharts](https://bbekshr.github.io/mayacharts/) (MIT, no dependencies) is the default for standard business
+The intake asks which library to use: pick one, or let Claude pick by shape. When Claude picks,
+[MayaCharts](https://bbekshr.github.io/mayacharts/) (MIT, no dependencies) is the first fit for standard business
 shapes: bar, line, area, scatter, KPI, waterfall, heatmap, table, treemap, sunburst, sankey, funnel, box plot and
 gauge. One JSON spec gives the marks, tooltip, keyboard focus, selection, drill, empty state and resize, so a complete
 tile is 3 lines of `chart.js`.
 
 ```js
-const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js';
+const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js';
 const go = () => maya.host.thoughtspot(viz, { type: 'bar', x: /item/i, y: /sales/i, title: '{max.x} leads with {max.y}' });
 if (window.maya?.host) go(); else { const s = document.querySelector('script[src="' + MAYA + '"]') ?? document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA })); s.addEventListener('load', go); s.addEventListener('error', () => { (document.getElementById('chart') ?? document.body).textContent = 'MayaCharts could not load from ' + MAYA; viz?.events?.emitRenderCompletedEvent?.(); }); }
 ```

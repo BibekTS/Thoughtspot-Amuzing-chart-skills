@@ -6,10 +6,10 @@ Which states carry the sales, and how many stores sit behind them?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [store] [state] [region]` |
-| Library | MayaCharts 0.16.0 (maya.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.global.js from jsDelivr) |
 | Tile | 7x7 grid units (03 Where tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.global.js` |
 
 ## Interactions
 Click Sales or Stores to switch what the fill shows (summed sales, or the number of stores in the state). Hover or arrow-key to a state for its value; click states to select several, Escape clears.

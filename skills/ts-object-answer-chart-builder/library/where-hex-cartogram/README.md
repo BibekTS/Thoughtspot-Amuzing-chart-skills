@@ -6,10 +6,10 @@ Which states have sales, and how do they rank?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [state]` |
-| Library | MayaCharts 0.16.0 (maya.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.global.js from jsDelivr) |
 | Tile | 5x7 grid units (03 Where tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.global.js` |
 
 ## Interactions
 Click Sales or Share of total to switch the measure (fill, legend, subtitle and tooltip follow). Hover or arrow-key to a hex for the state and its value; the hovered hex is outlined. Click hexes to select several; Escape clears. States without sales are drawn as empty outlines.

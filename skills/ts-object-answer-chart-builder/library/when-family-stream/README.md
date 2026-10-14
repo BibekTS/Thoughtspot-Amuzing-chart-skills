@@ -6,10 +6,10 @@ Does the product-family mix change over time?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [item type] [date].quarterly` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 12x6 grid units (05 When tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Toggle Sales / Share of quarter: Sales stacks the families in dollars, Share stacks them to 100% of each quarter. Hover a quarter for every family's value; click a family in the legend (narrow tiles) to hide or show it, wide tiles name each family at its right end. Drag across the plot to zoom into a span of quarters; double-click or Escape resets.

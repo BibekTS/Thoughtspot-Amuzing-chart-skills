@@ -6,10 +6,10 @@ Which stores lead this year, which are climbing, and which are in form?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [store] [region] [date].monthly [date].'this year' [date].'last year'` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 12x7 grid units (06 Who tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Click a column header (or Enter / Space on it) to sort by store, YTD sales, change on last year, movement or form; rows start in league order (YTD sales, highest first). Hover a row's bar for a tooltip with all four values. Click a row to select it; Escape clears. Arrow keys move between rows.

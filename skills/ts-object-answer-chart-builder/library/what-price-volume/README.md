@@ -6,10 +6,10 @@ Which item types combine high price with high volume?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [quantity purchased] [item type]` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 8x6 grid units (04 What tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Hover or arrow-key to a bubble for its item type, family, units, price and sales, with crosshair values on both axes. Click a bubble (or Enter) to select it; click a family in the legend to select (isolate) that family; Escape clears. Drag across the plot to zoom; double-click or Escape resets.

@@ -6,10 +6,10 @@ Which stores are furthest below last year on the same quarters, against a thresh
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [store] [date].quarterly` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 6x6 grid units (07 Next tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Hover a store for its change on last year (with an above or below the line tone), sales this year and sales last year. Click stores to select them (Escape clears). Arrow keys step through stores. The threshold is the `THRESHOLD` constant at the top of the body (default -5%), not a slider.

@@ -6,10 +6,10 @@ Which item types carry the sales, and what do they earn per unit? Year-to-date c
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [quantity purchased] [item type] [date].quarterly` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 8x7 grid units (07 Next tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Hover a bubble for the item type, its family, share of sales, sales per unit and sales. The measure toggle above the plot switches the vertical axis between sales per unit and change on the same quarters last year. Click bubbles to select several (the others dim; Escape clears); click a family in the legend to hide or show it. Drag to zoom; double-click or Escape resets. Arrow keys step through the bubbles.

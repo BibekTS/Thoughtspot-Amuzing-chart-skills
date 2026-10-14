@@ -6,10 +6,10 @@ How do sales split from family to item type to product?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [item type] [product]` |
-| Library | MayaCharts 0.16.0 (maya.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.global.js from jsDelivr) |
 | Tile | 6x7 grid units (What tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.global.js` |
 
 ## Interactions
 Hover a wedge for its sales and share of the parent (other wedges dim). Click a wedge to zoom into it (animated), with a breadcrumb of the path; Back, Escape or a click on empty space goes up a level. The centre shows the total of the current level.

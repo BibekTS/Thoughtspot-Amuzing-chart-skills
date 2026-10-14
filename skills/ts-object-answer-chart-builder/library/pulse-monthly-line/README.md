@@ -6,10 +6,10 @@ How have sales moved month to month, and where did the level change?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [date].monthly` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 8x6 grid units (Pulse tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Hover for the crosshair and a tooltip with the month, sales and the same month last year. Click a legend key (shown on narrow tiles; wider tiles name each line at its right end) to hide or show a line. Drag across the plot to zoom into a span of months; double-click or Escape resets. The chart is keyboard navigable: arrow keys step through months and between the two lines.

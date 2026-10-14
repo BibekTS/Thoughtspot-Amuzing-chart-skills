@@ -6,10 +6,10 @@ Which item types earn more than their share of units (premium) and which sell on
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[sales] [quantity purchased] [item type] [product]` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 8x7 grid units (04 What tab) |
 | Data mode | B, live only. With no rows it shows MayaCharts' empty state, worded to name the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` (loaded by chart.js) |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` (loaded by chart.js) |
 
 ## Interactions
 Hover or focus a bar for its tooltip: the gap in points with Premium or Volume, plus the share of sales and the share of units behind it; the other bars dim. Click a bar, or focus it and press Enter, to drill into that item type's products; the breadcrumb, Back, Escape or a click on empty space goes back up. Arrow keys move between bars. The subtitle names the leader of the level shown and follows the drill. All of this is built into MayaCharts.

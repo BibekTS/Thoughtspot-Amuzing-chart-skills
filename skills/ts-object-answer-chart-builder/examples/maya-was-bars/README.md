@@ -12,7 +12,7 @@ How did each item type do this year, against the year before?
 | Verified | In the preview only: render, absent / wrapped / empty data, 280x300 to 1400x500 tiles, a 400x220 tile, hover sweep. `sample-data.json` is synthetic, shaped like the search's output. Not yet seen on a cluster tile |
 
 ## What MayaCharts does here
-`chart.js` is 7 lines: the comment, the pinned URL, one adapter call holding the spec (4 lines), and the line that loads the
+`chart.js` is 6 lines: the comment, the pinned URL, one adapter call holding the spec (3 lines; the theme is `--maya-*` in `chart.css`), and the line that loads the
 library. `maya.host.thoughtspot(viz, spec)` reads the search, unwraps cells, matches `/item/i`, `/sales/i` and
 `/year|date/i` against the columns ThoughtSpot returns, mounts `#chart`, and signals render-complete once the chart
 has settled, errors included. `was: { by: /year|date/i }` takes the search's one row per item type and year as it is:

@@ -6,10 +6,10 @@ Which products carry the sales, and how does one compare with its item type?
 |---|---|
 | Model | (Sample) Retail - Apparel |
 | Search | `[product] [item type] [sales] [quantity purchased]` |
-| Library | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) |
+| Library | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) |
 | Tile | 12x7 grid units (06 Who tab) |
 | Data mode | B, live only. With no rows it shows an empty state that names the search. |
-| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.16.0/dist/maya.core.global.js` |
+| CDN | `https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js` |
 
 ## Interactions
 Click a column header (or Enter / Space on it) to sort by that column; click again to flip the order. Hover a row's bar for a tooltip with its sales, units, average price and price against its item type. Click a row to select it; Escape clears. Arrow keys move between rows.
