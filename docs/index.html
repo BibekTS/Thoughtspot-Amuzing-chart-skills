@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Amuzing chart skills: ThoughtSpot custom charts, rendered and checked</title>
-  <meta name="description" content="Two Claude skills that build ThoughtSpot custom charts (BYOC), and whole Liveboards of them, by running the code in a real browser until it looks right.">
+  <meta name="description" content="Two Claude skills that build ThoughtSpot custom charts (BYOC), 2D and interactive 3D, and whole Liveboards of them, by running the code in a real browser until it looks right.">
   <meta property="og:title" content="Amuzing chart skills">
   <meta property="og:description" content="Describe a chart. Get a ThoughtSpot custom chart that has already been rendered and checked.">
   <meta property="og:type" content="website">
@@ -163,6 +163,13 @@
     .gallery figure:hover figcaption { opacity: 1; }
     .gallery-note { color: var(--muted); font-size: 14px; margin-top: 6px; }
 
+    /* 3D */
+    .r3d { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+    .r3d figure { grid-column: span 2; margin: 0; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); background: var(--surface); }
+    .r3d figure.big { grid-column: span 3; }
+    .r3d figcaption { font-size: 14px; color: var(--muted); padding: 10px 14px; border-top: 1px solid var(--line); }
+    .r3d figcaption b { color: var(--text); font-weight: 600; margin-right: 6px; }
+
     /* Two skills */
     .skills { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .skill { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 26px; }
@@ -198,6 +205,7 @@
     @media (max-width: 960px) {
       .hero .wrap { grid-template-columns: 1fr; gap: 40px; }
       .steps, .skills { grid-template-columns: 1fr; }
+      .r3d figure, .r3d figure.big { grid-column: span 3; }
       .checks { grid-template-columns: 1fr 1fr; }
       .stats .wrap { grid-template-columns: 1fr 1fr; }
       .stat:nth-child(3) { border-left: 0; padding-left: 0; }
@@ -216,6 +224,8 @@
       .closing .row { padding: 22px; }
       .loop-figure { overflow-x: auto; }
       .loop { min-width: 760px; }
+      .r3d { grid-template-columns: 1fr; }
+      .r3d figure, .r3d figure.big { grid-column: auto; }
       .gallery { columns: 2; column-gap: 10px; }
       .gallery figure { margin-bottom: 10px; }
       .gallery figure:nth-child(n+9) { display: none; }
@@ -233,6 +243,7 @@
         <a class="hide-sm" href="#use">Use it</a>
         <a class="hide-sm" href="#how">How it works</a>
         <a class="hide-sm" href="#gallery">Gallery</a>
+        <a class="hide-sm" href="#three-d">3D</a>
         <a href="https://github.com/BibekTS/Thoughtspot-Amuzing-chart-skills">GitHub</a>
         <button class="theme-toggle" type="button">theme: dark</button>
       </nav>
@@ -245,7 +256,7 @@
         <div>
           <p class="eyebrow">Claude skills for ThoughtSpot</p>
           <h1>Describe a chart.<br><span class="dim">Get one that's <em>already been checked.</em></span></h1>
-          <p class="lead">Claude writes a ThoughtSpot custom chart (BYOC), renders it in a real browser, looks at the screenshot and fixes it until the tile is right. <b>You paste three files.</b></p>
+          <p class="lead">Claude writes a ThoughtSpot custom chart (BYOC), renders it in a real browser, looks at the screenshot and fixes it until the tile is right, from a bar chart to an interactive 3D map. <b>You paste three files.</b></p>
           <div class="ctas">
             <a class="btn btn-primary" href="#use">Install in 1 minute</a>
             <a class="btn" href="#gallery">See 58 charts</a>
@@ -265,7 +276,7 @@
         <div class="stat" role="listitem"><b>3 files</b><span>chart.html, chart.css, chart.js: paste-ready</span></div>
         <div class="stat" role="listitem"><b>≤ 8 passes</b><span>of render, screenshot, critique, fix</span></div>
         <div class="stat" role="listitem"><b>58</b><span>proven charts to start from</span></div>
-        <div class="stat" role="listitem"><b>9</b><span>libraries: MayaCharts, D3, ECharts, Plotly and more</span></div>
+        <div class="stat" role="listitem"><b>2D + 3D</b><span>MayaCharts, D3, ECharts, Plotly, Three.js and more</span></div>
       </div>
     </div>
 
@@ -408,6 +419,24 @@ cp -R Thoughtspot-Amuzing-chart-skills/skills/* .claude/skills/</code></pre>
       </div>
     </section>
 
+    <section class="block reveal" id="three-d">
+      <div class="wrap">
+        <p class="eyebrow">New · Three.js</p>
+        <h2>And in 3D.</h2>
+        <p class="intro"><em>Retail in 3D</em> is a seven-tab Liveboard built with these skills: one interactive Three.js chart per tab, each reading its live search. Drag to turn, click to fly to a mark, switch between a 3D view and its flat equivalent. Every tile is the same three pasted files.</p>
+        <div class="r3d">
+          <figure class="big"><img loading="lazy" src="assets/charts/r3d-where.jpg" width="1100" height="418" alt="US states extruded as towers by sales, Nevada and Montana tallest"><figcaption><b>Where</b> States as towers. Click one to fly to it.</figcaption></figure>
+          <figure class="big"><img loading="lazy" src="assets/charts/r3d-products.jpg" width="1100" height="418" alt="Every product as a sphere, clustered by family and sized by sales"><figcaption><b>Products</b> Every product as a sphere, sized by sales.</figcaption></figure>
+          <figure><img loading="lazy" src="assets/charts/r3d-surge.jpg" width="1100" height="418" alt="Monthly sales by region as ribbons of terrain"><figcaption><b>Surge</b> Regions as terrain, with camera stops.</figcaption></figure>
+          <figure><img loading="lazy" src="assets/charts/r3d-what.jpg" width="1100" height="418" alt="Blocks of sales by item type and region, coloured by family"><figcaption><b>What</b> A city of item types by region.</figcaption></figure>
+          <figure><img loading="lazy" src="assets/charts/r3d-who.jpg" width="1100" height="418" alt="Stores as pillars in a ring by region"><figcaption><b>Who</b> Stores as pillars in a regional ring.</figcaption></figure>
+          <figure class="big"><img loading="lazy" src="assets/charts/r3d-trade.jpg" width="1100" height="418" alt="A path of price per unit against units sold through time"><figcaption><b>Trade</b> Price vs units as a path through time.</figcaption></figure>
+          <figure class="big"><img loading="lazy" src="assets/charts/r3d-seasons.jpg" width="1100" height="418" alt="A helix of monthly sales, one turn per year"><figcaption><b>Seasons</b> A helix, one turn per year.</figcaption></figure>
+        </div>
+        <p class="gallery-note">Captured on a ThoughtSpot cluster tile. Three.js is pinned to an exact version like every other library. These seven are not in the shipped chart library yet.</p>
+      </div>
+    </section>
+
     <section class="block reveal" id="skills">
       <div class="wrap">
         <h2>One chart, or a whole Liveboard.</h2>
@@ -447,6 +476,7 @@ cp -R Thoughtspot-Amuzing-chart-skills/skills/* .claude/skills/</code></pre>
           <a class="lib" href="https://echarts.apache.org/"><b>ECharts</b><span>dense flow diagrams</span></a>
           <a class="lib" href="https://plotly.com/javascript/"><b>Plotly</b><span>icicles, deep hierarchies</span></a>
           <a class="lib" href="https://www.chartjs.org/"><b>Chart.js</b><span>radar, polar, gauges</span></a>
+          <a class="lib" href="https://threejs.org/"><b>Three.js</b><span>interactive 3D: towers, terrain, helixes</span></a>
           <a class="lib" href="https://gridjs.io/"><b>Grid.js</b><span>sortable tables</span></a>
           <div class="lib"><b>HTML table</b><span>pivots, crosstabs</span></div>
           <div class="lib"><b>Raw SVG / Canvas</b><span>typographic KPIs, hand-drawn maps</span></div>
