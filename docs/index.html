@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Amuzing chart skills: ThoughtSpot custom charts, rendered and checked</title>
+  <meta name="description" content="Two Claude skills that build ThoughtSpot custom charts (BYOC), and whole Liveboards of them, by running the code in a real browser until it looks right.">
+  <meta property="og:title" content="Amuzing chart skills">
+  <meta property="og:description" content="Describe a chart. Get a ThoughtSpot custom chart that has already been rendered and checked.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="assets/charts/what-money-sankey.jpg">
+  <meta name="theme-color" content="#0c0d10">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/geist@5.3.0/index.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/geist-mono@5.3.0/index.css">
+  <script>try{if(localStorage.getItem("amuzing-theme")==="light")document.documentElement.setAttribute("data-theme","light")}catch(e){}</script>
+  <style>
+    /* Dark by default, one accent, one radius. Light theme is a user choice (data-theme="light"). */
+    :root {
+      --bg: #0c0d10;
+      --surface: #121419;
+      --raised: #191c22;
+      --text: #eceef2;
+      --muted: #8f96a3;
+      --line: #252932;
+      --accent: #7b9cff;
+      --accent-ink: #0a0f22;
+      --accent-soft: #161e38;
+      --glow: rgba(123, 156, 255, 0.16);
+      --grid: rgba(236, 238, 242, 0.045);
+      --c1: #e0715a; --c2: #2fa58c; --c3: #e3a52b; --c4: #5b8de8;
+      --radius: 8px;
+      --sans: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      --mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      color-scheme: dark;
+    }
+    :root[data-theme="light"] {
+      --bg: #f5f6f8; --surface: #ffffff; --raised: #eceef2; --text: #14171c; --muted: #5a6270;
+      --line: #dadde4; --accent: #2f55d4; --accent-ink: #f4f6ff; --accent-soft: #e3e9fc;
+      --glow: rgba(47, 85, 212, 0.10); --grid: rgba(20, 23, 28, 0.06);
+      --c1: #c9553d; --c2: #16866f; --c3: #b37c06; --c4: #2f6bd6;
+      color-scheme: light;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; scroll-padding-top: 76px; scroll-behavior: smooth; }
+    body {
+      margin: 0; overflow-x: clip; background: var(--bg); color: var(--text); font-family: var(--sans);
+      font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased;
+    }
+    body::before {
+      content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background-image: radial-gradient(var(--grid) 1px, transparent 1px); background-size: 28px 28px;
+      -webkit-mask-image: linear-gradient(to bottom, #000, rgba(0,0,0,.3) 60%, transparent);
+      mask-image: linear-gradient(to bottom, #000, rgba(0,0,0,.3) 60%, transparent);
+    }
+    body::after {
+      content: ""; position: fixed; z-index: -1; pointer-events: none; top: -260px; right: -180px;
+      width: 760px; height: 760px; border-radius: 50%; background: radial-gradient(closest-side, var(--glow), transparent);
+    }
+    a { color: inherit; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+    a:hover { color: var(--accent); }
+    code, pre { font-family: var(--mono); font-size: 0.875em; }
+    :not(pre) > code { background: var(--raised); border: 1px solid var(--line); border-radius: 4px; padding: 0.1em 0.35em; }
+    pre {
+      margin: 0; overflow-x: auto; background: var(--surface); border: 1px solid var(--line);
+      border-radius: var(--radius); padding: 14px 16px; line-height: 1.6;
+    }
+    img { display: block; max-width: 100%; height: auto; }
+    h1, h2, h3 { line-height: 1.15; letter-spacing: -0.02em; margin: 0; }
+    .wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+    .dim { color: var(--muted); }
+    .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin: 0 0 12px; }
+
+    /* Header */
+    .top { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+    .top .wrap { display: flex; align-items: center; justify-content: space-between; height: 60px; gap: 16px; }
+    .brand { font-weight: 650; text-decoration: none; letter-spacing: -0.01em; display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+    .brand svg { flex: none; }
+    .nav { display: flex; align-items: center; gap: 22px; font-size: 14px; }
+    .nav a { text-decoration: none; color: var(--muted); }
+    .nav a:hover { color: var(--text); }
+    .theme-toggle { font: 12px var(--mono); color: var(--muted); background: none; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+    .theme-toggle:hover { color: var(--text); border-color: var(--muted); }
+
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 18px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); text-decoration: none; font-weight: 550; font-size: 15px; }
+    .btn:hover { border-color: var(--muted); color: var(--text); }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+    .btn-primary:hover { color: var(--accent-ink); filter: brightness(1.08); }
+
+    /* Hero */
+    .hero { padding: 72px 0 56px; }
+    .hero .wrap { display: grid; grid-template-columns: 1.02fr 1fr; gap: 56px; align-items: center; }
+    .hero h1 { font-size: clamp(36px, 5.2vw, 60px); font-weight: 650; }
+    .hero h1 em { font-style: normal; color: var(--accent); }
+    .lead { font-size: 19px; color: var(--muted); margin: 22px 0 30px; max-width: 34em; }
+    .lead b { color: var(--text); font-weight: 550; }
+    .ctas { display: flex; flex-wrap: wrap; gap: 12px; }
+
+    /* Hero demo: prompt, loop, three files */
+    .demo { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; box-shadow: 0 30px 80px -40px rgba(0,0,0,.6); }
+    .prompt { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; }
+    .prompt .who { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--raised); border: 1px solid var(--line); display: grid; place-items: center; font: 11px var(--mono); color: var(--muted); }
+    .prompt p { margin: 2px 0 0; background: var(--raised); border: 1px solid var(--line); border-radius: 4px 12px 12px 12px; padding: 8px 12px; }
+    .passes { display: flex; gap: 6px; align-items: center; margin: 14px 0 12px 36px; font: 12px var(--mono); color: var(--muted); flex-wrap: wrap; }
+    .passes i { font-style: normal; border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+    .passes i.ok { border-color: var(--accent); color: var(--accent); }
+    .tile { margin-left: 36px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); background: #fff; }
+    .files { display: flex; gap: 8px; margin: 12px 0 0 36px; flex-wrap: wrap; }
+    .files span { font: 12.5px var(--mono); padding: 5px 10px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+    .files span.note { background: none; border-color: transparent; color: var(--muted); padding-left: 2px; }
+
+    /* Stats */
+    .stats { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 60%, transparent); }
+    .stats .wrap { display: grid; grid-template-columns: repeat(4, 1fr); }
+    .stat { padding: 22px 20px; border-left: 1px solid var(--line); }
+    .stat:first-child { border-left: 0; padding-left: 0; }
+    .stat b { display: block; font-size: 30px; font-weight: 650; letter-spacing: -0.02em; }
+    .stat span { font-size: 14px; color: var(--muted); }
+
+    /* Blocks */
+    .block { padding: 88px 0 0; }
+    .block h2 { font-size: clamp(28px, 3.4vw, 40px); font-weight: 650; }
+    .intro { color: var(--muted); font-size: 17px; max-width: 46em; margin: 14px 0 36px; }
+
+    /* Three steps */
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; counter-reset: step; }
+    .step { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    .step h3 { font-size: 19px; display: flex; align-items: center; gap: 10px; }
+    .step h3::before { counter-increment: step; content: counter(step); font: 600 13px var(--mono); width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+    .step p { margin: 0; color: var(--muted); font-size: 15px; }
+    .codeblock { position: relative; }
+    .codeblock pre { padding-right: 64px; font-size: 13px; }
+    .copy { position: absolute; top: 8px; right: 8px; font: 11px var(--mono); color: var(--muted); background: var(--raised); border: 1px solid var(--line); border-radius: 4px; padding: 3px 8px; cursor: pointer; }
+    .copy:hover { color: var(--text); }
+    .asks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+    .asks li { font-size: 14.5px; padding: 9px 12px; background: var(--raised); border: 1px solid var(--line); border-radius: 4px 12px 12px 12px; }
+    .paste { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .paste div { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; font: 12px var(--mono); }
+    .paste b { display: block; padding: 5px 8px; background: var(--raised); border-bottom: 1px solid var(--line); font-weight: 500; color: var(--muted); }
+    .paste span { display: block; padding: 8px; color: var(--accent); }
+    .small { font-size: 13.5px !important; }
+    .tabs { display: flex; gap: 6px; margin: 2px 0 12px; }
+    .tabs button { font: 12px var(--mono); padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--muted); cursor: pointer; }
+    .tabs button[aria-selected="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+    [hidden] { display: none !important; }
+
+    /* Loop figure */
+    .loop-figure { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+    .loop { width: 100%; height: auto; display: block; font-family: var(--sans); }
+    .loop .mono { font-family: var(--mono); }
+    .spin { transform-origin: 600px 190px; animation: spin 14s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .checks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px; }
+    .check { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; background: var(--surface); }
+    .check b { display: block; font-size: 15px; margin-bottom: 2px; }
+    .check span { font-size: 14px; color: var(--muted); }
+
+    /* Gallery */
+    .gallery { columns: 4 240px; column-gap: 14px; }
+    .gallery figure { break-inside: avoid; margin: 0 0 14px; border-radius: 8px; overflow: hidden; background: #fff; border: 1px solid var(--line); position: relative; }
+    .gallery figcaption { position: absolute; left: 8px; bottom: 8px; font: 11.5px var(--mono); background: rgba(12,13,16,.78); color: #eceef2; padding: 2px 8px; border-radius: 4px; opacity: 0; transition: opacity .15s; }
+    .gallery figure:hover figcaption { opacity: 1; }
+    .gallery-note { color: var(--muted); font-size: 14px; margin-top: 6px; }
+
+    /* Two skills */
+    .skills { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .skill { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 26px; }
+    .skill h3 { font: 600 15px var(--mono); color: var(--accent); margin-bottom: 6px; letter-spacing: 0; }
+    .skill .what { font-size: 21px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 12px; line-height: 1.3; }
+    .skill ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 15px; }
+    .skill li { margin: 4px 0; }
+    .skill .needs { margin: 16px 0 0; font-size: 13.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; }
+
+    /* Libraries */
+    .libs { display: flex; flex-wrap: wrap; gap: 10px; }
+    .lib { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; background: var(--surface); min-width: 170px; flex: 1 1 170px; text-decoration: none; }
+    .lib b { font-size: 15.5px; }
+    .lib span { font-size: 13.5px; color: var(--muted); }
+    .lib.first { border-color: var(--accent); background: var(--accent-soft); }
+    .lib.first span { color: var(--text); opacity: .8; }
+
+    /* Closing */
+    .closing { padding-bottom: 96px; }
+    .closing .row { display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 12px; padding: 32px; background: linear-gradient(120deg, var(--accent-soft), var(--surface) 60%); }
+    .closing p { margin: 8px 0 0; color: var(--muted); max-width: 40em; }
+    .foot { border-top: 1px solid var(--line); padding: 22px 0; font-size: 13.5px; color: var(--muted); }
+    .foot .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+    .reveal { opacity: 0; transform: translateY(14px); transition: opacity .5s ease, transform .5s ease; }
+    .reveal.in { opacity: 1; transform: none; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .reveal { opacity: 1; transform: none; transition: none; }
+      .spin { animation: none; }
+    }
+
+    @media (max-width: 960px) {
+      .hero .wrap { grid-template-columns: 1fr; gap: 40px; }
+      .steps, .skills { grid-template-columns: 1fr; }
+      .checks { grid-template-columns: 1fr 1fr; }
+      .stats .wrap { grid-template-columns: 1fr 1fr; }
+      .stat:nth-child(3) { border-left: 0; padding-left: 0; }
+      .stat:nth-child(n+3) { border-top: 1px solid var(--line); }
+    }
+    @media (max-width: 640px) {
+      .wrap { padding: 0 16px; }
+      .hide-sm { display: none; }
+      .nav { gap: 14px; }
+      .hero { padding-top: 44px; }
+      .passes, .tile, .files { margin-left: 0; }
+      .checks { grid-template-columns: 1fr; }
+      .stat { padding: 16px 12px; }
+      .stat b { font-size: 24px; }
+      .block { padding-top: 64px; }
+      .closing .row { padding: 22px; }
+      .loop-figure { overflow-x: auto; }
+      .loop { min-width: 760px; }
+      .gallery { columns: 2; column-gap: 10px; }
+      .gallery figure { margin-bottom: 10px; }
+      .gallery figure:nth-child(n+9) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="./">
+        <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><rect x="1" y="11" width="5" height="10" rx="1.5" fill="var(--c1)"/><rect x="8.5" y="5" width="5" height="16" rx="1.5" fill="var(--accent)"/><rect x="16" y="1" width="5" height="20" rx="1.5" fill="var(--c2)"/></svg>
+        Amuzing chart skills
+      </a>
+      <nav class="nav" aria-label="Main">
+        <a class="hide-sm" href="#use">Use it</a>
+        <a class="hide-sm" href="#how">How it works</a>
+        <a class="hide-sm" href="#gallery">Gallery</a>
+        <a href="https://github.com/BibekTS/Thoughtspot-Amuzing-chart-skills">GitHub</a>
+        <button class="theme-toggle" type="button">theme: dark</button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <div>
+          <p class="eyebrow">Claude skills for ThoughtSpot</p>
+          <h1>Describe a chart.<br><span class="dim">Get one that's <em>already been checked.</em></span></h1>
+          <p class="lead">Claude writes a ThoughtSpot custom chart (BYOC), renders it in a real browser, looks at the screenshot and fixes it until the tile is right. <b>You paste three files.</b></p>
+          <div class="ctas">
+            <a class="btn btn-primary" href="#use">Install in 1 minute</a>
+            <a class="btn" href="#gallery">See 58 charts</a>
+          </div>
+        </div>
+        <div class="demo" aria-label="Example: a request becomes a checked chart and three files">
+          <div class="prompt"><span class="who">you</span><p>Sankey of sales from region to product family to item type</p></div>
+          <div class="passes" aria-label="Render attempts"><span>render</span><i>1</i><i>2</i><i class="ok">3 ✓</i><span>· edge cases ✓ · resize ✓</span></div>
+          <div class="tile"><img src="assets/charts/what-money-sankey.jpg" width="900" height="485" alt="A sankey of sales flowing from region to product family to item type"></div>
+          <div class="files"><span>chart.html</span><span>chart.css</span><span>chart.js</span><span class="note">→ paste into ThoughtSpot</span></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="stats" role="list">
+      <div class="wrap">
+        <div class="stat" role="listitem"><b>3 files</b><span>chart.html, chart.css, chart.js: paste-ready</span></div>
+        <div class="stat" role="listitem"><b>≤ 8 passes</b><span>of render, screenshot, critique, fix</span></div>
+        <div class="stat" role="listitem"><b>58</b><span>proven charts to start from</span></div>
+        <div class="stat" role="listitem"><b>9</b><span>libraries: MayaCharts, D3, ECharts, Plotly and more</span></div>
+      </div>
+    </div>
+
+    <section class="block reveal" id="use">
+      <div class="wrap">
+        <h2>Use it in three steps.</h2>
+        <p class="intro">Works in Claude Code, and in the Claude app with code execution turned on.</p>
+        <div class="steps">
+          <div class="step">
+            <h3>Install the skills</h3>
+            <div class="tabs" role="tablist">
+              <button type="button" role="tab" aria-selected="true" data-tab="cc">Claude Code</button>
+              <button type="button" role="tab" aria-selected="false" data-tab="app">Claude app</button>
+            </div>
+            <div data-panel="cc">
+              <div class="codeblock">
+                <pre><code>git clone https://github.com/BibekTS/Thoughtspot-Amuzing-chart-skills.git
+mkdir -p .claude/skills
+cp -R Thoughtspot-Amuzing-chart-skills/skills/* .claude/skills/</code></pre>
+                <button class="copy" type="button">Copy</button>
+              </div>
+              <p class="small" style="margin-top:10px">Needs Node 20+. The first run installs Playwright and Chromium (about 2 minutes, asked once).</p>
+            </div>
+            <div data-panel="app" hidden>
+              <div class="codeblock">
+                <pre><code>cd skills && zip -r ../ts-object-answer-chart-builder.zip \
+  ts-object-answer-chart-builder \
+  -x '*/node_modules/*' '*.DS_Store' '*/library/*/preview.png'</code></pre>
+                <button class="copy" type="button">Copy</button>
+              </div>
+              <p class="small" style="margin-top:10px">Turn on <em>Code execution and file creation</em>, then upload the zip under <em>Settings → Capabilities → Skills</em>.</p>
+            </div>
+          </div>
+          <div class="step">
+            <h3>Ask for a chart</h3>
+            <p>In plain words, with a screenshot, or by pointing at a tile that misbehaves. Claude asks a few pick-from-a-list questions first: model, data, search, library.</p>
+            <ul class="asks">
+              <li>“A diverging bar of revenue vs target by region”</li>
+              <li>“Make this screenshot a ThoughtSpot chart”</li>
+              <li>“My tile is blank when the search is empty, fix it”</li>
+            </ul>
+          </div>
+          <div class="step">
+            <h3>Paste three files</h3>
+            <p>Open a custom chart in ThoughtSpot and paste each file into its tab. You also get a <code>preview.png</code> and the exact search to build.</p>
+            <div class="paste" aria-label="ThoughtSpot custom chart tabs">
+              <div><b>HTML</b><span>chart.html</span></div>
+              <div><b>CSS</b><span>chart.css</span></div>
+              <div><b>JS</b><span>chart.js</span></div>
+            </div>
+            <p class="small">Connected to the ThoughtSpot MCP? It builds on your real search output and can save the chart as an answer.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block reveal" id="how">
+      <div class="wrap">
+        <h2>Seen, not guessed.</h2>
+        <p class="intro">Most AI chart code is written blind. Here every attempt is rendered through a stub of ThoughtSpot's host, so what Claude checked is exactly what you paste.</p>
+        <figure class="loop-figure">
+          <svg class="loop" viewBox="0 0 1200 380" role="img" aria-label="Your ask goes through an intake, then a loop of write, render, screenshot and critique that repeats up to 8 times, then edge-case checks, and out come three files.">
+            <defs>
+              <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker>
+              <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--accent)"/></marker>
+            </defs>
+            <!-- Ask -->
+            <rect x="14" y="140" width="160" height="100" rx="10" fill="var(--raised)" stroke="var(--line)"/>
+            <text x="94" y="182" text-anchor="middle" font-size="18" font-weight="600" fill="var(--text)">Your ask</text>
+            <text x="94" y="206" text-anchor="middle" font-size="13" fill="var(--muted)">words, screenshot,</text>
+            <text x="94" y="224" text-anchor="middle" font-size="13" fill="var(--muted)">or a broken tile</text>
+            <line x1="176" y1="190" x2="206" y2="190" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ah)"/>
+            <!-- Intake -->
+            <rect x="210" y="140" width="160" height="100" rx="10" fill="var(--raised)" stroke="var(--line)"/>
+            <text x="290" y="182" text-anchor="middle" font-size="18" font-weight="600" fill="var(--text)">Intake</text>
+            <text x="290" y="206" text-anchor="middle" font-size="13" fill="var(--muted)">model, data, search,</text>
+            <text x="290" y="224" text-anchor="middle" font-size="13" fill="var(--muted)">library, destination</text>
+            <line x1="372" y1="190" x2="404" y2="190" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ah)"/>
+            <!-- Loop: clockwise from 9 o'clock; the bottom arc is the fix that goes round again -->
+            <circle cx="600" cy="190" r="140" fill="var(--accent-soft)" stroke="var(--accent)" stroke-opacity=".5"/>
+            <g class="spin"><circle cx="600" cy="190" r="140" fill="none" stroke="var(--accent)" stroke-width="3" stroke-dasharray="60 820" stroke-linecap="round"/></g>
+            <text x="600" y="196" text-anchor="middle" font-size="40" font-weight="650" fill="var(--accent)">≤ 8×</text>
+            <text x="600" y="224" text-anchor="middle" font-size="13" fill="var(--muted)">stops early on a match;</text>
+            <text x="600" y="242" text-anchor="middle" font-size="13" fill="var(--muted)">asks you if it is stuck</text>
+            <g font-size="14.5" font-weight="600" fill="var(--text)" text-anchor="middle">
+              <rect x="408" y="174" width="104" height="32" rx="16" fill="var(--surface)" stroke="var(--accent)"/><text x="460" y="195">1 · Write</text>
+              <rect x="470" y="53" width="116" height="32" rx="16" fill="var(--surface)" stroke="var(--accent)"/><text x="528" y="74">2 · Render</text>
+              <rect x="604" y="53" width="140" height="32" rx="16" fill="var(--surface)" stroke="var(--accent)"/><text x="674" y="74">3 · Screenshot</text>
+              <rect x="680" y="174" width="124" height="32" rx="16" fill="var(--surface)" stroke="var(--accent)"/><text x="742" y="195">4 · Critique</text>
+            </g>
+            <rect x="548" y="318" width="104" height="26" rx="13" fill="var(--bg)" stroke="var(--accent)" stroke-opacity=".5"/>
+            <text x="600" y="336" text-anchor="middle" font-size="13" fill="var(--muted)">fix, go again</text>
+            <line x1="806" y1="190" x2="862" y2="190" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#ah2)"/>
+            <text x="834" y="180" text-anchor="middle" font-size="12" fill="var(--accent)">match</text>
+            <!-- Checks -->
+            <rect x="866" y="128" width="150" height="124" rx="10" fill="var(--raised)" stroke="var(--line)"/>
+            <text x="941" y="160" text-anchor="middle" font-size="18" font-weight="600" fill="var(--text)">Checks</text>
+            <g font-size="12.5" fill="var(--muted)" class="mono" text-anchor="middle">
+              <text x="941" y="186">empty · wrapped</text><text x="941" y="206">missing data</text><text x="941" y="226">resize · hover</text>
+            </g>
+            <line x1="1018" y1="190" x2="1046" y2="190" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#ah2)"/>
+            <!-- Output -->
+            <rect x="1050" y="116" width="130" height="148" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"/>
+            <g font-size="13" class="mono" fill="var(--accent)" text-anchor="middle">
+              <text x="1115" y="150">chart.html</text><text x="1115" y="174">chart.css</text><text x="1115" y="198">chart.js</text>
+            </g>
+            <text x="1115" y="226" text-anchor="middle" font-size="12" fill="var(--muted)">+ preview.png</text>
+            <text x="1115" y="244" text-anchor="middle" font-size="12" fill="var(--muted)">+ the search</text>
+          </svg>
+        </figure>
+        <div class="checks">
+          <div class="check"><b>No porting step</b><span>The preview runs the same three files you paste.</span></div>
+          <div class="check"><b>Edge cases</b><span>Missing, wrapped and empty data, and no host at all.</span></div>
+          <div class="check"><b>Any tile size</b><span>Narrow and wide tiles, plus pointer interaction.</span></div>
+          <div class="check"><b>Pinned and signed</b><span>Every CDN script has an exact version and an SRI hash.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block reveal" id="gallery">
+      <div class="wrap">
+        <h2>58 charts to start from.</h2>
+        <p class="intro">The library ships with the skill: one worked Liveboard, <em>Amuzing chart samples</em>, in seven tabs. Ask for a shape and Claude copies the closest proven chart, then adapts it to your search.</p>
+        <div class="gallery">
+          <figure><img loading="lazy" src="assets/charts/when-family-stream.jpg" alt="Stacked area of sales by product family, by quarter"><figcaption>when-family-stream</figcaption></figure>
+          <figure><img loading="lazy" src="assets/charts/what-sunburst.jpg" alt="Sunburst of sales by family, item type and product"><figcaption>what-sunburst</figcaption></figure>
+          <figure><img loading="lazy" src="assets/charts/kpi-ring.jpg" alt="Gauge KPI of sales year to date against last year"><figcaption>kpi-ring</figcaption></figure>
+          <figure><img loading="lazy" src="assets/charts/where-hex-cartogram.jpg" alt="US hex map of sales by state"><figcaption>where-hex-cartogram</figcaption></figure>
+          <figure><img loading="lazy" src="assets/charts/when-rank-bump.jpg" alt="Bump chart of rank over time"><figcaption>when-rank-bump</figcaption></figure>
+          <figure><img loading="lazy" src="assets/charts/when-calendar-heatmap.jpg" alt="Calendar heatmap of monthly sales by year"><figcaption>when-calendar-heatmap</figcaption></figure>
+          <figure><img loading="lazy" src="assets/charts/what-chord.jpg" alt="Chord diagram"><figcaption>what-chord</figcaption></figure>
+          <figure><img loading="lazy" src="assets/charts/kpi-odometer.jpg" alt="Odometer-style KPI tile"><figcaption>kpi-odometer</figcaption></figure>
+          <figure><img loading="lazy" src="assets/charts/who-store-race.jpg" alt="Bar chart race of stores"><figcaption>who-store-race</figcaption></figure>
+          <figure><img loading="lazy" src="assets/charts/when-ridgeline.jpg" alt="Ridgeline chart"><figcaption>when-ridgeline</figcaption></figure>
+          <figure><img loading="lazy" src="assets/charts/who-item-waffle.jpg" alt="Waffle chart of items"><figcaption>who-item-waffle</figcaption></figure>
+          <figure><img loading="lazy" src="assets/charts/what-treemap-drill.jpg" alt="Treemap with drill-down"><figcaption>what-treemap-drill</figcaption></figure>
+          <figure><img loading="lazy" src="assets/charts/pulse-region-bridge.jpg" alt="Waterfall bridge by region"><figcaption>pulse-region-bridge</figcaption></figure>
+        </div>
+        <p class="gallery-note">Built on synthetic data for <em>(Sample) Retail - Apparel</em>. Browse all 58 in <a href="https://github.com/BibekTS/Thoughtspot-Amuzing-chart-skills/blob/main/skills/ts-object-answer-chart-builder/references/library.md">the library index</a>.</p>
+      </div>
+    </section>
+
+    <section class="block reveal" id="skills">
+      <div class="wrap">
+        <h2>One chart, or a whole Liveboard.</h2>
+        <p class="intro">Two skills. Start with the first; add the second when you want a story across tabs.</p>
+        <div class="skills">
+          <div class="skill">
+            <h3>ts-object-answer-chart-builder</h3>
+            <p class="what">Build, rebuild, debug or convert one custom chart.</p>
+            <ul>
+              <li>From a description, a screenshot, or a tile that misbehaves</li>
+              <li>Sample data or your live search</li>
+              <li>Can save the chart as a ThoughtSpot answer</li>
+            </ul>
+            <p class="needs">Needs: Node 20+. Optional: the ThoughtSpot MCP for real data.</p>
+          </div>
+          <div class="skill">
+            <h3>ts-object-liveboard-chart-builder</h3>
+            <p class="what">Build a storytelling Liveboard of custom charts on a real model.</p>
+            <ul>
+              <li>Plans numbered tabs and the question each one answers</li>
+              <li>Has every tile built and checked by the chart skill</li>
+              <li>Adds filters, imports, proves the import, screenshots every tab</li>
+            </ul>
+            <p class="needs">Needs: the chart skill beside it and the ThoughtSpot MCP.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block reveal" id="libraries">
+      <div class="wrap">
+        <h2>Your library, or Claude's pick.</h2>
+        <p class="intro">Name one, or let Claude choose by the chart's shape. MayaCharts is the first fit for standard business charts: one JSON spec gives tooltips, keyboard focus, drill and resize.</p>
+        <div class="libs">
+          <a class="lib first" href="https://bbekshr.github.io/mayacharts/"><b>MayaCharts</b><span>bar, line, KPI, sankey, treemap…</span></a>
+          <a class="lib" href="https://d3js.org/"><b>D3</b><span>bespoke layouts, beeswarms</span></a>
+          <a class="lib" href="https://echarts.apache.org/"><b>ECharts</b><span>dense flow diagrams</span></a>
+          <a class="lib" href="https://plotly.com/javascript/"><b>Plotly</b><span>icicles, deep hierarchies</span></a>
+          <a class="lib" href="https://www.chartjs.org/"><b>Chart.js</b><span>radar, polar, gauges</span></a>
+          <a class="lib" href="https://gridjs.io/"><b>Grid.js</b><span>sortable tables</span></a>
+          <div class="lib"><b>HTML table</b><span>pivots, crosstabs</span></div>
+          <div class="lib"><b>Raw SVG / Canvas</b><span>typographic KPIs, hand-drawn maps</span></div>
+          <div class="lib"><b>HTML / CSS</b><span>quote cards, text slides</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block closing reveal">
+      <div class="wrap row">
+        <div>
+          <h2>Build your first chart.</h2>
+          <p>Copy the skills into <code>.claude/skills/</code> and ask for a chart. Check your setup any time with <code>node .claude/skills/ts-object-answer-chart-builder/helpers/env.mjs</code>.</p>
+        </div>
+        <a class="btn btn-primary" href="https://github.com/BibekTS/Thoughtspot-Amuzing-chart-skills#install">Read the README</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <span>Amuzing chart skills · MIT license · Previews are checked against a stub of the ThoughtSpot host; look at the pasted tile.</span>
+      <span><a href="https://github.com/BibekTS/Thoughtspot-Amuzing-chart-skills">GitHub</a></span>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var root = document.documentElement, toggle = document.querySelector(".theme-toggle");
+      function label() { toggle.textContent = "theme: " + (root.getAttribute("data-theme") === "light" ? "light" : "dark"); }
+      label();
+      toggle.addEventListener("click", function () {
+        var light = root.getAttribute("data-theme") !== "light";
+        if (light) root.setAttribute("data-theme", "light"); else root.removeAttribute("data-theme");
+        try { localStorage.setItem("amuzing-theme", light ? "light" : "dark"); } catch (e) {}
+        label();
+      });
+
+      document.querySelectorAll(".copy").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var text = btn.parentNode.querySelector("code").textContent;
+          navigator.clipboard.writeText(text).then(function () {
+            btn.textContent = "Copied"; setTimeout(function () { btn.textContent = "Copy"; }, 1400);
+          });
+        });
+      });
+
+      document.querySelectorAll("[data-tab]").forEach(function (tab) {
+        tab.addEventListener("click", function () {
+          var step = tab.closest(".step");
+          step.querySelectorAll("[data-tab]").forEach(function (t) { t.setAttribute("aria-selected", t === tab); });
+          step.querySelectorAll("[data-panel]").forEach(function (p) { p.hidden = p.getAttribute("data-panel") !== tab.getAttribute("data-tab"); });
+        });
+      });
+
+      if ("IntersectionObserver" in window) {
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+        }, { threshold: 0.08 });
+        document.querySelectorAll(".reveal").forEach(function (el) { io.observe(el); });
+      } else {
+        document.querySelectorAll(".reveal").forEach(function (el) { el.classList.add("in"); });
+      }
+    })();
+  </script>
+</body>
+</html>
