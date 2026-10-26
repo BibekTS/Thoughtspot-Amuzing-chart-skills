@@ -77,7 +77,25 @@ Runs and deliverables land in `~/.cache/ts-charts/` (or `$XDG_CACHE_HOME`), neve
 
 ## Chart libraries
 
-When Claude picks, [MayaCharts](https://bbekshr.github.io/mayacharts/) (MIT, no dependencies) is the first fit for standard business shapes: bar, line, area, scatter, KPI, waterfall, heatmap, table, treemap, sunburst, sankey, funnel, box plot and gauge. One JSON spec gives the marks, tooltip, keyboard focus, selection, drill, empty state and resize. A standalone tile is the spec and one adapter call:
+The skill builds in any of these. Ask for one by name, or let Claude pick by the chart's shape:
+
+| Library | Claude reaches for it for | Loaded as |
+|---|---|---|
+| [MayaCharts](https://bbekshr.github.io/mayacharts/) | Standard business shapes: bar, line, area, scatter, KPI, waterfall, heatmap, table, treemap, sunburst, sankey, chord, funnel, box plot, gauge. Includes ghost-of-last-period bars, target colouring, reference lines, playback and animated drill-down | CDN, pinned (0.18.1 today) |
+| [D3](https://d3js.org/) | Bespoke layouts: stream graphs, force layouts (beeswarm), parallel coordinates | CDN, pinned (7.9.0 in the starter) |
+| [ECharts](https://echarts.apache.org/) | Dense flow diagrams that MayaCharts' sankey cannot lay out | CDN, pinned (5.6.0 in the starter) |
+| [Plotly](https://plotly.com/javascript/) | Icicles, and hierarchies MayaCharts cannot draw | CDN, pinned (2.35.2 in the example) |
+| [Chart.js](https://www.chartjs.org/) | Radar, polar, doughnut, gauges, background bands, conditional bar colours | CDN, pinned (4.6.1 in the starter) |
+| [Grid.js](https://gridjs.io/) | Sortable tables | CDN, pinned at build time |
+| HTML table | Pivots, crosstabs, print-style output | Inline, no download |
+| Raw SVG / Canvas | KPI tiles that are mostly typography, hand-drawn maps | Inline, no download |
+| Raw HTML/CSS | Quote cards, text slides, annotation blocks | Inline, no download |
+
+Every CDN script is pinned to an exact version and carries a sha384 `integrity` value, so a saved tile never changes under you. A file that changes on the CDN is refused. Tiles can load scripts from a CDN, but `fetch()` is blocked inside them, so data files and maps are inlined. Where the doctor reports `cdn: blocked` (usual in the Claude app), CDN charts are still written but marked *not previewed*.
+
+The shipped [chart library](#the-chart-library) uses two of these: 48 MayaCharts specs, and 10 hand-built SVG and HTML tiles.
+
+When Claude picks, MayaCharts (MIT, no dependencies) is the first fit for standard business shapes. One JSON spec gives the marks, tooltip, keyboard focus, selection, drill, empty state and resize. A standalone tile is the spec and one adapter call:
 
 ```js
 maya.host.thoughtspot(viz, { type: 'bar', x: 'Item Type', y: 'Total Sales', title: '{max.x} leads with {max.y}' });
@@ -123,6 +141,7 @@ Each skill's `SKILL.md` is the procedure Claude follows. The Liveboard skill fin
 
 "Verified in preview" means checked against a stub of the ThoughtSpot host, not your cluster: theme and version differences are real, so look at the pasted tile. Facts about tiles that only a cluster shows (for example, `fetch()` is blocked inside a tile) are in [references/hard-rules.md](skills/ts-object-answer-chart-builder/references/hard-rules.md).
 
+- **2026-10-26, macOS, headless:** all 58 library charts render with live and empty data and no console errors, with SRI on every CDN script; a tampered hash is blocked. Not yet checked on a cluster tile.
 - **2026-10-14, macOS, MayaCharts 0.18.1:** all 48 MayaCharts library charts and the standalone example render in live, empty, absent and wrapped data with no console errors. Not yet checked on a cluster tile.
 - **2026-09-29, macOS:** headed and headless previews, the fall back to headless, and the hand-built SVG KPI.
 - **Not yet run inside the Claude app itself.** The doctor output from a first run there is the thing to check.
