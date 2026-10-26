@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// answer-pack.mjs <chart dir | library slug> --model <guid or name> --search "<search>" --name "<answer name>"
+// answer-pack.mjs <chart dir | library slug> --model <model guid> --search "<search>" --name "<answer name>"
 //                 [--description "..."] [--answer <guid> --backup <file>] [--validate | --commit]
 //
 // Turns one chart (chart.html, chart.css, chart.js) into ready-to-paste MCP code that saves it as an answer
@@ -35,10 +35,13 @@ const pos = argv.filter((a, i) => !a.startsWith("--") && !VALUED.has(argv[i - 1]
 const MODE = argv.includes("--commit") ? "commit" : "validate";
 const P = { model: val("--model"), search: val("--search"), name: val("--name"), description: val("--description"), guid: val("--answer") };
 if (pos.length !== 1 || !P.model || !P.search || !P.name) {
-  console.error('usage: answer-pack.mjs <chart dir | library slug> --model <guid or name> --search "<search>" --name "<answer name>" [--answer <guid>] [--commit]');
+  console.error('usage: answer-pack.mjs <chart dir | library slug> --model <model guid> --search "<search>" --name "<answer name>" [--answer <guid>] [--commit]');
   process.exit(2);
 }
 
+// A name is not an identity: two models in one org can share it, and a lookup by name picks one silently.
+if (!GUID.test(P.model) || /^[0-]+$/.test(P.model)) { console.error("--model takes the model's guid (the intake lists it beside the name), not " + JSON.stringify(P.model)); process.exit(2); }
+P.model = P.model.toLowerCase();
 if (P.guid && (!GUID.test(P.guid) || /^[0-]+$/.test(P.guid))) { console.error("--answer takes the answer's guid, not " + JSON.stringify(P.guid)); process.exit(2); }
 // A backup only makes sense for an update; without --answer it would quietly be ignored and a NEW answer created.
 if (val("--backup") !== undefined && !P.guid) { console.error("--backup needs --answer <guid>: a backup belongs to the answer being updated"); process.exit(2); }

@@ -11,60 +11,60 @@ Charts marked *(preview only)* were built on real search output and passed the l
 | `about-guide` How to read this Liveboard | 01 About | 12x4 grid units | HTML (no chart library) | `[sales] [item type]` |
 | `about-hero` About this Liveboard | 01 About | 12x8 grid units | HTML (no chart library) | `[sales] [quantity purchased] [date].monthly` |
 | `banner-pulse` Pulse banner | 02 Pulse | 12x4 grid units | HTML (no chart library) | `[sales] [quantity purchased] [date].monthly` |
-| `kpi-bullet` Latest month, bullet *(preview only)* | 02 Pulse | 3x4 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
-| `kpi-dotstrip` Latest month, dot strip *(preview only)* | 02 Pulse | 3x4 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
-| `kpi-flip` Year to date, flip card *(preview only)* | 02 Pulse | 3x4 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
-| `kpi-odometer` Year to date, odometer *(preview only)* | 02 Pulse | 3x4 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
-| `kpi-quarter-pairs` Quarter pairs, drill to months *(preview only)* | 02 Pulse | 3x4 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
-| `kpi-ring` Sales year to date, ring *(preview only)* | 02 Pulse | 3x4 grid units | MayaCharts 0.16.0 (maya.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
-| `kpi-sparkbars` Monthly columns against a year earlier *(preview only)* | 02 Pulse | 3x4 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
-| `pulse-family-growth` Sales change by family: units or price *(preview only)* | 02 Pulse | 12x6 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [item type] [date].monthly` |
-| `pulse-pace-lines` Sales pace by year *(preview only)* | 02 Pulse | 8x6 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [date].monthly` |
-| `pulse-region-bridge` YTD sales by region *(preview only)* | 02 Pulse | 4x6 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [region] [state] [date].quarterly` |
-| `pulse-kpi-asp` Average selling price *(preview only)* | Pulse | 3x4 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
-| `pulse-kpi-best` Best month *(preview only)* | Pulse | 3x4 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
-| `pulse-kpi-sales` Sales, year to date *(preview only)* | Pulse | 3x4 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
-| `pulse-kpi-units` Units sold, year to date *(preview only)* | Pulse | 3x4 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
-| `pulse-monthly-line` Monthly sales against last year *(preview only)* | Pulse | 8x6 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [date].monthly` |
+| `kpi-bullet` Latest month, bullet *(preview only)* | 02 Pulse | 3x4 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
+| `kpi-dotstrip` Latest month, dot strip *(preview only)* | 02 Pulse | 3x4 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
+| `kpi-flip` Year to date, flip card *(preview only)* | 02 Pulse | 3x4 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
+| `kpi-odometer` Year to date, odometer *(preview only)* | 02 Pulse | 3x4 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
+| `kpi-quarter-pairs` Quarter pairs, drill to months *(preview only)* | 02 Pulse | 3x4 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
+| `kpi-ring` Sales year to date, ring *(preview only)* | 02 Pulse | 3x4 grid units | MayaCharts 0.18.1 (maya.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
+| `kpi-sparkbars` Monthly columns against a year earlier *(preview only)* | 02 Pulse | 3x4 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
+| `pulse-family-growth` Sales change by family: units or price *(preview only)* | 02 Pulse | 12x6 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [item type] [date].monthly` |
+| `pulse-pace-lines` Sales pace by year *(preview only)* | 02 Pulse | 8x6 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [date].monthly` |
+| `pulse-region-bridge` YTD sales by region *(preview only)* | 02 Pulse | 4x6 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [region] [state] [date].quarterly` |
+| `pulse-kpi-asp` Average selling price *(preview only)* | Pulse | 3x4 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
+| `pulse-kpi-best` Best month *(preview only)* | Pulse | 3x4 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
+| `pulse-kpi-sales` Sales, year to date *(preview only)* | Pulse | 3x4 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
+| `pulse-kpi-units` Units sold, year to date *(preview only)* | Pulse | 3x4 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
+| `pulse-monthly-line` Monthly sales against last year *(preview only)* | Pulse | 8x6 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [date].monthly` |
 | `banner-where` Where banner | 03 Where | 12x4 grid units | HTML (no chart library) | `[sales] [region] [state]` |
-| `state-sales-units` Sales against units by state *(preview only)* | 03 Where | 6x6 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [state]` |
-| `where-hex-cartogram` US state hex map of sales *(preview only)* | 03 Where | 5x7 grid units | MayaCharts 0.16.0 (maya.global.js from jsDelivr) | `[sales] [state]` |
-| `where-region-item-heatmap` Region by item type heatmap *(preview only)* | 03 Where | 6x6 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [region] [item type]` |
-| `where-region-pivot` Region by family pivot *(preview only)* | 03 Where | 12x7 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [region] [state] [item type]` |
-| `where-state-bubbles` Sales bubble map by state *(preview only)* | 03 Where | 7x7 grid units | MayaCharts 0.16.0 (maya.global.js from jsDelivr) | `[sales] [store] [state] [region]` |
-| `where-store-dumbbell` Store sales, this year vs last *(preview only)* | 03 Where | 6x6 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [store] [date].quarterly` |
-| `where-store-wall` Quarterly sales by store *(preview only)* | 03 Where | 12x7 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [store] [date].quarterly` |
+| `state-sales-units` Sales against units by state *(preview only)* | 03 Where | 6x6 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [state]` |
+| `where-hex-cartogram` US state hex map of sales *(preview only)* | 03 Where | 5x7 grid units | MayaCharts 0.18.1 (maya.global.js from jsDelivr) | `[sales] [state]` |
+| `where-region-item-heatmap` Region by item type heatmap *(preview only)* | 03 Where | 6x6 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [region] [item type]` |
+| `where-region-pivot` Region by family pivot *(preview only)* | 03 Where | 12x7 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [region] [state] [item type]` |
+| `where-state-bubbles` Sales bubble map by state *(preview only)* | 03 Where | 7x7 grid units | MayaCharts 0.18.1 (maya.global.js from jsDelivr) | `[sales] [store] [state] [region]` |
+| `where-store-dumbbell` Store sales, this year vs last *(preview only)* | 03 Where | 6x6 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [store] [date].quarterly` |
+| `where-store-wall` Quarterly sales by store *(preview only)* | 03 Where | 12x7 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [store] [date].quarterly` |
 | `banner-what` What banner | 04 What | 12x4 grid units | HTML (no chart library) | `[sales] [item type]` |
-| `what-chord` Region to family chord *(preview only)* | 04 What | 6x7 grid units | MayaCharts 0.16.0 (maya.global.js from jsDelivr) | `[sales] [region] [item type]` |
-| `what-marimekko` Region by family Marimekko *(preview only)* | 04 What | 6x7 grid units | MayaCharts 0.16.0 (maya.global.js from jsDelivr) | `[sales] [region] [item type]` |
-| `what-money-sankey` Where the money flows: region to family to item type *(preview only)* | 04 What | 12x7 grid units | MayaCharts 0.16.0 (maya.global.js from jsDelivr) | `[sales] [region] [item type]` |
-| `what-pareto` Products that make 80% of sales *(preview only)* | 04 What | 6x7 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[product] [item type] [sales] [quantity purchased]` |
-| `what-premium-diverging` Premium or volume, by item type *(preview only)* | 04 What | 8x7 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [item type] [product]` |
-| `what-price-volume` Price against volume by item type *(preview only)* | 04 What | 8x6 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [item type]` |
-| `what-quadrant-guide` How to read price against volume *(preview only)* | 04 What | 4x6 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [item type]` |
-| `what-radial-bars` Item types as radial bars *(preview only)* | 04 What | 6x6 grid units | MayaCharts 0.16.0 (maya.global.js from jsDelivr) | `[sales] [item type] [product]` |
-| `what-treemap-drill` Sales treemap with drill-down *(preview only)* | 04 What | 8x7 grid units | MayaCharts 0.16.0 (maya.global.js from jsDelivr) | `[sales] [item type] [product]` |
-| `what-sunburst` Sales by family, item type and product *(preview only)* | What | 6x7 grid units | MayaCharts 0.16.0 (maya.global.js from jsDelivr) | `[sales] [item type] [product]` |
+| `what-chord` Region to family chord *(preview only)* | 04 What | 6x7 grid units | MayaCharts 0.18.1 (maya.global.js from jsDelivr) | `[sales] [region] [item type]` |
+| `what-marimekko` Region by family Marimekko *(preview only)* | 04 What | 6x7 grid units | MayaCharts 0.18.1 (maya.global.js from jsDelivr) | `[sales] [region] [item type]` |
+| `what-money-sankey` Where the money flows: region to family to item type *(preview only)* | 04 What | 12x7 grid units | MayaCharts 0.18.1 (maya.global.js from jsDelivr) | `[sales] [region] [item type]` |
+| `what-pareto` Products that make 80% of sales *(preview only)* | 04 What | 6x7 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[product] [item type] [sales] [quantity purchased]` |
+| `what-premium-diverging` Premium or volume, by item type *(preview only)* | 04 What | 8x7 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [item type] [product]` |
+| `what-price-volume` Price against volume by item type *(preview only)* | 04 What | 8x6 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [item type]` |
+| `what-quadrant-guide` How to read price against volume *(preview only)* | 04 What | 4x6 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [item type]` |
+| `what-radial-bars` Item types as radial bars *(preview only)* | 04 What | 6x6 grid units | MayaCharts 0.18.1 (maya.global.js from jsDelivr) | `[sales] [item type] [product]` |
+| `what-treemap-drill` Sales treemap with drill-down *(preview only)* | 04 What | 8x7 grid units | MayaCharts 0.18.1 (maya.global.js from jsDelivr) | `[sales] [item type] [product]` |
+| `what-sunburst` Sales by family, item type and product *(preview only)* | What | 6x7 grid units | MayaCharts 0.18.1 (maya.global.js from jsDelivr) | `[sales] [item type] [product]` |
 | `banner-when` When banner | 05 When | 12x4 grid units | HTML (no chart library) | `[sales] [date].monthly` |
-| `when-bubble-motion` Item types in motion by quarter *(preview only)* | 05 When | 12x7 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [item type] [date].quarterly` |
-| `when-calendar-heatmap` Sales, units and price by month *(preview only)* | 05 When | 6x7 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
-| `when-family-stream` Sales by product family, by quarter *(preview only)* | 05 When | 12x6 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [item type] [date].quarterly` |
-| `when-rank-bump` Item type rank by year *(preview only)* | 05 When | 12x6 grid units | MayaCharts 0.16.0 (maya.global.js from jsDelivr) | `[sales] [item type] [date].yearly` |
-| `when-ridgeline` Sales ridgeline by year *(preview only)* | 05 When | 6x7 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [date].monthly` |
-| `when-seasonal-radial` Monthly sales around the year *(preview only)* | 05 When | 6x7 grid units | MayaCharts 0.16.0 (maya.global.js from jsDelivr) | `[sales] [date].monthly` |
+| `when-bubble-motion` Item types in motion by quarter *(preview only)* | 05 When | 12x7 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [item type] [date].quarterly` |
+| `when-calendar-heatmap` Sales, units and price by month *(preview only)* | 05 When | 6x7 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [date].monthly` |
+| `when-family-stream` Sales by product family, by quarter *(preview only)* | 05 When | 12x6 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [item type] [date].quarterly` |
+| `when-rank-bump` Item type rank by year *(preview only)* | 05 When | 12x6 grid units | MayaCharts 0.18.1 (maya.global.js from jsDelivr) | `[sales] [item type] [date].yearly` |
+| `when-ridgeline` Sales ridgeline by year *(preview only)* | 05 When | 6x7 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [date].monthly` |
+| `when-seasonal-radial` Monthly sales around the year *(preview only)* | 05 When | 6x7 grid units | MayaCharts 0.18.1 (maya.global.js from jsDelivr) | `[sales] [date].monthly` |
 | `banner-who` Who banner | 06 Who | 12x4 grid units | HTML (no chart library) | `[sales] [store]` |
-| `who-item-waffle` Family waffle: share of sales or units *(preview only)* | 06 Who | 6x6 grid units | MayaCharts 0.16.0 (maya.global.js from jsDelivr) | `[sales] [quantity purchased] [item type]` |
-| `who-product-beeswarm` Every product by price per unit *(preview only)* | 06 Who | 6x6 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[product] [item type] [sales] [quantity purchased]` |
-| `who-product-table` Products by sales *(preview only)* | 06 Who | 12x7 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[product] [item type] [sales] [quantity purchased]` |
-| `who-region-profile` Region profiles: family mix against average *(preview only)* | 06 Who | 6x6 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [region] [item type]` |
-| `who-store-league` Store league: position, movement and form *(preview only)* | 06 Who | 12x7 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [store] [region] [date].monthly [date].'this year' [date].'last year'` |
-| `who-store-parallel` Stores across five measures *(preview only)* | 06 Who | 12x6 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [store] [date].quarterly` |
-| `who-store-race` Store race: cumulative sales by quarter *(preview only)* | 06 Who | 12x7 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [store] [date].quarterly` |
+| `who-item-waffle` Family waffle: share of sales or units *(preview only)* | 06 Who | 6x6 grid units | MayaCharts 0.18.1 (maya.global.js from jsDelivr) | `[sales] [quantity purchased] [item type]` |
+| `who-product-beeswarm` Every product by price per unit *(preview only)* | 06 Who | 6x6 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[product] [item type] [sales] [quantity purchased]` |
+| `who-product-table` Products by sales *(preview only)* | 06 Who | 12x7 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[product] [item type] [sales] [quantity purchased]` |
+| `who-region-profile` Region profiles: family mix against average *(preview only)* | 06 Who | 6x6 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [region] [item type]` |
+| `who-store-league` Store league: position, movement and form *(preview only)* | 06 Who | 12x7 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [store] [region] [date].monthly [date].'this year' [date].'last year'` |
+| `who-store-parallel` Stores across five measures *(preview only)* | 06 Who | 12x6 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [store] [date].quarterly` |
+| `who-store-race` Store race: cumulative sales by quarter *(preview only)* | 06 Who | 12x7 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [store] [date].quarterly` |
 | `banner-next` Next banner | 07 Next | 12x4 grid units | HTML (no chart library) | `[sales] [quantity purchased] [date].monthly` |
 | `next-action-list` Moves the numbers support | 07 Next | 4x7 grid units | HTML and CSS (no CDN) | `[sales] [quantity purchased] [item type] [date].quarterly` |
-| `next-growth-matrix` Share of sales against price per unit *(preview only)* | 07 Next | 8x7 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [item type] [date].quarterly` |
-| `next-run-rate` Year-end outlook *(preview only)* | 07 Next | 6x6 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [date].monthly` |
-| `next-stores-at-risk` Stores against last year *(preview only)* | 07 Next | 6x6 grid units | MayaCharts 0.16.0 (maya.core.global.js from jsDelivr) | `[sales] [store] [date].quarterly` |
+| `next-growth-matrix` Share of sales against price per unit *(preview only)* | 07 Next | 8x7 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [quantity purchased] [item type] [date].quarterly` |
+| `next-run-rate` Year-end outlook *(preview only)* | 07 Next | 6x6 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [date].monthly` |
+| `next-stores-at-risk` Stores against last year *(preview only)* | 07 Next | 6x6 grid units | MayaCharts 0.18.1 (maya.core.global.js from jsDelivr) | `[sales] [store] [date].quarterly` |
 | `next-what-if` What if the rest of the year moves | Next | 6x6 grid units | Inline SVG with native range sliders | `[sales] [quantity purchased] [date].monthly` |
 
 ## What each one does when you touch it

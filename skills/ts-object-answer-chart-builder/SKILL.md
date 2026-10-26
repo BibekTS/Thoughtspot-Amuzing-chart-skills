@@ -79,7 +79,9 @@ which every MayaCharts chart pins.
 Also check whether the ThoughtSpot MCP tool `execute-thoughtspot-code` is connected. If it is, one
 read-only call returns the signed-in user, the org, the cluster name and the models. The token is bound
 to one org, so that is the org you work in. Search models by name: an org can hold hundreds of logical
-tables and an unfiltered listing is cut off before the one the user means.
+tables and an unfiltered listing is cut off before the one the user means. The name only finds it: two
+models can share one, so show the guid beside each name, and from the pick onwards every call and helper
+(`--model`, the spec's `model.guid`) takes the guid.
 
 ```js
 const me = (await ts.get('/api/rest/2.0/auth/session/user')).body;
@@ -102,6 +104,10 @@ Use the `AskUserQuestion` tool so the user picks instead of typing. It takes up 
 call and 2 to 4 options each, and adds "Other" for free text by itself. Build the options from what 0a
 found, never from placeholders; put the likely pick first and add "(Recommended)" to it. Skip any
 question the user's message already answered.
+
+Ask one question at a time for **dependent** decisions. Batch **independent** questions
+into a single multi-question prompt to cut round-trips — e.g. model + data mode, or
+library + destination; the search waits for the model, since its options come from the columns.
 
 Round 1:
 
@@ -406,7 +412,7 @@ Publishing tiles to a Liveboard, and building a whole storytelling Liveboard of 
 skill **ts-object-liveboard-chart-builder** (patches the Liveboard through the ThoughtSpot MCP, narrative
 tiles, filters, round-trip proof, in-cluster screenshots). To hand a chart over:
 
-1. Build it to `references/library-contract.md` (shared core, ASCII, no template strings).
+1. Build it to `references/library-contract.md` (MayaCharts: lean, section 1a; other libraries: shared core; ASCII, no template strings either way).
 2. `node "<SKILL>/helpers/sync-core.mjs" "<RUNS>/<SLUG>/chart"`, then
    `node "<SKILL>/helpers/library-emit.mjs" <SLUG> --title ... --search ... --tile WxH ...` (`--tile` in
    Liveboard grid units, `8x6`; `--model "<name>"` and `--mode A|B|C` for the README, defaulting to the sample
@@ -425,10 +431,11 @@ Claude pick", and which fits each shape when you name the options.
 
 Start from a library chart: the "Start here" table at the top of `references/examples.md`
 maps shapes (animated drill, map zoom, flow, KPI variants, what-if, beeswarm ...) to a
-proven chart under `library/`. Copy its technique. Keep the shared core in a chart bound for the library or a
-Liveboard (the Liveboard tooling needs it) and draw it with one `AZ.maya(spec)` call, which carries the pinned
-build, the house theme and render-complete; a standalone MayaCharts tile needs no core and starts from the 3-line
-tile in the MayaCharts section of `references/library-starters.md`. 48 of the 58 library charts are MayaCharts:
+proven chart under `library/`. Copy its technique. **A MayaCharts chart is lean**: no shared core, a spec and a few lines
+(`references/library-contract.md` section 1a, `library/what-money-sankey` is the reference; `helpers/lean-lint.mjs` checks it, and
+`snap.mjs --scheme X --host Y` renders it on a light or dark host with the OS set independently: tiles must work on both ThoughtSpot themes (transparent
+background, no hard-coded text colour, scheme read from the host's text colour) and draw no title of their own). The core is for charts MayaCharts cannot draw (inline SVG, D3, Plotly, HTML tiles); do not paste it next
+to a MayaCharts spec. The smallest tile is in the MayaCharts section of `references/library-starters.md`. The 48 MayaCharts library charts:
 copy the nearest one. When the user chose another library, take the nearest chart's search, derived fields and
 interactions, and draw them in that library. Otherwise,
 pick by what the chart is. **When Claude picks, MayaCharts is the first fit for standard business shapes** (bar, line, area,
@@ -439,7 +446,7 @@ render-complete once it has settled, so a whole tile is 3 lines of `chart.js`: t
 spec, and the loader. Keep it that lean, and code only for a field the search does not return (a derived family, a
 per-row ratio, a top-N roll-up). **Always pin the MayaCharts version the doctor's `mayacharts:` line names** (the latest release
 at build time; it ships often): never an unpinned URL, which would change a saved tile under the user, and never a
-version from memory. Headlines with data tokens, reference lines, bands and diagonals, annotations, dashed series,
+version from memory. The script carries the integrity value the same line prints (`hard-rules.md`). Headlines with data tokens, reference lines, bands and diagonals, annotations, dashed series,
 tooltip fields, log scales, ratio measures and drill with cross-filter are all spec options now (0.16.0 to 0.18.1). Reach past it
 only for a bespoke layout or interaction a spec cannot say (a what-if slider, a force layout, a map projection, a
 race). Pick by shape — `references/examples.md`
@@ -493,6 +500,7 @@ than an honest question.
 
 | Version | Date | Summary |
 |---|---|---|
+| 4.7.0 | 2026-10-15 | **MayaCharts tiles are lean and ship no core.** The 250-line shared core pasted next to an 8-line spec defeated the point of MayaCharts, so a MayaCharts chart is now `chart.html` (element and pinned script), `chart.css` (2 lines of theme) and `chart.js` (a spec through `maya.host.thoughtspot`, plus a wrapped `viz` that adds any derived column), under about 15 lines of JS (the library's 47 converted charts went from about 270 JS lines each to 4 to 20). Contract section 1a and the starter say how; derived columns are added to the adapter's input table, never by pasting the core. **Both ThoughtSpot themes, and no chart title.** A tile has no white background (`--maya-bg: transparent`, `--maya-tooltip-bg: light-dark(...)`), no hard-coded `--maya-fg`, and ink only as `light-dark(#1E1E24, #E6EDF3)` (a spec `colors` map accepts `light-dark()` too). **The scheme comes from the host, not the OS:** `prefers-color-scheme` only mirrors the OS, so `color-scheme: light dark` made a chart draw pale text on a light ThoughtSpot tile whenever the OS was dark (found on a real tile: invisible numbers). ThoughtSpot gives a tile's page a transparent background and a body text colour (`rgb(29, 35, 47)` on the light theme), so the first line of each `chart.js` sets `color-scheme` from that colour, and the CSS has no `color-scheme`. A chart-internal `title` is a duplicate of the Liveboard tile's own title and is removed from all 48 (a `subtitle` stays when it adds something); `lean-lint` fails a tile that has either problem. Checked in a browser with the OS and host themes set independently (all 48 tiles in both mismatched cases); whether ThoughtSpot's dark theme changes the frame's text colour is not verified on a cluster. New helpers: `helpers/lean-lint.mjs` (static contract check) and `snap.mjs --scheme dark|light` (emulated OS) with `--host dark|light` (the host theme: page colour and body text colour, as ThoughtSpot sets them; `scaffold/index.html` takes `?host=dark`). `liveboard-pack` / `patch.js` ship a chart that has no core marker as written (lean), recognise such tiles by their slug and owner markers, and send the core only in blocks that hold a core-based tile; `sync-core` leaves lean charts alone. The library bodies themselves are converted in a user library first (`~/.cache/ts-charts/library/`), not yet promoted into `library/` |
 | 4.6.2 | 2026-10-14 | The library bodies are slimmer where 0.18.1 allows it, checked one chart at a time in the preview (46 of 48 render pixel-identical to before; `kpi-bullet` 14 to 7 lines and `kpi-sparkbars` differ only by an axis top of $25M for $30M and one duplicate tooltip row less, both MayaCharts' own scaling). Specs use plain column names; `AZ.col` regex lookups are gone from the bodies that still read rows. The average goes from 17.9 to 16.4 code lines (most charts changed by 0 to 7): every chart still derives rows MayaCharts cannot (Family from Item Type, periods, running and share measures, quarter labels). Three attempts were reverted for changing what the chart shows (`where-state-bubbles`, `where-store-dumbbell`, `when-family-stream`). Getting the bodies to a spec of 4 to 8 lines needs those fields in the search (formula columns) or in MayaCharts; the gaps the agents found are listed in the PR |
 | 4.6.1 | 2026-10-14 | Specs name fields as plain column names (`x: 'Item Type', y: 'Total Sales'`), not RegExp: the starter, `byoc-data-modes.md`, the README and `examples/maya-was-bars` say so, and RegExp is the documented fallback. `AZ.maya(spec)` with no `data` hands the spec to MayaCharts' own adapter (`maya.host.thoughtspot`), so a library chart that needs no derived rows is one call; checked on live, empty, absent and wrapped data. The 48 library charts are unchanged and still read their rows themselves (about 18 code lines each); trimming them, and moving derived fields into the search, is not done |
 | 4.6.0 | 2026-10-14 | MayaCharts 0.18.1, which closed every issue we filed (#76, #78 to #93). **The theme is CSS**: `--maya-*` custom properties on `maya-chart#chart` itself (not `:root` or `body`, which are ignored), so a chart's `chart.js` holds the spec only. The core's house theme moved from `MAYA_THEME` in JS to `core.css`; 27 charts moved their own tokens (`series1`, `accent`, `good`, `bad`, `radius`) to their `chart.css`; `spec.theme` keeps layout tokens and values computed from data. `AZ.maya` signals render-complete on the first draw (0.18.1 fixed "Something went wrong" on a cold first load in ThoughtSpot). All 48 MayaCharts library charts and `examples/maya-was-bars` were re-run in the preview on 0.18.1: rendered, no console errors; still not seen on a cluster. The traps list drops what 0.17.0 fixed, and the starter names the new options (`facet`, `params`, `frameControl`, `list`, table `page` / `filter` / `expand`, `toggle`, named themes). Library chart READMEs keep their 0.16.0 notes on what was dropped |

@@ -76,6 +76,8 @@ const FLAGS = {
   "Yemen": "🇾🇪", "Zambia": "🇿🇲", "Zimbabwe": "🇿🇼",
 };
 const flag = name => FLAGS[name] || '🏳';
+// Team names and dates come from the search: escape them before they reach innerHTML.
+const esc = v => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // ── Sample dataset for standalone / preview mode ──
 // Commented out: in ThoughtSpot the data comes from viz.getDataFromSearchQuery().
@@ -320,7 +322,7 @@ function renderScoreboard() {
 
   const s = buildH2H(ROWS, t1, t2, activeFilter);
   if (s.games === 0) {
-    sb.innerHTML = `<div class="no-data">No ${activeFilter === 'all' ? '' : activeFilter + ' '}matches found between ${t1} and ${t2}</div>`;
+    sb.innerHTML = `<div class="no-data">No ${activeFilter === 'all' ? '' : activeFilter + ' '}matches found between ${esc(t1)} and ${esc(t2)}</div>`;
     return;
   }
 
@@ -333,14 +335,14 @@ function renderScoreboard() {
   const sample = s.history.slice(-5);
   const pills = sample.map(h => {
     const cls = h.t1_score > h.t2_score ? 'fp-t1' : h.t1_score < h.t2_score ? 'fp-t2' : 'fp-draw';
-    return `<span class="fp ${cls}">${h.date} &middot; ${h.t1_score}&ndash;${h.t2_score}</span>`;
+    return `<span class="fp ${cls}">${esc(h.date)} &middot; ${h.t1_score}&ndash;${h.t2_score}</span>`;
   }).join('');
 
   sb.innerHTML = `
     <div class="record-row">
       <div class="team-block">
         <span class="team-flag">${flag(t1)}</span>
-        <span class="team-name blue">${t1}</span>
+        <span class="team-name blue">${esc(t1)}</span>
       </div>
       <div class="score-center">
         <div class="big-score"><span class="s1">${s.t1_wins}</span><span class="ssep">&ndash;</span><span class="s2">${s.t2_wins}</span></div>
@@ -348,16 +350,16 @@ function renderScoreboard() {
       </div>
       <div class="team-block right">
         <span class="team-flag">${flag(t2)}</span>
-        <span class="team-name orange">${t2}</span>
+        <span class="team-name orange">${esc(t2)}</span>
       </div>
     </div>
     <div class="stats-row">
-      <div class="stat-cell"><div class="stat-val sv-blue">${s.t1_goals}</div><div class="stat-label">${t1} goals</div></div>
+      <div class="stat-cell"><div class="stat-val sv-blue">${s.t1_goals}</div><div class="stat-label">${esc(t1)} goals</div></div>
       <div class="stat-cell"><div class="stat-val sv-green">${s.draws}</div><div class="stat-label">Draws</div></div>
-      <div class="stat-cell"><div class="stat-val sv-orange">${s.t2_goals}</div><div class="stat-label">${t2} goals</div></div>
+      <div class="stat-cell"><div class="stat-val sv-orange">${s.t2_goals}</div><div class="stat-label">${esc(t2)} goals</div></div>
     </div>
     <div class="bar-row">
-      <div class="bar-label"><span>${t1} ${w1}%</span><span>Draw ${wd}%</span><span>${w2}% ${t2}</span></div>
+      <div class="bar-label"><span>${esc(t1)} ${w1}%</span><span>Draw ${wd}%</span><span>${w2}% ${esc(t2)}</span></div>
       <div class="bar-track"><div class="bar-t1" style="width:${w1}%"></div><div class="bar-draw" style="width:${wd}%"></div><div class="bar-t2"></div></div>
     </div>
     ${pills ? `<div class="recent-row"><div class="recent-label">Sample matches</div><div class="form-pills">${pills}</div></div>` : ''}
@@ -413,7 +415,7 @@ function buildDropdown(ddId, inputId, searchId, listId, myIdx) {
       const disabled = !!faced && !faced.has(t); // includes anchor itself → can't pick same team
       const div = document.createElement('div');
       div.className = disabled ? 'dropdown-item disabled' : 'dropdown-item';
-      div.innerHTML = `<span class="dd-flag">${flag(t)}</span><span>${t}</span>`;
+      div.innerHTML = `<span class="dd-flag">${flag(t)}</span><span>${esc(t)}</span>`;
       if (!disabled) {
         div.addEventListener('mousedown', e => {
           e.preventDefault();

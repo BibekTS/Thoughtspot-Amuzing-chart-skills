@@ -46,8 +46,10 @@ Charts at most 8 units tall. Test each chart at its real pixel size and at 280 p
 - **Drill-down where the data has a hierarchy** (family > item type > product, region > state > store,
   year > quarter > month), with crumbs and a visible way back. Not on flat data.
 - **Motion that explains a change**: entrances, toggles that tween, zooms on drill. Nothing loops.
-- Titles name what is shown ("Sales by state"); the insight goes in the chart's own header line,
-  computed from the rows. The tile description says how to read and what a click does.
+- **A chart draws no title of its own.** The Liveboard tile already shows the tile's title (the spec's `title`), so a title inside the
+  chart is a second, duplicate heading. The spec's tile title names what is shown ("Sales by state"); the chart may carry a
+  `subtitle` only when it adds something the tile title does not (a computed figure, the period, what a part period leaves out).
+  The tile description says how to read and what a click does.
 
 ## Colour across the Liveboard
 

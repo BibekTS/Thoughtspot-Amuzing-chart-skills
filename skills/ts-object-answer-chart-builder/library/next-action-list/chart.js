@@ -98,23 +98,25 @@ const AZ = (function () {
   }
 
   // -- CDN loader: bounded, with fallback hosts (a hung request fires neither onload nor onerror)
+  // Each entry is a pinned URL or { src, integrity } carrying its sha384 SRI value (the same build on every host shares one).
   function loadScript(urls, isReady, timeoutMs) {
-    const list = [].concat(urls);
+    const list = [].concat(urls).map((u) => (typeof u === 'string' ? { src: u } : u));
     const tryOne = (i) => new Promise((resolve, reject) => {
       if (isReady()) return resolve();
-      if (i >= list.length) return reject(new Error('Library could not be loaded from: ' + list.join(' , ')));
+      if (i >= list.length) return reject(new Error('Library could not be loaded from: ' + list.map((u) => u.src).join(' , ')));
       const s = document.createElement('script');
       let done = false;
       const next = () => { if (done) return; done = true; s.remove(); tryOne(i + 1).then(resolve, reject); };
       const t = setTimeout(next, timeoutMs || 8000);
-      s.src = list[i];
+      s.src = list[i].src;
+      if (list[i].integrity) { s.integrity = list[i].integrity; s.crossOrigin = 'anonymous'; }
       s.onload = () => { if (done) return; done = true; clearTimeout(t); isReady() ? resolve() : tryOne(i + 1).then(resolve, reject); };
       s.onerror = () => { clearTimeout(t); next(); };
       document.head.appendChild(s);
     });
     // The HTML tab may already carry a <script src> for this library: if so, give it a moment to finish before
     // injecting a second copy. If no such tag exists, inject at once (no wait).
-    const tagged = list.some((u) => document.querySelector('script[src="' + u + '"]'));
+    const tagged = list.some((u) => document.querySelector('script[src="' + u.src + '"]'));
     if (!tagged) return tryOne(0);
     return new Promise((resolve, reject) => {
       let waited = 0;
@@ -136,14 +138,19 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without "data" is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
+  // Subresource integrity for the pinned build: a changed file on the CDN refuses to run. A version bump recomputes both.
+  const MAYA_SRI = {
+    'maya.core.global.js': 'sha384-KZQbG8OHSEU86UWT5Pp3LATC64UAhHxwg1UMKN/lZtsu02CeDifcSVWCewQO2h/6',
+    'maya.global.js': 'sha384-Z7INdXfgP1H/WUINrm44nlLrtN58MLpFXLi52fr7HiGOGg/J4FAvjgXQM2Wnd9AK',
+  };
   function maya(spec, file) {
-    const src = MAYA + (file || 'maya.core.global.js');
+    const f = file || 'maya.core.global.js', src = MAYA + f;
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
-    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, integrity: MAYA_SRI[f], crossOrigin: 'anonymous', onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
     if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
       const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
       draw() || document.addEventListener('load', draw, true);
@@ -290,7 +297,7 @@ AZ.boot({
       moves.push({
         h: 'Lead with ' + top.item, ev: AZ.money(top.price, 2),
         d: 'Earns ' + AZ.money(top.price, 2) + ' a unit, ' + (top.price / avg).toFixed(1) + 'x the ' + AZ.money(avg, 2) + ' average, and holds ' + AZ.pct(top.share, 1) + ' of sales.',
-        body: byP.slice(0, 5).map((o, i) => '<div class="al-row' + (i ? '' : ' hot') + '"' + tipAttr('<b>' + o.item + '</b>' + AZ.row('Sales per unit', AZ.money(o.price, 2)) + AZ.row('Share of sales', AZ.pct(o.share, 1)) + AZ.row('Units', AZ.int(o.u))) + '><span class="k">' + AZ.esc(o.item) + '</span>' + bar(o.price / mx, o.col) + '<span class="v">' + AZ.money(o.price, 2) + '</span></div>').join('')
+        body: byP.slice(0, 5).map((o, i) => '<div class="al-row' + (i ? '' : ' hot') + '"' + tipAttr('<b>' + AZ.esc(o.item) + '</b>' + AZ.row('Sales per unit', AZ.money(o.price, 2)) + AZ.row('Share of sales', AZ.pct(o.share, 1)) + AZ.row('Units', AZ.int(o.u))) + '><span class="k">' + AZ.esc(o.item) + '</span>' + bar(o.price / mx, o.col) + '<span class="v">' + AZ.money(o.price, 2) + '</span></div>').join('')
           + '<div class="al-note">Sales per unit, ' + per + '. ' + (I.length > 5 ? 'Top five of ' + I.length + ' types.' : 'All ' + I.length + ' types.') + '</div>'
       });
     }
@@ -308,7 +315,7 @@ AZ.boot({
           : sorted[0].item + ' is ' + AZ.pct(lo, 1, true) + ' on last year, the weakest of ' + V.length + ' types. The strongest is ' + sorted[V.length - 1].item + ' at ' + AZ.pct(hi, 1, true) + '.',
         body: sorted.map((o, i) => {
           const w = Math.abs(o.chg) / ext * 50, left = o.chg < 0 ? 50 - w : 50;
-          return '<div class="al-row' + (i === 0 ? ' hot' : '') + '"' + tipAttr('<b>' + o.item + '</b>' + AZ.row('Change on last year', AZ.pct(o.chg, 1, true)) + AZ.row('Sales', AZ.money(o.s, 1)) + AZ.row('Same quarters last year', AZ.money(o.ps, 1))) + '><span class="k">' + AZ.esc(o.item) + '</span><div class="al-track"><div class="al-zero" style="left:50%"></div>' + '<div class="al-bar" style="left:' + left.toFixed(1) + '%;width:' + Math.max(1, w).toFixed(1) + '%;background:' + AZ.T.slate[4] + '"></div></div><span class="v">' + AZ.pct(o.chg, 1, true) + '</span></div>';
+          return '<div class="al-row' + (i === 0 ? ' hot' : '') + '"' + tipAttr('<b>' + AZ.esc(o.item) + '</b>' + AZ.row('Change on last year', AZ.pct(o.chg, 1, true)) + AZ.row('Sales', AZ.money(o.s, 1)) + AZ.row('Same quarters last year', AZ.money(o.ps, 1))) + '><span class="k">' + AZ.esc(o.item) + '</span><div class="al-track"><div class="al-zero" style="left:50%"></div>' + '<div class="al-bar" style="left:' + left.toFixed(1) + '%;width:' + Math.max(1, w).toFixed(1) + '%;background:' + AZ.T.slate[4] + '"></div></div><span class="v">' + AZ.pct(o.chg, 1, true) + '</span></div>';
         }).join('') + '<div class="al-note">Sales ' + per + ' against Q1 to Q' + (lq + 1) + ' ' + (ly - 1) + '.</div>'
       });
     }
@@ -332,7 +339,7 @@ AZ.boot({
       moves.push({
         h: 'Protect ' + t3.map((o) => o.item).join(', ').replace(/, ([^,]*)$/, ' and $1'), ev: AZ.pct(t3s, 0),
         d: 'The three largest of ' + I.length + ' types are ' + AZ.pct(t3s, 1) + ' of sales. The smallest ' + n5 + ' together are ' + AZ.pct(lowS, 1) + '.',
-        body: bs.slice(0, 6).map((o, i) => { const st = cum; cum += o.share; return '<div class="al-row' + (i < 3 ? ' hot' : '') + '"' + tipAttr('<b>' + o.item + '</b>' + AZ.row('Share of sales', AZ.pct(o.share, 1)) + AZ.row('Running total', AZ.pct(cum, 1))) + '><span class="k">' + AZ.esc(o.item) + '</span>' + bar(o.share / bs[0].share * 0.62, o.col) + '<span class="v">' + AZ.pct(o.share, 1) + '</span></div>'; }).join('')
+        body: bs.slice(0, 6).map((o, i) => { const st = cum; cum += o.share; return '<div class="al-row' + (i < 3 ? ' hot' : '') + '"' + tipAttr('<b>' + AZ.esc(o.item) + '</b>' + AZ.row('Share of sales', AZ.pct(o.share, 1)) + AZ.row('Running total', AZ.pct(cum, 1))) + '><span class="k">' + AZ.esc(o.item) + '</span>' + bar(o.share / bs[0].share * 0.62, o.col) + '<span class="v">' + AZ.pct(o.share, 1) + '</span></div>'; }).join('')
           + '<div class="al-note">Largest six by sales, ' + per + '. Bars are share of total sales.</div>'
       });
     }

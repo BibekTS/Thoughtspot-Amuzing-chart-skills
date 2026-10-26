@@ -12,9 +12,8 @@ hard-coded to geography — point `COL_L1/L2/L3` at any three dimensions in the
 
 ## Why this is the sunburst to copy
 
-It is the only example here taken through the preview loop **and** the emit
-checklist. `examples/Sunburst-chart/` and `examples/NWP-sunburst/` show the same
-hierarchy technique but predate both, and carry four defects this one fixes:
+It was taken through the preview loop **and** the emit checklist. Hand-built
+sunbursts that skip both tend to carry four defects this one fixes:
 
 | Defect | What it costs | Fixed here by |
 |---|---|---|

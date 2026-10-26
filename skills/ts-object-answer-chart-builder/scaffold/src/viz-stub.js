@@ -43,7 +43,7 @@ export function buildViz({ dataset, mode }) {
   //
   // Column `type` is left exactly as the dataset declares it. Real clusters have
   // been seen reporting both 'measure' and 'MEASURE' — charts should accept
-  // either (see examples/table-pivot/pivot-table/pivot-table.js), and
+  // either, and
   // the stub picking one would hide that.
   if (mode === "wrapped") {
     const inner = searchResult.getData.bind(searchResult);

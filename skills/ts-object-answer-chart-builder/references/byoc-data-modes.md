@@ -91,8 +91,9 @@ mode, an empty HTML tab, a failing CDN and a missing column):
 
 ```js
 const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@<doctor version>/dist/maya.core.global.js';
+const SRI = '<doctor integrity>'; // the doctor prints it beside the version
 const go = () => maya.host.thoughtspot(viz, { type: 'bar', x: 'Item Type', y: 'Total Sales' });
-if (window.maya?.host) go(); else { const s = document.querySelector('script[src="' + MAYA + '"]') ?? document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA })); s.addEventListener('load', go); s.addEventListener('error', () => { (document.getElementById('chart') ?? document.body).textContent = 'MayaCharts could not load from ' + MAYA; viz?.events?.emitRenderCompletedEvent?.(); }); }
+if (window.maya?.host) go(); else { const s = document.querySelector('script[src="' + MAYA + '"]') ?? document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, integrity: SRI, crossOrigin: 'anonymous' })); s.addEventListener('load', go); s.addEventListener('error', () => { (document.getElementById('chart') ?? document.body).textContent = 'MayaCharts could not load from ' + MAYA; viz?.events?.emitRenderCompletedEvent?.(); }); }
 ```
 
 ---

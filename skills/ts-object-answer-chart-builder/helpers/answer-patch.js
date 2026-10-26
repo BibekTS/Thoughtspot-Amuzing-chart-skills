@@ -28,7 +28,7 @@ if (badSha.length) return { refused: 'CHECKSUM MISMATCH - nothing written, resen
 
 // 2. model and columns
 const ms = await ts.post('/api/rest/2.0/metadata/search', { metadata: [{ type: 'LOGICAL_TABLE', identifier: P.model }], record_size: 2 });
-if (ms.status !== 200 || !ms.body || !ms.body.length) return { refused: 'model not found: ' + P.model, http: ms.status };
+if (ms.status !== 200 || !ms.body || ms.body.length !== 1 || String(ms.body[0].metadata_id).toLowerCase() !== P.model) return { refused: 'no model with guid ' + P.model, http: ms.status, found: (ms.body || []).length };
 const model = { guid: ms.body[0].metadata_id, name: ms.body[0].metadata_name };
 const q = await ts.post('/api/rest/2.0/searchdata', { logical_table_identifier: model.guid, query_string: P.search, record_size: 1 });
 const cn = q.status === 200 && q.body && q.body.contents && q.body.contents[0] && q.body.contents[0].column_names;
@@ -36,7 +36,7 @@ const cols = Array.isArray(cn) && cn.length ? cn : null; // no columns is a fail
 if (!cols) return { refused: 'search failed on ' + model.name + ': ' + P.search, raw: JSON.stringify(q.body).slice(0, 600) };
 let old = null;
 if (P.guid) {
-  const ex0 = await ts.post('/api/rest/2.0/metadata/tml/export', { metadata: [{ identifier: P.guid, type: 'ANSWER' }], edoc_format: 'JSON' });
+  const ex0 = await ts.post('/api/rest/2.0/metadata/tml/export', { metadata: [{ identifier: P.guid, type: 'ANSWER' }], edoc_format: 'JSON', export_fqn: true });
   if (ex0.status !== 200 || !ex0.body || !ex0.body[0] || !ex0.body[0].edoc) return { refused: 'answer ' + P.guid + ' not found or not exportable', http: ex0.status };
   old = JSON.parse(ex0.body[0].edoc).answer;
 }
@@ -71,8 +71,8 @@ if (old) {
   const oldTable = old.table || null, oldTc = byName(oldTable && oldTable.table_columns, 'column_id');
   const oldChart = old.chart && old.chart.type === 'MUZE_STUDIO' ? old.chart : null;
   const oldCc = byName(oldChart && oldChart.chart_columns, 'column_id');
-  // The old tables are kept only when they point at this model: by fqn when they have one, by name otherwise.
-  const tablesOk = (old.tables || []).some((t) => (t.fqn ? t.fqn === model.guid : t.id === model.name || t.name === model.name));
+  // The old tables are kept only when their fqn is this model's guid; a matching name may be another model.
+  const tablesOk = (old.tables || []).some((t) => String(t.fqn || '').toLowerCase() === model.guid.toLowerCase());
   merged = {
     ...old, ...answer,
     name: answer.name, search_query: answer.search_query,

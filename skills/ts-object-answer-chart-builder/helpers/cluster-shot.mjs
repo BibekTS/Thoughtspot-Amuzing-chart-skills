@@ -90,13 +90,13 @@ const exe = resolveBrowser(pw);
 if (!exe) { console.error("no Chromium found - run the doctor: node <ts-object-answer-chart-builder>/helpers/env.mjs"); process.exit(1); }
 
 const host = new URL(opt.url).host;
-const ctx = await pw.chromium.launchPersistentContext(profile, { ...launchOptions(exe, { headless: false }), viewport: { width: 1600, height: 1000 } });
+const ctx = await pw.chromium.launchPersistentContext(profile, { ...launchOptions(exe, { headless: false }), viewport: { width: 1600, height: 1000 }, ...(process.env.TS_CHART_OS_SCHEME ? { colorScheme: process.env.TS_CHART_OS_SCHEME } : {}) });
 const page = ctx.pages()[0] || (await ctx.newPage());
 try {
   await page.goto(opt.url, { waitUntil: "domcontentloaded" });
 
   // Logged in when we are on the cluster host, not on an SSO page, and the app has rendered.
-  const ready = () => page.evaluate((h) => location.host === h && !/login|okta|saml|sso/i.test(location.href) && !!document.querySelector("[data-testid], .ts-app, app-root, #app") && document.body.innerText.length > 200, host).catch(() => false);
+  const ready = () => page.evaluate((h) => location.host === h && !/login|okta|saml|sso/i.test(location.href) && !!document.querySelector("[data-testid], .ts-app, app-root, #app") && document.body.innerText.length > 100, host).catch(() => false);
   const t0 = Date.now();
   let said = false;
   while (!(await ready())) {

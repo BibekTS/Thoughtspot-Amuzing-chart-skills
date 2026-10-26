@@ -19,4 +19,3 @@ Built on MayaCharts as a `heatmap`: one row per store (largest on top, through d
 
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.
-The block between the `amuzing core` markers is shared: change it in `library/_shared/` and run `helpers/sync-core.mjs`.

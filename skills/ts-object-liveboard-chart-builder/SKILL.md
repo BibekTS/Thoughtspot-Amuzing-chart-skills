@@ -149,6 +149,12 @@ question is already answered; with "Let Claude pick per tile", the chart skill's
 A library chart drawn in another library keeps its search, derived fields and interactions. For many tiles,
 brief parallel subagents, one tab each, with `references/tile-brief.md`.
 
+**MayaCharts tiles are lean**: a chart whose `chart.js` has no shared-core marker ships as written (a spec and a few lines; see the chart skill's
+`references/library-contract.md` section 1a), flagged `lean` in the block. `liveboard-pack` sends the core only in blocks that hold a
+core-based tile (the narrative tiles, `next-action-list`, `next-what-if`), and `patch.js` recognises a lean tile as the skill's by its
+slug and owner markers, since it has no core to find it by. Lean tiles also keep the Liveboard small: 48 of them plus 11 core-based tiles come to well under
+half the TML of the same Liveboard built on the shared core. Tiles must also read on ThoughtSpot's dark theme (no white background).
+
 Narrative tiles (About hero, guide, tab banners) are not hand-built: write one
 `<W>/narratives/<slug>.cfg.js` per tile (copy the example's), then
 `node <L>/scripts/build-narratives.mjs --liveboard <W>`. Their copy is computed from
@@ -299,6 +305,9 @@ Update the example's README when the story changes.
 - Do not commit without a validate: `--commit` does it in the same call, and the Step 3 create does it in the same block; never send an `ALL_OR_NONE` import that was not validated first.
 - Do not claim a tile works in ThoughtSpot until its tab has been screenshotted and the PNG read.
 - Do not put a native ThoughtSpot chart on these Liveboards, or sample rows in a chart.
+- Do not give a chart its own title: the Liveboard tile already shows one, so a chart-internal title is a duplicate heading (a chart
+  `subtitle` is fine when it adds something). Tiles must also read on both ThoughtSpot themes: no white background, and the colour scheme comes
+  from the host's text colour, never from the OS (see the chart skill's `references/library-contract.md` section 1a).
 - No emojis, em-dashes or stock phrasing anywhere, including tab names and banners
   (`<C>/references/taste-rules.md`).
 
@@ -306,6 +315,7 @@ Update the example's README when the story changes.
 
 | Version | Date | Change |
 |---|---|---|
+| 4.8.0 | 2026-10-15 | Lean MayaCharts tiles (no shared core). `liveboard-pack.mjs` detects a chart without a core marker and ships it as written (`f.lean`), sends the core only in blocks that hold a core-based tile, and counts the core only when some tile needs it; `patch.js` accepts such a tile as the skill's by its slug and owner markers (`cands`), reads a core-free body whole (`bodyOf`) and composes it without a core prefix, so the drift check and the round trip work unchanged. Proven on a live Liveboard: a lean sankey replaced its core-based tile, validated, committed and round-tripped (58 tiles, same tabs). A Liveboard-level default date filter is set with a one-off server-side edit (`LAST_N_PERIOD`, `oper: '='`, 120 `MONTH`, `include_current_period: false`; seen on a cluster: `>=` runs up to today and does NOT exclude the current month; that `=` does is the intent and is not yet confirmed on a screenshot), because the patcher keeps any filter the Liveboard already has. Narrative configs may drop a part latest month with a `full(M)` guard (the model runs to today) |
 | 4.7.0 | 2026-10-14 | The library tiles are on MayaCharts 0.18.1 with their theme in `chart.css`; the shared core changed, so every tile was re-synced and `--core-ref` sends the new checksum. Preview only until the sample Liveboard is re-imported and screenshotted |
 | 4.6.0 | 2026-10-13 | Step 0 asks the chart library (Round 3): "Let Claude pick per tile", "MayaCharts for every tile" or another library, none marked recommended. Step 4 builds each tile in that library and passes it to the chart skill; a library chart in another library is redrawn, not reused |
 | 4.5.0 | 2026-10-12 | 42 more tiles are MayaCharts 0.16.0 (48 of 58), drawn through the shared core's new `AZ.maya(spec)`; the core changed, so every tile was re-synced and `--core-ref` sends the new checksum. Preview only until the sample Liveboard is re-imported and screenshotted; `next-action-list`, `next-what-if` and the text tiles are unchanged |

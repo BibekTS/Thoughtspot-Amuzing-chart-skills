@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// snap.mjs <slug> <attempt> [--data live|empty|absent|wrapped|noviz] [--tile WxH] [--standalone]
+// snap.mjs <slug> <attempt> [--data live|empty|absent|wrapped|noviz] [--tile WxH] [--standalone] [--scheme dark|light] [--host dark|light]
 //   (--data=absent and --tile=620x400 also work: under zsh an unquoted "$args" is not split, so prefer the = form in loops)
 //
 // Captures one attempt to <runs>/<slug>/attempts/<NN>.png.
@@ -29,18 +29,22 @@ import { startServer } from "./serve.mjs";
 
 const argv = process.argv.slice(2);
 const positional = [];
-let dataOverride = null, tileSpec = null, standalone = false;
+let dataOverride = null, tileSpec = null, standalone = false, scheme = null, host = null;
 for (let i = 0; i < argv.length; i++) {
   if (argv[i].startsWith("--data=")) dataOverride = argv[i].slice(7);
   else if (argv[i].startsWith("--tile=")) tileSpec = argv[i].slice(7);
   else if (argv[i] === "--data") dataOverride = argv[++i];
   else if (argv[i] === "--tile") tileSpec = argv[++i];
   else if (argv[i] === "--standalone") standalone = true;
+  else if (argv[i].startsWith("--scheme=")) scheme = argv[i].slice(9);
+  else if (argv[i] === "--scheme") scheme = argv[++i];
+  else if (argv[i].startsWith("--host=")) host = argv[i].slice(7);
+  else if (argv[i] === "--host") host = argv[++i];
   else positional.push(argv[i]);
 }
 const [slug, attemptArg] = positional;
 if (!slug || !attemptArg) {
-  console.error("usage: snap.mjs <slug> <attempt> [--data live|empty|absent|wrapped|noviz] [--tile WxH] [--standalone]");
+  console.error("usage: snap.mjs <slug> <attempt> [--data live|empty|absent|wrapped|noviz] [--tile WxH] [--standalone] [--scheme dark|light] [--host dark|light]");
   process.exit(2);
 }
 
@@ -104,10 +108,10 @@ try {
     if (!exe) throw new Error("no Chromium found - run: node env.mjs");
     server = await startServer({ scaffoldDir: env.scaffoldDir, runDir: env.runDir, port: 0 });
     browser = await pw.chromium.launch(launchOptions(exe, { headless: true }));
-    const page = await (await browser.newContext(VIEWPORT)).newPage();
+    const page = await (await browser.newContext(scheme ? { ...VIEWPORT, colorScheme: scheme } : VIEWPORT)).newPage();
     const dataMode = dataOverride ?? "live";
-    const outPath = path.join(env.attemptsDir, outName("live"));
-    const result = await captureTile(page, { url: `${server.url}/?data=${dataMode}`, outPath, tile });
+    const outPath = path.join(env.attemptsDir, outName([scheme && "os" + scheme, host && "host" + host].filter(Boolean).join("-") || "live"));
+    const result = await captureTile(page, { url: `${server.url}/?data=${dataMode}${host ? "&host=" + host : ""}`, outPath, tile });
     const why = env.headless
       ? (env.display ? "TS_CHART_HEADLESS=1" : "no display")
       : standalone ? "--standalone" : `no headed preview reachable - run start-preview.mjs ${slug} for the window`;

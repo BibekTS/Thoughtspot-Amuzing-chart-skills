@@ -13,6 +13,7 @@
 // (`thoughtspot-amuzing-chart`), so the name is read off the directory.
 
 import { spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import os from "node:os";
@@ -282,6 +283,14 @@ async function cdnReachable() {
   } catch { return "blocked"; }
 }
 
+// The sha384 subresource-integrity value a <script> loading this pinned URL carries.
+async function sri(url) {
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    return r.ok ? "sha384-" + crypto.createHash("sha384").update(Buffer.from(await r.arrayBuffer())).digest("base64") : `unknown (HTTP ${r.status})`;
+  } catch { return "unknown (unreachable)"; }
+}
+
 // MayaCharts ships often: every chart pins the release that is latest when it is built. jsDelivr answers
 // "latest" for the URL; the npm registry is the fallback (the Claude app can often reach one but not the other).
 async function mayaLatest() {
@@ -293,7 +302,11 @@ async function mayaLatest() {
     try {
       const r = await fetch(url, { signal: AbortSignal.timeout(4000) });
       const v = r.ok ? pick(await r.json()) : null;
-      if (/^\d+\.\d+\.\d+$/.test(v || "")) return `${v} (pin it: core types https://cdn.jsdelivr.net/npm/mayacharts@${v}/dist/maya.core.global.js, every type https://cdn.jsdelivr.net/npm/mayacharts@${v}/dist/maya.global.js)`;
+      if (/^\d+\.\d+\.\d+$/.test(v || "")) {
+        const pins = [];
+        for (const f of ["maya.core.global.js", "maya.global.js"]) pins.push(`${f === "maya.global.js" ? "every type" : "core types"} https://cdn.jsdelivr.net/npm/mayacharts@${v}/dist/${f} integrity ${await sri(`https://cdn.jsdelivr.net/npm/mayacharts@${v}/dist/${f}`)}`);
+        return `${v} (pin it, with the integrity: ${pins.join("; ")})`;
+      }
     } catch {}
   }
   return "unknown - could not reach jsDelivr or npm; ask before pinning a version from memory";
