@@ -109,12 +109,15 @@ for (const slug of slugs) {
   if (!d) { console.error("no library chart " + slug + " (in ~/.cache/ts-charts/library or the shipped library)"); process.exit(2); }
   const read = (f) => fs.readFileSync(path.join(d, f), "utf8");
   const html = read("chart.html"), cssFull = read("chart.css"), jsFull = read("chart.js");
-  if (!jsFull.includes(coreJsFile)) console.error("warning: " + slug + "/chart.js has an out-of-date core copy; the Liveboard gets the current core, run sync-core so the preview matches");
-  const bodyJs = split(jsFull, "js", slug + "/chart.js"), bodyCss = split(cssFull, "css", slug + "/chart.css");
+  // A lean chart (MayaCharts: a spec and a few lines) carries no core: it ships as written.
+  const lean = !OPEN.js.test(jsFull);
+  if (!lean && !jsFull.includes(coreJsFile)) console.error("warning: " + slug + "/chart.js has an out-of-date core copy; the Liveboard gets the current core, run sync-core so the preview matches");
+  const bodyJs = lean ? jsFull : split(jsFull, "js", slug + "/chart.js"), bodyCss = lean ? cssFull : split(cssFull, "css", slug + "/chart.css");
   lint(html, slug + "/chart.html"); lint(bodyJs, slug + "/chart.js"); lint(bodyCss, slug + "/chart.css");
   const f = { js: liteJs("/* amuzing-slug: " + slug + " */\n" + bodyJs), css: liteCss(bodyCss), html };
+  if (lean) f.lean = true;
   tiles[slug] = { f, sha: { js: sha(f.js), css: sha(f.css), html: sha(f.html) } };
-  bodySha[slug] = { js: sha(f.js.replace(MARK_RE, "").trim()), css: sha(f.css.trim()), html: sha(html), cssLegacy: sha(liteCssLegacy(coreCssFile + bodyCss)) };
+  bodySha[slug] = { js: sha(f.js.replace(MARK_RE, "").trim()), css: sha(f.css.trim()), html: sha(html), cssLegacy: lean ? sha(f.css) : sha(liteCssLegacy(coreCssFile + bodyCss)) };
   if (REUSE) tiles[slug] = { ref: { js: bodySha[slug].js, css: bodySha[slug].css, cssLegacy: bodySha[slug].cssLegacy, html: bodySha[slug].html, title: (spec.tabs.flatMap((t) => t.tiles).find((x) => x.slug === slug) || {}).title } };
 }
 
@@ -133,7 +136,7 @@ const src = (payload) => {
   const out = ["{", "spec: " + JSON.stringify(payload.spec) + ",", "specSha: " + JSON.stringify(sha(JSON.stringify(payload.spec))) + ","];
   out.push("core: " + (payload.core && payload.core.ref ? "{ ref: true, sha: " + JSON.stringify(payload.core.sha) + " }" : payload.core ? "{ js: " + raw(payload.core.js) + ",\ncss: " + raw(payload.core.css) + ",\nsha: " + JSON.stringify(payload.core.sha) + " }" : "null") + ",");
   out.push("tiles: {");
-  for (const [slug, t] of Object.entries(payload.tiles)) if (t.ref) out.push(JSON.stringify(slug) + ": { ref: " + JSON.stringify(t.ref) + " },"); else out.push(JSON.stringify(slug) + ": { f: { html: " + raw(t.f.html) + ",\ncss: " + raw(t.f.css) + ",\njs: " + raw(t.f.js) + " },\nsha: " + JSON.stringify(t.sha) + " },");
+  for (const [slug, t] of Object.entries(payload.tiles)) if (t.ref) out.push(JSON.stringify(slug) + ": { ref: " + JSON.stringify(t.ref) + " },"); else out.push(JSON.stringify(slug) + ": { f: { html: " + raw(t.f.html) + ",\ncss: " + raw(t.f.css) + ",\njs: " + raw(t.f.js) + (t.f.lean ? ",\nlean: true" : "") + " },\nsha: " + JSON.stringify(t.sha) + " },");
   out.push("},", "reuse: " + JSON.stringify(REUSE) + ",", "adopt: " + JSON.stringify(flags.has("--adopt") || flags.has("--adopt-by-position")) + ",", "adoptByPosition: " + JSON.stringify(flags.has("--adopt-by-position")) + ",", "backup: " + JSON.stringify(backup) + ",", "backupSha: " + JSON.stringify(backupSha) + ",", "pending: " + JSON.stringify(payload.pending || []) + ",", "bodySha: " + JSON.stringify(payload.bodySha), "}");
   return out.join("\n");
 };
@@ -147,7 +150,7 @@ if (MODE === "check") {
 }
 const blocks = [];
 let cur = {}, size = 0;
-const baseSize = JSON.stringify({ spec, core }).length + tpl.length;
+const baseSize = JSON.stringify({ spec, core: Object.values(tiles).every((t) => t.f && t.f.lean) ? null : core }).length + tpl.length;
 for (const s of slugs) {
   const n = JSON.stringify(tiles[s]).length;
   if (size && baseSize + size + n > MAX) { blocks.push(cur); cur = {}; size = 0; }
@@ -156,5 +159,7 @@ for (const s of slugs) {
 if (size) blocks.push(cur);
 // Tiles still to come in later blocks are reported as pending, not as problems.
 const coreRef = { ref: true, sha: core.sha };
-console.log(blocks.map((t, i) => block({ spec, core: flags.has("--core-ref") || (i > 0 && MODE === "commit") ? coreRef : core, tiles: t, bodySha: {}, pending: blocks.slice(i + 1).flatMap((b) => Object.keys(b)) })).join("\n=====\n"));
+const needsCore = (b) => Object.values(b).some((t) => !(t.f && t.f.lean));
+const firstCore = blocks.findIndex(needsCore);
+console.log(blocks.map((t, i) => block({ spec, core: !needsCore(t) ? null : flags.has("--core-ref") || (i > firstCore && MODE === "commit") ? coreRef : core, tiles: t, bodySha: {}, pending: blocks.slice(i + 1).flatMap((b) => Object.keys(b)) })).join("\n=====\n"));
 console.error(`\n[liveboard-pack] ${slugs.length} tile(s) in ${blocks.length} block(s), mode ${MODE}: ` + blocks.map((b) => Object.keys(b).join(" ")).join(" | "));

@@ -45,8 +45,8 @@ palette validator. Take the principles, not the React and Tailwind machinery.
 ## Copy
 
 - Specific and data-derived. "Jackets carry 37% of sales from 6% of units" beats "Explore your top categories".
-- Titles name what is shown ("Monthly sales against last year"). The insight lives in the header line under
-  it, computed from the rows.
+- Titles name what is shown ("Monthly sales against last year"). On a Liveboard tile the title is the tile's own and the chart draws none;
+  an insight lives in the chart's subtitle, computed from the rows, and only when the tile title does not already say it.
 - **Copy self-audit before emit:** re-read every visible string. Flag any that is grammatically off, has an
   unclear referent, reads like a forced metaphor, or sounds like a model trying to sound thoughtful. Replace
   it with a plain functional sentence. Boring and true beats cute.

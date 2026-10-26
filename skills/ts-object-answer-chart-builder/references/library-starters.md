@@ -35,11 +35,12 @@ screenshotted on a cluster: say "verified in preview" until it has been.
   fails, a column that is not there (MayaCharts paints the error, listing the columns it found) and 130 to 1400 px:
   ```js
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/maya.core.global.js';
+  const SRI = 'sha384-KZQbG8OHSEU86UWT5Pp3LATC64UAhHxwg1UMKN/lZtsu02CeDifcSVWCewQO2h/6'; // the doctor prints it beside the version
   const go = () => maya.host.thoughtspot(viz, { type: 'bar', x: 'Item Type', y: 'Total Sales' });
-  if (window.maya?.host) go(); else { const s = document.querySelector('script[src="' + MAYA + '"]') ?? document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA })); s.addEventListener('load', go); s.addEventListener('error', () => { (document.getElementById('chart') ?? document.body).textContent = 'MayaCharts could not load from ' + MAYA; viz?.events?.emitRenderCompletedEvent?.(); }); }
+  if (window.maya?.host) go(); else { const s = document.querySelector('script[src="' + MAYA + '"]') ?? document.head.appendChild(Object.assign(document.createElement('script'), { src: MAYA, integrity: SRI, crossOrigin: 'anonymous' })); s.addEventListener('load', go); s.addEventListener('error', () => { (document.getElementById('chart') ?? document.body).textContent = 'MayaCharts could not load from ' + MAYA; viz?.events?.emitRenderCompletedEvent?.(); }); }
   ```
   `chart.html` is `<maya-chart id="chart"></maya-chart>` (plus the Geist link); `chart.css` is
-  `html, body { height: 100%; margin: 0; background: #fff; } #chart { display: block; height: 100%; color-scheme: light; --maya-font: Geist, system-ui, sans-serif; --maya-fg: #1E1E24; --maya-accent: #1E1E24; }`
+  `html, body { height: 100%; margin: 0; } #chart { display: block; height: 100%; --maya-font: Geist, system-ui, sans-serif; --maya-bg: transparent; --maya-tooltip-bg: light-dark(#fff, #2b2f36); --maya-accent: light-dark(#1E1E24, #E6EDF3); }`
   (the theme lives here, see Theme below). 0.18.1 signals render-complete on the first draw, so a cold load no
   longer shows "Something went wrong" on a tile.
   The adapter's spec takes every option except `data`. **Write fields as plain column names**: `x: 'Item Type',
@@ -49,22 +50,16 @@ screenshotted on a cluster: say "verified in preview" until it has been.
   The fields are `x`, `y`, `series`, `path`, `size`, `name`, `frame`, `y2`, `was.by`, `tooltip.fields`. A RegExp
   (`y: /sales/i`) is the fallback for one tile that must work on clusters naming the column differently.
 - **When the spec needs a field the search does not return** (a family derived from item type, a per-row price, a
-  top-N roll-up), read the rows yourself. In a library chart (core block present) the body is the rows, the derived
-  fields and one `AZ.maya(spec)` call; `AZ.maya(spec, 'maya.global.js')` for a module type:
+  top-N roll-up), keep the tile lean: hand the adapter a wrapped `viz` that adds the column, and name that column in the
+  spec. No core, no `AZ`. `library/what-money-sankey` is the reference (8 lines of JS, family level derived):
   ```js
-  const { schema, rows } = AZ.liveData() ?? { schema: [], rows: [] };
-  const I = AZ.col(schema, /item/i, { optional: true }) ?? 'Item Type';
-  AZ.maya({ type: 'bar', x: 'Family', y: 'Total Sales', colors: AZ.T.family, data: rows.map((r) => ({ ...r, Family: AZ.familyOf(r[I]) })) });
+  const withFamily = (d, i = d.schema.findIndex((c) => /item/i.test(c.name))) => ({ schema: [...d.schema, { name: 'Family' }], data: d.data.map((r) => [...r, FAM[r[i]?.value?.() ?? r[i]?.value ?? r[i]]]) });
+  const go = () => maya.host.thoughtspot({ events: viz?.events, getDataFromSearchQuery: () => ({ getData: () => { const d = viz?.getDataFromSearchQuery?.()?.getData(); return d && withFamily(d); } }) }, { type: 'sankey', path: ['region', 'Family', 'item type'], y: 'Total sales', drill: true });
   ```
-  `AZ.maya` finds or creates `<maya-chart id="chart">`, loads the pinned build once (the URL lives in the core, so a
-  version bump is one edit in `library/_shared/core.js` plus `sync-core`), paints a message if the CDN fails, sets
-  the spec and signals render-complete once, on the first `maya-render` or `maya-settled` (also after an error),
-  never on `customElements.whenDefined`. The house theme is not in JS: it is `--maya-*` on `maya-chart#chart` in
-  `core.css`. It returns the element, for `el.view` or a `maya-select` listener.
-  With no `data` key, `AZ.maya(spec)` hands the spec to MayaCharts' adapter instead: plain column names, cells unwrapped,
-  render-complete signalled, so a chart that needs no derived rows is `AZ.maya({ type: 'bar', x: 'Item Type', y: 'Total Sales' })`.
-  `AZ.col(schema, /re/i, { optional: true }) ?? 'Name'` reads a column without throwing on absent data. Do not copy
-  the loader lines into a library chart, and do not restate the house theme.
+  The adapter leaves a name it cannot find among the columns as written, so `'Family'` in `path` resolves to the added
+  column. Keep the `viz?.` chains: they keep the tile drawing with no search and no host. `viz.events` is the only other
+  thing the adapter reads. Charts that still carry the shared core (`AZ.maya(spec)`) are legacy for MayaCharts; do not
+  start a new one that way. The contract is `library-contract.md` section 1a.
 - **Theme in `chart.css`, not in JS (0.18.0).** Every theme token is a custom property on the chart element: kebab
   case with a `--maya-` prefix (`fgMuted` is `--maya-fg-muted`, `series3` is `--maya-series-3`, `numeric: 'tabular'`
   is `--maya-numeric: tabular-nums`). A library chart's `core.css` sets the house style on `maya-chart#chart`
@@ -74,7 +69,7 @@ screenshotted on a cluster: say "verified in preview" until it has been.
   the chart sets its own defaults on the element. `spec.theme` still works and beats the CSS. Keep these in
   `spec.theme`, since they also size the layout or make a ramp diverging: `axisSize`, `labelSize`, `heroSize`,
   `cellGap`, `rampMid`, `rampMidValue`; so does any value computed from the data (a `fontSize` that depends on the
-  number of measures). Pin `color-scheme: light` on the element: ThoughtSpot tiles are light whatever the OS is.
+  number of measures). **Works on both ThoughtSpot themes**: no white background (none on `html`, `body` or `--maya-bg`: set `--maya-bg: transparent`), no hard-coded `--maya-fg` / `--maya-fg-muted`, and the tooltip needs `--maya-tooltip-bg: light-dark(#fff, #2b2f36)` because a transparent chart has no backdrop to mix it from. Any ink-coloured token or `colors` entry is `light-dark(#1E1E24, #E6EDF3)` (a spec `colors` map accepts `light-dark()` too). **The scheme comes from the host's text colour, not the OS** (`prefers-color-scheme` only mirrors the OS and made pale text on a white tile): the first line of `chart.js` is `document.getElementById('chart')?.style.setProperty('color-scheme', (([r, g, b]) => r * .299 + g * .587 + b * .114 > 140)(getComputedStyle(document.body).color.match(/\d+/g)) ? 'dark' : 'light');` and the CSS has no `color-scheme`. A tile also has **no `title`** (the Liveboard tile shows one); a `subtitle` is fine. Verified in a browser with the OS and the host themes set independently; whether ThoughtSpot's own dark theme changes the frame's text colour is not verified on a cluster.
   A `colors` map key now beats the series tokens (0.17.0), so both can stay.
 - **Colours by meaning.** `colors` takes a map: by series value, by `path[0]` on treemap and sunburst, by node name on
   sankey and chord (links and inner levels inherit), by category on waffle. Slots are fixed from all rows, so hues
@@ -125,7 +120,9 @@ screenshotted on a cluster: say "verified in preview" until it has been.
 - Errors carry a code and a link (`https://bbekshr.github.io/mayacharts/errors.html#<code>`): read that page before
   guessing. The ceilings MayaCharts keeps on purpose are in its NON-FEATURES.md.
 
-## ECharts (echarts@5)
+## ECharts (echarts@5.6.0)
+
+Pinned build: `{ src: 'https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js', integrity: 'sha384-pPi0zxBAoDu6+JXW/C68UZLvBUUtU+7zonhif43rqj7pxsGyqyqzcian2Rj37Rss' }`.
 
 - Render with `renderer: 'svg'`, set `animation: false`, and pass an explicit `width` and `height`
   (`echarts.init(el, null, { renderer: 'svg', width: w, height: h })`). Without them the first paint can be a
@@ -135,16 +132,18 @@ screenshotted on a cluster: say "verified in preview" until it has been.
   with `chart.convertFromPixel({ xAxisIndex: 0 }, px)` using a scalar.
 - Sankey and sunburst labels collide first: drop or shorten the small ones and say so in the sub line.
 
-## D3 (d3@7)
+## D3 (d3@7.9.0)
+
+Pinned build: `{ src: 'https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js', integrity: 'sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i' }`.
 
 - Use it for scales, layouts (`d3.stack`, `d3.area`) and transitions; write the DOM yourself where a
   library would fight the shared tooltip.
 - Geography: do not fetch topology. `library/_shared/us-states.js` holds all 51 states as pre-projected
   Albers paths (viewBox 0 0 975 610) with centroids. Paste the const into the chart body and draw plain SVG.
 
-## Chart.js (chart.js@4)
+## Chart.js (chart.js@4.6.1)
 
-Loaded from a CDN, so it cannot be previewed where the doctor reports `cdn: blocked`; verify it on a tile. Load `https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js`
+Loaded from a CDN, so it cannot be previewed where the doctor reports `cdn: blocked`; verify it on a tile. Load `{ src: 'https://cdn.jsdelivr.net/npm/chart.js@4.6.1/dist/chart.umd.min.js', integrity: 'sha384-Emf5ZVIUiarAdhkgtqK+5/Z5qIvM6QoVrS+qAVtfyZVuD5lIHrac0me485+Antp0' }`
 through `AZ.loadScript` (bounded, with a fallback host); reference `window.Chart` after it resolves. Plugins load
 the same way afterwards and register on `window.Chart` by themselves.
 
@@ -153,9 +152,12 @@ the same way afterwards and register on `window.Chart` by themselves.
   the instance in a module-scope variable and `chart?.destroy()` before re-creating on a redraw.
 - **Plugin CDN URLs need the explicit `/dist/<file>.min.js` path.** `.../chartjs-plugin-datalabels@2` alone
   returns 404 on jsdelivr, the plugin never registers, and the chart silently renders without labels:
-  `https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2/dist/chartjs-plugin-datalabels.min.js`,
-  `https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3/dist/chartjs-plugin-annotation.min.js`,
-  `https://cdn.jsdelivr.net/npm/chartjs-chart-sankey@0.12/dist/chartjs-chart-sankey.min.js`.
+  `https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js`
+  (`sha384-y49Zu59jZHJL/PLKgZPv3k2WI9c0Yp3pWB76V8OBVCb0QBKS8l4Ff3YslzHVX76Y`),
+  `https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js`
+  (`sha384-3N9GHhCtN3CQef6tNfqgZlv7sQLYIkcChN+uaTZ7xVdzKYp/SjBNPxa92+hM7EAY`),
+  `https://cdn.jsdelivr.net/npm/chartjs-chart-sankey@0.12.1/dist/chartjs-chart-sankey.min.js`
+  (`sha384-R5LF8opcxOg7Ibk9Tcz2v5qJ/2FKaqqJfvGRDQtj5e7gQ4AzhwYCB61EOu/N6qoh`).
 - Bar plus line with bars coloured above or below plan: two bar datasets, each `null` where the other owns the
   row, plus the plan line. `chartjs-plugin-datalabels` for the bar values.
 

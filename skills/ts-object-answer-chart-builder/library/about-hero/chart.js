@@ -98,23 +98,25 @@ const AZ = (function () {
   }
 
   // -- CDN loader: bounded, with fallback hosts (a hung request fires neither onload nor onerror)
+  // Each entry is a pinned URL or { src, integrity } carrying its sha384 SRI value (the same build on every host shares one).
   function loadScript(urls, isReady, timeoutMs) {
-    const list = [].concat(urls);
+    const list = [].concat(urls).map((u) => (typeof u === 'string' ? { src: u } : u));
     const tryOne = (i) => new Promise((resolve, reject) => {
       if (isReady()) return resolve();
-      if (i >= list.length) return reject(new Error('Library could not be loaded from: ' + list.join(' , ')));
+      if (i >= list.length) return reject(new Error('Library could not be loaded from: ' + list.map((u) => u.src).join(' , ')));
       const s = document.createElement('script');
       let done = false;
       const next = () => { if (done) return; done = true; s.remove(); tryOne(i + 1).then(resolve, reject); };
       const t = setTimeout(next, timeoutMs || 8000);
-      s.src = list[i];
+      s.src = list[i].src;
+      if (list[i].integrity) { s.integrity = list[i].integrity; s.crossOrigin = 'anonymous'; }
       s.onload = () => { if (done) return; done = true; clearTimeout(t); isReady() ? resolve() : tryOne(i + 1).then(resolve, reject); };
       s.onerror = () => { clearTimeout(t); next(); };
       document.head.appendChild(s);
     });
     // The HTML tab may already carry a <script src> for this library: if so, give it a moment to finish before
     // injecting a second copy. If no such tag exists, inject at once (no wait).
-    const tagged = list.some((u) => document.querySelector('script[src="' + u + '"]'));
+    const tagged = list.some((u) => document.querySelector('script[src="' + u.src + '"]'));
     if (!tagged) return tryOne(0);
     return new Promise((resolve, reject) => {
       let waited = 0;
@@ -136,14 +138,19 @@ const AZ = (function () {
   }
 
   // -- MayaCharts: pinned build, render-complete on the first draw ------------
-  // maya(spec, 'maya.global.js') for module types. A spec without `data` is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
+  // maya(spec, 'maya.global.js') for module types. A spec without "data" is read from the search by the adapter, with plain column names. The house theme is --maya-* on #chart in core.css;
   // spec.theme holds only the tokens that differ, and the layout ones (axisSize, labelSize, heroSize, cellGap).
   const MAYA = 'https://cdn.jsdelivr.net/npm/mayacharts@0.18.1/dist/';
+  // Subresource integrity for the pinned build: a changed file on the CDN refuses to run. A version bump recomputes both.
+  const MAYA_SRI = {
+    'maya.core.global.js': 'sha384-KZQbG8OHSEU86UWT5Pp3LATC64UAhHxwg1UMKN/lZtsu02CeDifcSVWCewQO2h/6',
+    'maya.global.js': 'sha384-Z7INdXfgP1H/WUINrm44nlLrtN58MLpFXLi52fr7HiGOGg/J4FAvjgXQM2Wnd9AK',
+  };
   function maya(spec, file) {
-    const src = MAYA + (file || 'maya.core.global.js');
+    const f = file || 'maya.core.global.js', src = MAYA + f;
     let n = 0; const fin = () => n++ || host()?.events?.emitRenderCompletedEvent?.();
     const el = document.getElementById('chart') || document.body.appendChild(Object.assign(document.createElement('maya-chart'), { id: 'chart' }));
-    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
+    if (!document.querySelector('script[src="' + src + '"]')) document.head.appendChild(Object.assign(document.createElement('script'), { src: src, integrity: MAYA_SRI[f], crossOrigin: 'anonymous', onerror: () => { el.textContent = 'MayaCharts could not load from ' + src; fin(); } }));
     if (!('data' in spec)) { // no rows of our own: MayaCharts' adapter reads the search, matches the plain column names and signals render-complete
       const draw = () => !!window.maya?.host && (document.removeEventListener('load', draw, true), window.maya.host.thoughtspot(host(), spec), true);
       draw() || document.addEventListener('load', draw, true);

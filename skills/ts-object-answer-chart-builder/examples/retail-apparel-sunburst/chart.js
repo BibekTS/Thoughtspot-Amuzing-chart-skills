@@ -48,6 +48,8 @@ const PLOTLY_SOURCES = [
   'https://cdn.plot.ly/plotly-2.35.2.min.js',
   'https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js',
 ];
+// Both URLs serve the same 2.35.2 build; a script whose bytes do not match is refused.
+const PLOTLY_SRI = 'sha384-cCVCZkAjYNxaYKbM8lsArLznDF/SvMFr1jcZrvOpSTCa0W40ZAdLzHCEulnUa5i7';
 const SCRIPT_TIMEOUT_MS = 12000;
 
 // ========================== End customize ================================
@@ -316,6 +318,8 @@ function injectScript(src, timeoutMs) {
       finish(new Error('timed out after ' + timeoutMs + 'ms: ' + src));
     }, timeoutMs);
     s.src = src;
+    s.integrity = PLOTLY_SRI;
+    s.crossOrigin = 'anonymous';
     s.onload = function () { finish(null); };
     s.onerror = function () { finish(new Error('blocked or unreachable: ' + src)); };
     (document.head || document.documentElement).appendChild(s);

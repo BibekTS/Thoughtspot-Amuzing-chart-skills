@@ -77,7 +77,7 @@ const specTabNames = new Set(spec.tabs.map((t) => t.name));
 const cands = [];
 for (const tab of ((doc0.layout && doc0.layout.tabs) || []).filter((t) => specTabNames.has(t.name))) for (const tl of tab.tiles || []) {
   const c = codeOf(vizById[tl.visualization_id]);
-  if (!hasCore(c)) continue;
+  if (!hasCore(c) && !ownerOf(c) && !MARK.test(c.js)) continue; // a lean tile (no core) is the skill's by its markers
   const m = MARK.exec(c.js), pos = tab.name + '|' + tl.x + '|' + tl.y;
   cands.push({ id: tl.visualization_id, c, pos, slug: m ? m[1] : null, owner: ownerOf(c), title: nameOf(vizById[tl.visualization_id]) });
 }
@@ -121,7 +121,7 @@ if (P.core && P.core.ref) {
   if (!js || !css) return { refused: 'core.ref: no tile on this Liveboard carries the current core (' + (js ? '' : 'js ') + (css ? '' : 'css') + '); send this block without --core-ref' };
   core = { js, css };
 }
-const bodyOf = (c) => ({ js: c.js.slice(c.js.indexOf(END_JS) + END_JS.length), css: c.css.slice(c.css.indexOf(END_CSS) + END_CSS.length) });
+const bodyOf = (c) => ({ js: c.js.indexOf(END_JS) < 0 ? c.js : c.js.slice(c.js.indexOf(END_JS) + END_JS.length), css: c.css.indexOf(END_CSS) < 0 ? c.css : c.css.slice(c.css.indexOf(END_CSS) + END_CSS.length) });
 
 // Tiles sent by reference: copy the body from the source Liveboard when it matches the library checksums.
 const needCode = [];
@@ -193,7 +193,7 @@ for (const tab of spec.tabs) {
     // on another Liveboard is not). Older kept tiles get it too.
     const mark = (js) => js.indexOf(OWNER_LINE) >= 0 ? js : js.replace(MARK, (m) => m + '\n' + OWNER_LINE);
     if (P.tiles[t.slug] && P.tiles[t.slug].body) { const bd = P.tiles[t.slug].body; code = { js: core.js + bd.js, css: bd.cssWhole || core.css + bd.css, html: bd.html }; from = 'payload'; }
-    else if (P.tiles[t.slug]) { const f = P.tiles[t.slug].f; code = { js: core.js + '\n' + mark(f.js), css: core.css + '\n' + f.css, html: f.html }; from = 'payload'; }
+    else if (P.tiles[t.slug]) { const f = P.tiles[t.slug].f; code = f.lean ? { js: mark(f.js), css: f.css, html: f.html } : { js: core.js + '\n' + mark(f.js), css: core.css + '\n' + f.css, html: f.html }; from = 'payload'; }
     else if (bySlug[t.slug]) { code = bySlug[t.slug]; from = 'kept'; }
     else if (byPos[pos]) { code = byPos[pos]; from = 'kept (position)'; }
     else { report.push({ slug: t.slug, from: (P.pending || []).includes(t.slug) ? 'pending' : 'MISSING - not on the Liveboard and not in this payload' }); continue; }

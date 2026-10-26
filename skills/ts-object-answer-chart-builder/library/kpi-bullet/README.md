@@ -19,4 +19,3 @@ Built on MayaCharts as a `kpi` tile (7 code lines on 0.18.1, plain column names,
 
 ## Paste
 chart.html into the HTML tab, chart.css into the CSS tab, chart.js into the JS tab, then bind the search above.
-The block between the `amuzing core` markers is shared: change it in `library/_shared/` and run `helpers/sync-core.mjs`.

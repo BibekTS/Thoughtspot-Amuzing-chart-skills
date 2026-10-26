@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <title>ThoughtSpot chart preview</title>
+    <script>if (/[?&]host=dark/.test(location.search)) document.documentElement.dataset.host = 'dark';</script>
     <style>
       /* Deliberately NO `height: 100%` here. A ThoughtSpot tile's <body> has no
          explicit height, and `html, body { height: 100% }` in chart.css is what
@@ -20,6 +21,15 @@
       #tile { position: fixed; inset: 16px 16px 34px 16px; border: 1px solid #e3e3e3;
         border-radius: 6px; overflow: hidden; background: #fff; }
       #chart-host { width: 100%; height: 100%; }
+
+      /* ?host=dark (snap.mjs --host dark) puts the tile on a dark host as ThoughtSpot's dark theme would: a dark page and light
+         body text. ThoughtSpot gives a tile's page a transparent background and a body text colour (rgb(29, 35, 47) on its light
+         theme), so a chart reads the host's theme from that text colour, never from prefers-color-scheme, which only mirrors the OS.
+         snap.mjs --scheme dark|light emulates the OS separately, so OS dark with a light host (a real case) can be tested. */
+      html[data-host="dark"], html[data-host="dark"] body, html[data-host="dark"] #tile { background: #1b1d22; }
+      html[data-host="dark"] body { color: #e6edf3; }
+      html[data-host="dark"] #tile { border-color: #30343b; }
+      body { color: rgb(29, 35, 47); }
 
       #status { position: fixed; left: 16px; right: 16px; bottom: 8px; height: 18px;
         font: 11px/18px ui-monospace, "SF Mono", Menlo, monospace; color: #999; }
