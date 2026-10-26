@@ -4,9 +4,9 @@
 
 **Describe a chart. Get a ThoughtSpot custom chart that has already been rendered and checked.**
 
-Two Claude skills that build ThoughtSpot custom charts (BYOC), and whole Liveboards of them,<br>by running the code in a real browser until it looks right.
+Two Claude skills that build ThoughtSpot custom charts (BYOC), in 2D or interactive 3D, and whole Liveboards of them,<br>by running the code in a real browser until it looks right.
 
-**[Install](#install)** · **[How it works](#how-it-works)** · **[Chart libraries](#chart-libraries)** · **[The chart library](#the-chart-library)** · **[Check your setup](#check-your-setup)**
+**[Website](https://bibekts.github.io/Thoughtspot-Amuzing-chart-skills/)** · **[Install](#install)** · **[How it works](#how-it-works)** · **[Chart libraries](#chart-libraries)** · **[3D charts](#3d-charts)** · **[The chart library](#the-chart-library)** · **[Check your setup](#check-your-setup)**
 
 </div>
 
@@ -27,7 +27,8 @@ Two Claude skills that build ThoughtSpot custom charts (BYOC), and whole Liveboa
 - **Edge cases checked.** Missing, object-wrapped and empty data, no host at all, and narrow and wide tiles.
 - **Real data when connected.** With the ThoughtSpot MCP, each chart is built on the exact output of its own search, and can be saved as an answer.
 - **Whole Liveboards.** The second skill plans numbered tabs on a real model, has each tile built, adds filters, imports, proves the import and screenshots every tab.
-- **Your choice of library.** You pick one, or let Claude pick by shape: MayaCharts, D3, ECharts, Plotly, Chart.js, gridjs, HTML tables or raw SVG.
+- **Your choice of library.** You pick one, or let Claude pick by shape: MayaCharts, D3, ECharts, Plotly, Chart.js, Three.js, gridjs, HTML tables or raw SVG.
+- **2D or 3D.** Three.js tiles you drag to turn and click into, most with a second view one toggle away.
 
 ## Two skills
 
@@ -90,8 +91,9 @@ The skill builds in any of these. Ask for one by name, or let Claude pick by the
 | HTML table | Pivots, crosstabs, print-style output | Inline, no download |
 | Raw SVG / Canvas | KPI tiles that are mostly typography, hand-drawn maps | Inline, no download |
 | Raw HTML/CSS | Quote cards, text slides, annotation blocks | Inline, no download |
+| [Three.js](https://threejs.org/) | Interactive 3D: extruded maps, terrain, block cities, helixes, sphere galaxies | CDN, pinned (0.158.0 in [Retail in 3D](#3d-charts)), no SRI yet |
 
-Every CDN script is pinned to an exact version and carries a sha384 `integrity` value, so a saved tile never changes under you. A file that changes on the CDN is refused. Tiles can load scripts from a CDN, but `fetch()` is blocked inside them, so data files and maps are inlined. Where the doctor reports `cdn: blocked` (usual in the Claude app), CDN charts are still written but marked *not previewed*.
+Every CDN script in the shipped library is pinned to an exact version and carries a sha384 `integrity` value, so a saved tile never changes under you. A file that changes on the CDN is refused. Tiles can load scripts from a CDN, but `fetch()` is blocked inside them, so data files and maps are inlined. Where the doctor reports `cdn: blocked` (usual in the Claude app), CDN charts are still written but marked *not previewed*.
 
 The shipped [chart library](#the-chart-library) uses two of these: 48 MayaCharts specs, and 10 hand-built SVG and HTML tiles.
 
@@ -102,6 +104,26 @@ maya.host.thoughtspot(viz, { type: 'bar', x: 'Item Type', y: 'Total Sales', titl
 ```
 
 Fields are plain column names. The adapter reads the search, unwraps cells, mounts the chart and tells ThoughtSpot the tile is done. The doctor finds the latest MayaCharts release and every chart pins it (now 0.18.1), so a saved tile never changes under you. The theme lives in `chart.css` as `--maya-*` properties on `#chart`.
+
+## 3D charts
+
+The skills also build interactive 3D tiles with Three.js. **Retail in 3D** is a seven-tab Liveboard on *(Sample) Retail - Apparel* with one 3D chart per tab, each reading its own live search:
+
+<img src="docs/assets/charts/r3d-where.jpg" alt="US states extruded into towers by sales; Nevada and Montana are tallest">
+
+| Tab | Chart | You can |
+|---|---|---|
+| Surge | Monthly sales by region as ribbons of terrain | Fly the camera to the step up and the step down |
+| Trade | Price per unit against units sold, as a path through time | Flatten it to either 2D view |
+| Where | US states extruded into towers by sales | Switch to a ranked row, click a state to fly to it |
+| What | A city of blocks, one per item type and region | Switch the metric and watch the city change |
+| Who | Stores as pillars in a ring by region | Switch to a ranked view |
+| Seasons | A helix of monthly sales, one turn per year | Unroll it into a year-by-month landscape |
+| Products | Every product as a sphere, sized by sales | Switch to price by units |
+
+Every tile turns on drag and resets on double-click. Where WebGL is off, a tile says so instead of drawing blank. See them on [the website](https://bibekts.github.io/Thoughtspot-Amuzing-chart-skills/#three-d).
+
+They are not in the shipped chart library yet, and they load Three.js through a dynamic `import()`, which cannot carry an SRI hash: pinned, not signed.
 
 ## The chart library
 
