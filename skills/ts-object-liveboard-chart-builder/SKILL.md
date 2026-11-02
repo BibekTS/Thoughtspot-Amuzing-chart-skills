@@ -125,17 +125,11 @@ the user's approval. Its guid goes in the spec, and every import updates it in p
 with the tabs already named: a `VALIDATE_ONLY` import first, then the real one, and both statuses checked
 before the guid is trusted (the same validate-then-commit rule every later block follows):
 
-```js
-const tml = { liveboard: { name: '<name>', description: '<one line>', visualizations: [],
-  layout: { tabs: [{ name: '01 About', tiles: [] }, { name: '02 Where', tiles: [] }] } } };
-const body = { metadata_tmls: [JSON.stringify(tml)], import_policy: 'ALL_OR_NONE', create_new: true };
-const first = (r) => (((r || {}).body || [])[0] || {}).response || {};
-const v = first(await ts.post('/api/rest/2.0/metadata/tml/import', { ...body, import_policy: 'VALIDATE_ONLY' }));
-if ((v.status || {}).status_code !== 'OK') return { refused: 'validate failed', validate: v.status };
-const i = first(await ts.post('/api/rest/2.0/metadata/tml/import', body));
-if ((i.status || {}).status_code !== 'OK' || !(i.header || {}).id_guid) return { refused: 'import failed', import: i.status };
-return { guid: i.header.id_guid, validate: v.status, import: i.status };   // confirm_write_operations: true
+```bash
+node <C>/helpers/mcp-block.mjs <L>/scripts/mcp/create-liveboard.js --name "<name>" --description "<one line>" --tabs "01 About,02 Where"
 ```
+
+Paste what it prints, unchanged, as the `code` of `execute-thoughtspot-code` with `confirm_write_operations: true`.
 
 A `refused` result means nothing was created: read the status and fix the TML before trying again.
 
@@ -206,16 +200,22 @@ spec no longer places them. Nothing else is touched: native charts, notes, custo
 (a chart pinned from an answer carries the shared core but no marker), tiles copied from another
 Liveboard (their marker names that one), any tile on a tab the spec does not name (a copy the user moved to
 a tab of their own is theirs), a user's copy of a skill tile on a spec tab (two tiles marked with one slug:
-the one at the spec position is the skill's), tabs the spec does not name, parameters, style, and the
-Liveboard's own name and description. A filter the Liveboard already has on a spec column stays the
+the one at the spec position is the skill's), tabs the spec does not name, parameters, style (the spec's
+style properties only fill in names the Liveboard lacks), and the Liveboard's own name and description. A filter the Liveboard already has on a spec column stays the
 user's (values, label, mandatory, its exclusions); the spec only decides which of the skill's tiles it
 skips. If the skill's tiles would overlap the user's own on a shared tab, the user's move below them.
 
-**Tiles from before owner markers** (the shared core and a spec slug, or at a spec position, with no
-marker) stop the commit and are listed under `problems`. If they are the skill's, build the block again
+**A marked tile is taken only where the spec puts it.** A user's copy carries the same markers as the
+original, so a lone marked tile that is not at its slug's spec position (the user moved it, or copied it and
+deleted the original) stops the commit and is listed under `problems`: move it back, or, when the spec itself
+moved the tile, build the block with `--relayout`, which moves and replaces it.
+
+**Tiles from before owner markers** (the shared core, with no owner marker, sitting at its own slug's spec
+position or, unmarked, at a spec position) stop the commit and are listed under `problems`. If they are the skill's, build the block again
 with `--adopt`, which takes over those with a slug marker and marks them (listed under `marked`). A tile
 matched only by its position could be a chart the user pinned there, so it also needs
-`--adopt-by-position`. Otherwise move them off the spec positions. An owned tile whose slug comment was
+`--adopt-by-position`. Otherwise move them off the spec positions. A chart without the shared core, or one sitting
+anywhere else, is never adopted, whatever slug marker it carries (a user's chart with copied code). An owned tile whose slug comment was
 removed and that sits off every spec position cannot be placed: it stops the commit too.
 
 **A commit writes only a clean state.** Any problem refuses it and leaves the Liveboard unchanged: a failed
@@ -225,17 +225,19 @@ tabs (`layout.tiles`, alone or next to tabs; refused before anything is composed
 tab in ThoughtSpot first, or build on a new Liveboard). Tiles that later blocks of the same run will
 send are `pending`, not problems.
 
-**Backup.** When the Liveboard holds anything the skill does not own, the sandbox refuses the commit unless
-the block was built with `--backup <file>`: a TML export of this Liveboard taken before the commit, from
-`ts tml export <guid> --profile <name> > ~/.cache/ts-charts/backups/<guid>-<date>.json` when a `ts`
-profile is set up, or the Liveboard's **Export TML** menu item otherwise. `liveboard-pack.mjs` checks the
-file is a full TML export of this Liveboard (JSON or YAML: its top-level guid, the `liveboard` key and its
-visualizations; a stub or a cut-off file is refused), is under a day old (and not dated ahead), and its
-real path sits outside any git working tree. The block carries the backup's visualization ids under a
-checksum, and the sandbox refuses the commit unless every visualization on the Liveboard now is in the
-backup, so a copy of an older backup does not pass. Tell the user
-where it is; restore by importing it (`ts tml import`, or **Import TML** in ThoughtSpot). A Liveboard the
-skill created and fills with its own tiles needs none.
+**Backup.** When the Liveboard has any visualization (the skill's own count too: a marked tile may be a
+user's copy), the sandbox refuses the commit unless the block was built with `--backup <file>`: a JSON TML
+export of this Liveboard taken before the commit, from
+`ts tml export <guid> --format JSON --profile <name> > ~/.cache/ts-charts/backups/<guid>-<date>.json`.
+`liveboard-pack.mjs` checks the file is complete JSON and a full export of this Liveboard (its top-level guid
+and the `liveboard` key with its visualizations; a YAML edoc, a stub or a cut-off file is refused), is under a
+day old (and not dated ahead), and its real path sits outside any git working tree. The block carries a
+fingerprint of every visualization in the backup (name, search, chart type, decoded chart code, note) under a
+checksum, and the sandbox refuses the commit unless every visualization on the Liveboard now is among them, so
+a list of ids, an older export or another Liveboard's export does not pass. Later blocks of one `--commit` run
+skip the skill's own tiles in that comparison, since the earlier blocks wrote them after the backup. Tell the
+user where it is; restore by importing it (`ts tml import`, or **Import TML** in ThoughtSpot). A new, empty
+Liveboard needs none.
 
 After a commit the block exports the Liveboard again and proves: every composed tile carries the code
 that was composed; every visualization the skill did not own before the patch is still there with every
@@ -253,8 +255,8 @@ Every block leaves a complete, working Liveboard, so a build can stop between bl
    once. `--validate` alone checks without writing.
 2. Success is `validate.status_code: OK`, `import.status_code: OK`, `recheck: unchanged`, `roundTripAllOk: true`,
    `problems: []`, and the slugs you meant in `replaced`. `recheck` is a second export taken right before the
-   import; `changed` means someone edited the Liveboard while the block ran, so nothing was written: send the
-   block again. `searches` counts the searches the block ran; kept tiles whose search and model did not change
+   import and compared with the first in full; `changed` means someone edited the Liveboard while the block ran,
+   so nothing was written: send the block again. `searches` counts the searches the block ran; kept tiles whose search and model did not change
    are carried over without one. `refused: NOT COMMITTED ...` means nothing was written: fix what it
    names and send the block again. `kept` counts the visualizations the skill does not own; `removed`,
    `marked`, `droppedTabs` and `shiftedBelowCharts` list anything else it changed: tell the user.
@@ -315,6 +317,7 @@ Update the example's README when the story changes.
 
 | Version | Date | Change |
 |---|---|---|
+| 4.9.0 | 2026-11-02 | From the thoughtspot-agent-skills PR 671 review. `patch.js` no longer throws on a native chart or a note on a spec tab. **A backup is required for any Liveboard that has visualizations** (a marked tile may be a user's copy), JSON only, and matched by content fingerprints rather than ids (ThoughtSpot renumbers ids, and every Liveboard has a `Viz_1`); later blocks of one run skip the skill's own tiles in that check. **A lone marked tile off its spec position** (a user's copy, or a moved original) stops the commit unless the block is built with `--relayout`. **`--adopt` takes only core tiles at their own slug's spec position**, so a user's chart with a copied slug marker is never rebuilt or moved. The spec's style properties only fill in names the Liveboard lacks, so a border or title setting changed in ThoughtSpot is kept. The pre-commit re-check compares the whole document, so an edit to any field during the block refuses the commit. Step 3's create block is `scripts/mcp/create-liveboard.js`, printed by the chart skill's `mcp-block.mjs`, not inline. Covered offline by mock-`ts` scenarios in thoughtspot-agent-skills (`tools/smoke-tests/_liveboard_patch_mock.mjs`); not yet run live (`references/open-items.md`) |
 | 4.8.0 | 2026-10-15 | Lean MayaCharts tiles (no shared core). `liveboard-pack.mjs` detects a chart without a core marker and ships it as written (`f.lean`), sends the core only in blocks that hold a core-based tile, and counts the core only when some tile needs it; `patch.js` accepts such a tile as the skill's by its slug and owner markers (`cands`), reads a core-free body whole (`bodyOf`) and composes it without a core prefix, so the drift check and the round trip work unchanged. Proven on a live Liveboard: a lean sankey replaced its core-based tile, validated, committed and round-tripped (58 tiles, same tabs). A Liveboard-level default date filter is set with a one-off server-side edit (`LAST_N_PERIOD`, `oper: '='`, 120 `MONTH`, `include_current_period: false`; seen on a cluster: `>=` runs up to today and does NOT exclude the current month; that `=` does is the intent and is not yet confirmed on a screenshot), because the patcher keeps any filter the Liveboard already has. Narrative configs may drop a part latest month with a `full(M)` guard (the model runs to today) |
 | 4.7.0 | 2026-10-14 | The library tiles are on MayaCharts 0.18.1 with their theme in `chart.css`; the shared core changed, so every tile was re-synced and `--core-ref` sends the new checksum. Preview only until the sample Liveboard is re-imported and screenshotted |
 | 4.6.0 | 2026-10-13 | Step 0 asks the chart library (Round 3): "Let Claude pick per tile", "MayaCharts for every tile" or another library, none marked recommended. Step 4 builds each tile in that library and passes it to the chart skill; a library chart in another library is redrawn, not reused |

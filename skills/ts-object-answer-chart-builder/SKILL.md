@@ -6,7 +6,8 @@ description: Build a ThoughtSpot custom chart (BYOC) as three paste-ready files,
 # ThoughtSpot custom chart builder
 
 You are the engine. You write the three files, run the helpers over Bash, read the
-screenshots with vision, critique, fix, repeat. No orchestrator, no API calls.
+screenshots with vision, critique, fix, repeat. No orchestrator. The only ThoughtSpot calls are the MCP
+blocks the helpers print (the intake, a real-data fixture, saving an answer), each pasted with the user's MCP.
 
 The preview runs **the same three files the user will paste**, through a `viz` stub,
 inside an `AsyncFunction` — the shape the real host uses. So there is no porting step
@@ -73,8 +74,8 @@ If `deps: missing`, the `fix:` line is the command that fixes it:
 
 `browser-launch:` actually starts Chromium, which is the only reliable check:
 Chromium is pinned to the Playwright version, so a cached build can look present and
-still fail to launch. Note `cdn:` and `mayacharts:` for Library choice below: `mayacharts:` is the latest release,
-which every MayaCharts chart pins.
+still fail to launch. Note `cdn:` and `mayacharts:` for Library choice below: `mayacharts:` is the release the skill
+pins (`MAYA` in `helpers/env.mjs`, reviewed before it changes), checked against the CDN, which every MayaCharts chart uses.
 
 Also check whether the ThoughtSpot MCP tool `execute-thoughtspot-code` is connected. If it is, one
 read-only call returns the signed-in user, the org, the cluster name and the models. The token is bound
@@ -83,16 +84,15 @@ tables and an unfiltered listing is cut off before the one the user means. The n
 models can share one, so show the guid beside each name, and from the pick onwards every call and helper
 (`--model`, the spec's `model.guid`) takes the guid.
 
-```js
-const me = (await ts.get('/api/rest/2.0/auth/session/user')).body;
-const sys = (await ts.get('/api/rest/2.0/system')).body;            // sys.name is the cluster name
-const r = await ts.post('/api/rest/2.0/metadata/search', { metadata: [{ type: 'LOGICAL_TABLE', name_pattern: '%<words from the request>%' }], record_size: 50 });
-const models = (Array.isArray(r.body) ? r.body : []).filter((m) => ['WORKSHEET', 'MODEL'].includes((m.metadata_header || {}).type));
-return { user: me.name, org: me.current_org.name, cluster: sys.name, models: models.map((m) => ({ name: m.metadata_name, guid: m.metadata_id })) };
+```bash
+node "<SKILL>/helpers/mcp-block.mjs" intake --words "<words from the request>"
 ```
 
-For the model's columns (round 2), the same search with `identifier: '<guid>'` and `include_details: true`
-returns `metadata_detail.columns` (name, `ATTRIBUTE` or `MEASURE`, data type).
+Paste what it prints, unchanged, as the `code` of `execute-thoughtspot-code`. For the model's columns
+(round 2), `mcp-block.mjs model-columns --model <guid>` prints the block that returns them (name,
+`ATTRIBUTE` or `MEASURE`, data type). Every call the skills make in the MCP sandbox is in a versioned
+file (`helpers/mcp/*.js`, `helpers/answer-patch.js`), tested against a mock `ts`; do not write REST calls
+by hand.
 
 Show the user one short block before asking anything: browser mode, CDN reach, MCP connected or not
 (and which org), and what each missing piece rules out (no MCP: no real data and no saved answer; no
@@ -361,23 +361,26 @@ or C) built on the intake search. The answer is the one object this creates; mak
    To update an answer made earlier, add `--answer <guid> --backup <file>`: it updates in place instead of
    making a copy. An update merges into the answer's exported TML. It sets the search, the chart type and
    code, and the column lists; it keeps formulas, parameters, the settings (formats) of columns still in the
-   search, the table view's settings, the tables when they include the model, and every other top-level key.
+   search, the table view's settings and its column order (new columns go last), the custom chart's own state
+   (`client_state`, `client_state_v2`), the tables when they include the model, and every other top-level key.
    The summary lists both: `kept`, and `replaced` (for example a native chart and its axes, a table display
    mode, columns the new search drops). Tell the user what is under `replaced`.
    **The backup is required** for an update commit, and checked: export the answer first with
-   `ts tml export <guid> --profile <name> > ~/.cache/ts-charts/backups/<guid>-<date>.json` when a `ts`
-   profile is set up, or its **Export TML** menu item otherwise. `answer-pack.mjs` refuses a file that is
-   missing, is not a full export of this answer (top-level guid, `answer` key, its search and tables), is
-   over a day old or dated ahead, or whose real path sits inside a git working tree, and the
-   sandbox refuses an update built without one, or with a backup whose search is not the answer's search now. Restore by importing that TML (`ts tml import`, or
+   `ts tml export <guid> --format JSON --profile <name> > ~/.cache/ts-charts/backups/<guid>-<date>.json`.
+   It must be JSON (the REST export, or the same with `--parse`): `answer-pack.mjs` refuses a file that is
+   missing, not complete JSON, not a full export of this answer (top-level guid, `answer` key, its search and
+   tables), over a day old or dated ahead, or whose real path sits inside a git working tree. The block carries a
+   fingerprint of the answer in the backup (name, search, chart type, decoded chart code), and the sandbox refuses
+   the update unless it is the answer's fingerprint now, so a backup of an older state or of another answer does
+   not pass. Restore by importing that TML (`ts tml import`, or
    **Import TML** in ThoughtSpot). Say where the backup is before committing.
 2. **Validate and commit in one paste.** `--commit` runs a `VALIDATE_ONLY` import first and commits only
    if it passes, so there is one block to send; `--validate` alone is for checking without writing. Read the
    file and paste it, unchanged, as the `code` of `execute-thoughtspot-code` with
    `confirm_write_operations: true` (a validate counts as a write too). A commit succeeds when it returns
    `validate.status_code: OK`, `import.status_code: OK`, `chartType: MUZE_STUDIO`, `roundTripOk: true` and a
-   `guid`. The round trip also checks every formula, parameter, kept column setting and table setting
-   came back with the values it had (fields ThoughtSpot adds on re-export, and key order, are allowed); a `roundTripError` means the commit landed but could not be checked; a
+   `guid`. The round trip also checks every formula, parameter, kept column setting, table setting, the table's
+   column order and the chart's own state came back with the values it had (fields ThoughtSpot adds on re-export, and key order, are allowed); a `roundTripError` means the commit landed but could not be checked; a
    `roundTripFailed` naming one means restore from the backup. The block carries the whole core (about 30 KB); copy it exactly, the checksum catches any slip.
    `CHECKSUM MISMATCH` means the paste was altered: resend the block. Put the guid in
    `<OUT>/<SLUG>/README.md` so the next change updates the same answer.
@@ -444,8 +447,8 @@ marks, tooltip, keyboard focus, selection, drill, empty state and resize, and it
 (`maya.host.thoughtspot(viz, spec)`) reads the search, matches columns by RegExp, mounts the chart and signals
 render-complete once it has settled, so a whole tile is 3 lines of `chart.js`: the URL, the adapter call holding the
 spec, and the loader. Keep it that lean, and code only for a field the search does not return (a derived family, a
-per-row ratio, a top-N roll-up). **Always pin the MayaCharts version the doctor's `mayacharts:` line names** (the latest release
-at build time; it ships often): never an unpinned URL, which would change a saved tile under the user, and never a
+per-row ratio, a top-N roll-up). **Always pin the MayaCharts version the doctor's `mayacharts:` line names** (the release the skill pins
+in `helpers/env.mjs`, not npm's latest): never an unpinned URL, which would change a saved tile under the user, and never a
 version from memory. The script carries the integrity value the same line prints (`hard-rules.md`). Headlines with data tokens, reference lines, bands and diagonals, annotations, dashed series,
 tooltip fields, log scales, ratio measures and drill with cross-filter are all spec options now (0.16.0 to 0.18.1). Reach past it
 only for a bespoke layout or interaction a spec cannot say (a what-if slider, a force layout, a map projection, a
@@ -500,6 +503,7 @@ than an honest question.
 
 | Version | Date | Summary |
 |---|---|---|
+| 4.8.0 | 2026-11-02 | From the thoughtspot-agent-skills PR 671 review. **Answer updates keep more:** the table's column order (new columns last) and the custom chart's own `client_state`, and the round trip checks both (`client_state` / `client_state_v2` parsed). **Backups are checked by content:** JSON only (`ts tml export <guid> --format JSON`), complete, and carrying a fingerprint per visualization (name, search, chart type, decoded chart code, note) that the sandbox compares with the live object, so an id list, an older export or another object's export is refused (`helpers/backup-check.mjs`). **Pinned scripts everywhere:** `helpers/pin-check.mjs` refuses a chart whose scripts lack an exact x.y.z version or their sha384 integrity, in `answer-pack`, `liveboard-pack` and `lean-lint`; the contract and starters say so. **MayaCharts is pinned by the skill** (`MAYA` in `helpers/env.mjs`, 0.18.1 with both integrity values), not by npm's latest at build time; the doctor checks the CDN still serves those bytes and names a newer release without adopting it, and `lean-lint` fails a tile on another pin. **No REST in SKILL.md:** the intake, model columns and fixture calls are versioned blocks under `helpers/mcp/`, printed by `helpers/mcp-block.mjs` and tested against a mock `ts`. The preview server answers only `localhost` / `127.0.0.1` Host headers (DNS rebinding), a slug is letters, digits, - and _ (`library-emit`, `chartDirOf`), `examples/League Table` is `examples/League-table`, `us-states.js` carries the us-atlas ISC notice, `library.md` no longer claims every chart was screenshotted in a cluster, and `references/open-items.md` lists what is not verified live |
 | 4.7.0 | 2026-10-15 | **MayaCharts tiles are lean and ship no core.** The 250-line shared core pasted next to an 8-line spec defeated the point of MayaCharts, so a MayaCharts chart is now `chart.html` (element and pinned script), `chart.css` (2 lines of theme) and `chart.js` (a spec through `maya.host.thoughtspot`, plus a wrapped `viz` that adds any derived column), under about 15 lines of JS (the library's 47 converted charts went from about 270 JS lines each to 4 to 20). Contract section 1a and the starter say how; derived columns are added to the adapter's input table, never by pasting the core. **Both ThoughtSpot themes, and no chart title.** A tile has no white background (`--maya-bg: transparent`, `--maya-tooltip-bg: light-dark(...)`), no hard-coded `--maya-fg`, and ink only as `light-dark(#1E1E24, #E6EDF3)` (a spec `colors` map accepts `light-dark()` too). **The scheme comes from the host, not the OS:** `prefers-color-scheme` only mirrors the OS, so `color-scheme: light dark` made a chart draw pale text on a light ThoughtSpot tile whenever the OS was dark (found on a real tile: invisible numbers). ThoughtSpot gives a tile's page a transparent background and a body text colour (`rgb(29, 35, 47)` on the light theme), so the first line of each `chart.js` sets `color-scheme` from that colour, and the CSS has no `color-scheme`. A chart-internal `title` is a duplicate of the Liveboard tile's own title and is removed from all 48 (a `subtitle` stays when it adds something); `lean-lint` fails a tile that has either problem. Checked in a browser with the OS and host themes set independently (all 48 tiles in both mismatched cases); whether ThoughtSpot's dark theme changes the frame's text colour is not verified on a cluster. New helpers: `helpers/lean-lint.mjs` (static contract check) and `snap.mjs --scheme dark|light` (emulated OS) with `--host dark|light` (the host theme: page colour and body text colour, as ThoughtSpot sets them; `scaffold/index.html` takes `?host=dark`). `liveboard-pack` / `patch.js` ship a chart that has no core marker as written (lean), recognise such tiles by their slug and owner markers, and send the core only in blocks that hold a core-based tile; `sync-core` leaves lean charts alone. The library bodies themselves are converted in a user library first (`~/.cache/ts-charts/library/`), not yet promoted into `library/` |
 | 4.6.2 | 2026-10-14 | The library bodies are slimmer where 0.18.1 allows it, checked one chart at a time in the preview (46 of 48 render pixel-identical to before; `kpi-bullet` 14 to 7 lines and `kpi-sparkbars` differ only by an axis top of $25M for $30M and one duplicate tooltip row less, both MayaCharts' own scaling). Specs use plain column names; `AZ.col` regex lookups are gone from the bodies that still read rows. The average goes from 17.9 to 16.4 code lines (most charts changed by 0 to 7): every chart still derives rows MayaCharts cannot (Family from Item Type, periods, running and share measures, quarter labels). Three attempts were reverted for changing what the chart shows (`where-state-bubbles`, `where-store-dumbbell`, `when-family-stream`). Getting the bodies to a spec of 4 to 8 lines needs those fields in the search (formula columns) or in MayaCharts; the gaps the agents found are listed in the PR |
 | 4.6.1 | 2026-10-14 | Specs name fields as plain column names (`x: 'Item Type', y: 'Total Sales'`), not RegExp: the starter, `byoc-data-modes.md`, the README and `examples/maya-was-bars` say so, and RegExp is the documented fallback. `AZ.maya(spec)` with no `data` hands the spec to MayaCharts' own adapter (`maya.host.thoughtspot`), so a library chart that needs no derived rows is one call; checked on live, empty, absent and wrapped data. The 48 library charts are unchanged and still read their rows themselves (about 18 code lines each); trimming them, and moving derived fields into the search, is not done |
