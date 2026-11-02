@@ -19,7 +19,8 @@ import crypto from "node:crypto";
 export const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const sha256 = (s) => crypto.createHash("sha256").update(s, "utf8").digest("hex");
-const unb64 = (s) => Buffer.from(s || "", "base64").toString("utf8");
+// The sandbox's decoder, exactly: a payload it cannot decode is null there, so it must be null here too.
+const unb64 = (s) => decodeURIComponent(escape(atob(s || "")));
 export const stable = (x) => Array.isArray(x) ? "[" + x.map(stable).join(",") + "]" : x && typeof x === "object" ? "{" + Object.keys(x).filter((k) => x[k] !== undefined).sort().map((k) => JSON.stringify(k) + ":" + stable(x[k])).join(",") + "}" : JSON.stringify(x);
 const codeOf = (v) => {
   const p = v && v.answer && v.answer.chart && v.answer.chart.custom_visual_props;
@@ -41,6 +42,8 @@ function docs(j) {
   for (const x of Array.isArray(j) ? j : [j]) {
     if (x && typeof x.edoc === "string") { try { out.push(JSON.parse(x.edoc)); } catch { out.push({ yaml: true }); } }
     else if (x && x.edoc && typeof x.edoc === "object") out.push(x.edoc);
+    // `ts tml export --parse`: [{ type, guid, tml, info }], the document under tml
+    else if (x && x.tml && typeof x.tml === "object") out.push({ guid: x.guid, ...x.tml });
     else if (x && typeof x === "object") out.push(x);
   }
   return out;

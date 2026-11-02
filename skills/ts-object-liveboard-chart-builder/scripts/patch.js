@@ -354,6 +354,27 @@ if (needCode.length) summary.needCode = needCode;
 if (!summary.replaced.length && !removed.length && !summary.marked.length && !summary.problems.length) { summary.skipped = 'nothing in this block to write; send the needCode charts without --reuse'; return summary; }
 if (summary.tmlKB > 2000) summary.warning = 'TML over 2 MB; imports near 2.8 MB have reset the connection';
 
+// A Liveboard that has any visualization is only written with a backup of it on disk (liveboard-pack --backup):
+// a tile marked as the skill's may still be a user's copy, so owned tiles count too. Only a new, empty Liveboard
+// needs none. Later blocks of one commit run see the tiles the earlier blocks wrote, which a backup taken before
+// the run cannot hold: only those are exempt, each recognised by its owner marker, a slug an earlier block of
+// this run carried (P.runBody) and a body that is exactly that library chart's. Anything else, a user's copy of
+// a skill tile included, must be in the backup, so a later block pasted on its own still needs one.
+const runTile = async (v) => { const c = codeOf(v), m = c && MARK.exec(c.js); return !!(m && ownerOf(c) === LBG && P.runBody && P.runBody[m[1]] && (await sha256(strip(bodyOf(c).js).trim())) === P.runBody[m[1]]); };
+const vis0 = [];
+for (const v of doc0.visualizations || []) if (!(await runTile(v))) vis0.push(v);
+let backupRefusal = vis0.length && !P.backup ? 'NOT COMMITTED - this Liveboard holds ' + vis0.length + ' visualization(s); export a backup (ts tml export <guid> --format JSON) and build the block with --backup <file>' : null;
+// The backup must be of the Liveboard as it is now: every visualization on it, by content, is in the backup.
+if (P.backup) {
+  const inBackup = new Set(P.backup.viz || []);
+  const missing = [];
+  for (const v of vis0) if (!inBackup.has(await fpOf(v))) missing.push(nameOf(v));
+  if (missing.length) backupRefusal = 'NOT COMMITTED - the backup ' + P.backup.file + ' is not of this Liveboard as it is now (it lacks ' + missing.slice(0, 5).join(', ') + (missing.length > 5 ? ' and ' + (missing.length - 5) + ' more' : '') + '); export it again';
+}
+// A validate says so too, so a commit is not the first to hear of it.
+if (backupRefusal && MODE !== 'commit') summary.commitWouldRefuse = backupRefusal;
+if (backupRefusal && MODE === 'commit') { summary.refused = backupRefusal; return summary; }
+
 // 4. import and prove. A commit validates first in the same call, so one paste per block does both.
 const importAs = async (policy) => {
   const imp = await ts.post('/api/rest/2.0/metadata/tml/import', { metadata_tmls: [text], import_policy: policy, create_new: false });
@@ -365,20 +386,6 @@ if (!v.r || !v.r.status || v.r.status.status_code !== 'OK') { summary.raw = JSON
 if (MODE !== 'commit') return summary;
 // A commit writes only a state with nothing wrong in it.
 if (summary.problems.length) { summary.refused = 'NOT COMMITTED - fix the problems above; the Liveboard is unchanged'; return summary; }
-// A Liveboard that has any visualization is only written with a backup of it on disk (liveboard-pack --backup):
-// a tile marked as the skill's may still be a user's copy, so owned tiles count too. Only a new, empty Liveboard
-// needs none. Later blocks of one commit run see the tiles the earlier blocks wrote, which a backup taken before
-// the run cannot hold: there the skill's own tiles are exempt, since the first block already proved the backup
-// held them (or that there was nothing to back up).
-const vis0 = (doc0.visualizations || []).filter((v) => !(P.laterBlock && ownerOf(codeOf(v)) === LBG));
-if (vis0.length && !P.backup) { summary.refused = 'NOT COMMITTED - this Liveboard holds ' + vis0.length + ' visualization(s); export a backup (ts tml export <guid> --format JSON) and build the block with --backup <file>'; return summary; }
-// The backup must be of the Liveboard as it is now: every visualization on it, by content, is in the backup.
-if (P.backup) {
-  const inBackup = new Set(P.backup.viz || []);
-  const missing = [];
-  for (const v of vis0) if (!inBackup.has(await fpOf(v))) missing.push(nameOf(v));
-  if (missing.length) { summary.refused = 'NOT COMMITTED - the backup ' + P.backup.file + ' is not of this Liveboard as it is now (it lacks ' + missing.slice(0, 5).join(', ') + (missing.length > 5 ? ' and ' + (missing.length - 5) + ' more' : '') + '); export it again'; return summary; }
-}
 // The compose merged into the export taken at the start. An edit made in ThoughtSpot since then (a tile moved, a
 // filter or a note changed, a tile added) would be overwritten by the import, and the round trip, which starts
 // from that first export, would not see it. So the Liveboard is exported once more right before the commit and

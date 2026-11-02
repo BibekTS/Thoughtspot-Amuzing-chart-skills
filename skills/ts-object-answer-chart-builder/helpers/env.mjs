@@ -145,6 +145,8 @@ export function resolveEnv({ slug } = {}) {
     helpersWritable: isWritable(here),
   };
   if (slug) {
+    // A slug names folders under runs/ and output/: letters, digits, - and _, never a path.
+    if (!/^[\w-]+$/.test(String(slug))) throw new Error("the slug may hold only letters, digits, - and _ (got " + JSON.stringify(slug) + ")");
     env.slug = slug;
     env.runDir = path.join(env.runsRoot, slug);
     env.chartDir = path.join(env.runDir, "chart");

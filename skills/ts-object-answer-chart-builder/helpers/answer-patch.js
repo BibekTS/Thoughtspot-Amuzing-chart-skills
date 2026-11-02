@@ -41,11 +41,13 @@ const q = await ts.post('/api/rest/2.0/searchdata', { logical_table_identifier: 
 const cn = q.status === 200 && q.body && q.body.contents && q.body.contents[0] && q.body.contents[0].column_names;
 const cols = Array.isArray(cn) && cn.length ? cn : null; // no columns is a failed search, not an empty chart
 if (!cols) return { refused: 'search failed on ' + model.name + ': ' + P.search, raw: JSON.stringify(q.body).slice(0, 600) };
-let old = null;
+let old = null, edoc0 = null;
+const exportAnswer = (guid) => ts.post('/api/rest/2.0/metadata/tml/export', { metadata: [{ identifier: guid, type: 'ANSWER' }], edoc_format: 'JSON', export_fqn: true });
 if (P.guid) {
-  const ex0 = await ts.post('/api/rest/2.0/metadata/tml/export', { metadata: [{ identifier: P.guid, type: 'ANSWER' }], edoc_format: 'JSON', export_fqn: true });
+  const ex0 = await exportAnswer(P.guid);
   if (ex0.status !== 200 || !ex0.body || !ex0.body[0] || !ex0.body[0].edoc) return { refused: 'answer ' + P.guid + ' not found or not exportable', http: ex0.status };
-  old = JSON.parse(ex0.body[0].edoc).answer;
+  edoc0 = ex0.body[0].edoc;
+  old = JSON.parse(edoc0).answer;
 }
 
 // 3. compose
@@ -132,6 +134,17 @@ if (MODE !== 'commit') return summary;
 if (P.guid && !P.backup) { summary.refused = 'NOT COMMITTED - updating an answer needs a backup of it first: export its TML and build the block with --backup <file>'; return summary; }
 // The backup must be of the answer as it is now, by content.
 if (P.guid && !(P.backup.viz || []).includes(await fpOf(old))) { summary.refused = 'NOT COMMITTED - the backup ' + P.backup.file + ' is not of this answer as it is now (its name, search or chart differs); export it again'; return summary; }
+// An edit made in ThoughtSpot since the first export would be overwritten: export once more and compare, the raw
+// text first, then the whole answer with keys sorted. Any difference refuses the commit.
+if (P.guid) {
+  const stable = (x) => Array.isArray(x) ? '[' + x.map(stable).join(',') + ']' : x && typeof x === 'object' ? '{' + Object.keys(x).filter((k) => x[k] !== undefined).sort().map((k) => JSON.stringify(k) + ':' + stable(x[k])).join(',') + '}' : JSON.stringify(x);
+  const ex1 = await exportAnswer(P.guid);
+  const edoc1 = ex1 && ex1.status === 200 && ex1.body && ex1.body[0] && ex1.body[0].edoc;
+  let same = edoc1 === edoc0;
+  if (!same && edoc1) { try { same = stable(JSON.parse(edoc1).answer) === stable(old); } catch (e) { same = false; } }
+  summary.recheck = same ? 'unchanged' : 'changed';
+  if (!same) { summary.refused = 'NOT COMMITTED - the answer changed during the patch (or could not be exported again); send the block again'; return summary; }
+}
 const c = await importAs('ALL_OR_NONE');
 const r0 = c.r;
 summary.import = r0 && r0.status;

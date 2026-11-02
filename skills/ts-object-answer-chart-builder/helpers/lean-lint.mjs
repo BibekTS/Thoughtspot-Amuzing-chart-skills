@@ -6,7 +6,7 @@
 // color-scheme light dark, a pinned MayaCharts version and its integrity (same in the html and the js), and the transport rules.
 import fs from "node:fs";
 import path from "node:path";
-import { cdnProblems } from "./pin-check.mjs";
+import { cdnProblems, mayaPinProblems } from "./pin-check.mjs";
 import { MAYA } from "./env.mjs";
 
 const INK = /#1e1e24/i;
@@ -42,7 +42,7 @@ for (const dir of process.argv.slice(2).filter((a) => !a.startsWith("--"))) {
   if (vh.length && ver !== MAYA.version) bad.push("pins MayaCharts " + ver + "; the skill pins " + MAYA.version + " (env.mjs MAYA)");
   if (ih && MAYA.sri[file] && ih !== MAYA.sri[file]) bad.push("integrity differs from the skill's recorded value for " + file);
   if (!/<maya-chart id="chart"/.test(html)) bad.push('chart.html lacks <maya-chart id="chart">');
-  bad.push(...cdnProblems(html, js));
+  bad.push(...cdnProblems(html, js), ...mayaPinProblems(html + "\n" + js, MAYA, "the tile"));
   // dark mode
   const strip = (s) => s.replace(/light-dark\([^)]*\)/g, "LD");
   const cssNoLD = strip(css), jsNoLD = strip(js);
