@@ -92,6 +92,13 @@ If 0a found no browser (usual in the Claude app), drop the sign-in option from *
 screenshots cannot run here. For an existing Liveboard, skip **Size** and ask what should change:
 "Add tiles", "Change tiles", "Rearrange tabs or filters".
 
+**Updating needs a `ts` profile.** When the user picks an existing Liveboard, run `ts profiles list --json`
+before any building, and look for a profile on this cluster. A commit to a Liveboard that already has
+visualizations needs a backup from `ts tml export` (Step 6), and that needs the profile; without one, every
+tile would be built and then refused at the commit. If there is none, say so now: offer to set one up with
+`/ts-profile-thoughtspot`, or to build on a new Liveboard instead, which needs no backup. Creating a new
+Liveboard needs only the MCP.
+
 If `AskUserQuestion` is not available, ask the same questions in one message as a numbered list with
 lettered options, and wait for the answers.
 
@@ -240,9 +247,14 @@ export of this Liveboard taken before the commit, from
 `liveboard-pack.mjs` checks the file is complete JSON and a full export of this Liveboard (its top-level guid
 and the `liveboard` key with its visualizations; a YAML edoc, a stub or a cut-off file is refused), is under a
 day old (and not dated ahead), and its real path sits outside any git working tree. The block carries a
-fingerprint of every visualization in the backup (name, search, chart type, decoded chart code, note) under a
-checksum, and the sandbox refuses the commit unless every visualization on the Liveboard now is among them, so
-a list of ids, an older export or another Liveboard's export does not pass. In later blocks of one `--commit`
+fingerprint of every visualization in the backup under a checksum: a hash of the whole visualization, keys
+sorted, leaving out only its `id` and `viz_guid` (ThoughtSpot renumbers them on import) and every `fqn` (an
+export holds them only when asked). The sandbox refuses the commit unless every visualization on the Liveboard
+now is among them, so a list of ids, another Liveboard's export, or an older export that differs in anything
+inside a visualization (a description, a column format, an axis setting) does not pass: when that refusal
+comes back, tell the user the Liveboard changed since the backup and take a fresh one. The Liveboard's own
+layout, filters, tabs and style are outside the fingerprint, so an older export that differs only there
+passes, and restoring it would revert those edits; take the backup right before the commit. In later blocks of one `--commit`
 run, only the tiles an earlier block of that run wrote are exempt (owner marker, a slug an earlier block carried,
 and a body exactly that library chart's), since they were written after the backup; everything else must be in
 it, so build every block of a run with the same `--backup`. `ts tml export ... --parse` output is accepted too.
@@ -328,6 +340,7 @@ Update the example's README when the story changes.
 
 | Version | Date | Change |
 |---|---|---|
+| 4.11.0 | 2026-11-08 | From the second thoughtspot-agent-skills PR 711 review. Step 6 describes the backup fingerprint as it is (the whole visualization, keys sorted, without `id`, `viz_guid` and `fqn`) and says the Liveboard's layout, filters, tabs and style are outside it. **The intake checks for a `ts` profile** when the user picks an existing Liveboard, since the backup needs one. Open items say which code each live result ran on; #4 and #5 are deferred to BL-552 upstream (was BL-522) |
 | 4.10.0 | 2026-11-05 | From the thoughtspot-agent-skills PR 711 review, and its first live run (ps-internal 26.11.0.cl). **`patch.js` exports with `export_fqn: true`**: without it a kept tile never matched "the same answer", so every block rebuilt every skill tile from a new search and reset what a user had set on it (a one-chart block now runs 1 search, not 3). **The backup fingerprint is the whole visualization**, keys sorted, without `id`, `viz_guid` (top-level on 26.11) and `fqn`, so a change to any part of a tile is caught. **Claude asks the user before `--relayout`, `--adopt` or `--adopt-by-position`**, after showing the tiles and what the flag would do; the refusal texts and the flag help say so. Open items #1 to #3 verified live; #4 and #5 deferred (BL-522 upstream) |
 | 4.9.0 | 2026-11-02 | From the thoughtspot-agent-skills PR 671 review. `patch.js` no longer throws on a native chart or a note on a spec tab. **A backup is required for any Liveboard that has visualizations** (a marked tile may be a user's copy), JSON only, and matched by content fingerprints rather than ids (ThoughtSpot renumbers ids, and every Liveboard has a `Viz_1`); in later blocks of one run only the tiles an earlier block of that run wrote (marker, slug and library body) are exempt, so a later block pasted alone still needs the backup; `--validate` reports `commitWouldRefuse`; `--parse` exports are accepted. **A lone marked tile off its spec position** (a user's copy, or a moved original) stops the commit unless the block is built with `--relayout`. **`--adopt` takes only core tiles at their own slug's spec position**, so a user's chart with a copied slug marker is never rebuilt or moved. The spec's style properties only fill in names the Liveboard lacks, so a border or title setting changed in ThoughtSpot is kept. The pre-commit re-check compares the whole document, so an edit to any field during the block refuses the commit. Step 3's create block is `scripts/mcp/create-liveboard.js`, printed by the chart skill's `mcp-block.mjs`, not inline. Covered offline by mock-`ts` scenarios in thoughtspot-agent-skills (`tools/smoke-tests/_liveboard_patch_mock.mjs`); not yet run live (`references/open-items.md`) |
 | 4.8.0 | 2026-10-15 | Lean MayaCharts tiles (no shared core). `liveboard-pack.mjs` detects a chart without a core marker and ships it as written (`f.lean`), sends the core only in blocks that hold a core-based tile, and counts the core only when some tile needs it; `patch.js` accepts such a tile as the skill's by its slug and owner markers (`cands`), reads a core-free body whole (`bodyOf`) and composes it without a core prefix, so the drift check and the round trip work unchanged. Proven on a live Liveboard: a lean sankey replaced its core-based tile, validated, committed and round-tripped (58 tiles, same tabs). A Liveboard-level default date filter is set with a one-off server-side edit (`LAST_N_PERIOD`, `oper: '='`, 120 `MONTH`, `include_current_period: false`; seen on a cluster: `>=` runs up to today and does NOT exclude the current month; that `=` does is the intent and is not yet confirmed on a screenshot), because the patcher keeps any filter the Liveboard already has. Narrative configs may drop a part latest month with a `full(M)` guard (the model runs to today) |
